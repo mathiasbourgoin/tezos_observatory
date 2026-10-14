@@ -149,3 +149,21 @@ it("proves network identity from actual B context without requiring A availabili
  store.accept(await new NetworkData("mainnet").reconcile(target,new AbortController().signal));
  expect(store.acceptedTargets()).toHaveLength(1);expect(store.networkIdentity()?.chainId).toBe("NetFixture");expect(store.networkIdentity()?.source.baseUrl).toBe(b.baseUrl);
 });
+
+
+it("promotes a current-level validated candidate under the actual same-observer current head",async()=>{
+ const current={...head(123),payload_hash:"P"};installRpc(current);
+ const store=new ObservationStore<Derived>("mainnet",sources.mainnet);store.observeHead({...current,evidence:evidence(b)});
+ const candidate={identity:"B-current-candidate",header:current,evidence:{...evidence(b),observedHeadHash:current.hash,observedHeadLevel:123}};
+ const record=store.addCandidate(candidate);if(!record)throw new Error("Fixture target missing");
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);store.accept(proof);
+ expect(store.target(record.identity)?.admission).toBeDefined();expect(proof.context.observer.header.hash).toBe("H123");expect(proof.context.anchor.header.hash).toBe("H122");expect(proof.context.level).toBe(123);
+ expect(store.target(record.identity)?.evidence).toBe(candidate.evidence);expect(store.observerHead(b)?.hash).toBe("H123");
+});
+
+
+it("does not borrow a different observer's current head for candidate reconciliation",async()=>{
+ const current={...head(123),payload_hash:"P"};installRpc(current);
+ const candidate={identity:"B-current-candidate",header:current,evidence:evidence(b)};
+ await expect(new NetworkData("mainnet").reconcile({source:b,level:123,round:0,payload:"P",candidate,observerHead:{...current,evidence:evidence(a)}},new AbortController().signal)).rejects.toThrow("observer");
+});

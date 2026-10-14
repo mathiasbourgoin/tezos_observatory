@@ -333,6 +333,7 @@ export class NetworkData {
   async reconcile(target:ReconciliationTarget,signal:AbortSignal,onObservedHead?:(head:BlockHeader)=>void):Promise<ReconciledContext> {
     if(![...sources[this.network],...streamSources[this.network]].some(source=>source.baseUrl===target.source.baseUrl && source.network===target.source.network))throw new Error("Unconfigured reconciliation observer");
     if(target.candidate && target.candidate.evidence.source.baseUrl!==target.source.baseUrl)throw new Error("Candidate belongs to another observer");
+    if(target.observerHead && (target.observerHead.evidence?.source.baseUrl!==target.source.baseUrl || target.observerHead.evidence.source.network!==target.source.network))throw new Error("Current head belongs to an unproven or different observer");
     if(target.candidate && (target.level!==target.candidate.header.level || target.round!==proposalRound(target.candidate.header.fitness,target.candidate.header.level) || target.payload!==target.candidate.header.payload_hash))throw new Error("Reconciliation target does not match candidate facts");
     let head:BlockHeader;
     if(target.candidate){
@@ -340,7 +341,9 @@ export class NetworkData {
       const parent=await this.context(candidate.header.predecessor,target.source,signal);
       if(parent.chainId!==candidate.chainId || parent.header.level!==candidate.header.level-1 || parent.nextProtocolHash!==candidate.protocolHash)throw new Error("Unproven validated candidate parent context");
       if(parent.protocolHash===candidate.protocolHash && tenderbakeFitness(candidate.header.fitness,candidate.header.level)?.predecessorRound!==tenderbakeFitness(parent.header.fitness,parent.header.level)?.round)throw new Error("Contradictory validated predecessor round");
-      head={...parent.header,evidence:parent.evidence};
+      // A candidate's verified parent is an anchor, not a replacement for an
+      // already observed same-level head at this observer.
+      head=target.observerHead?.level===target.level?target.observerHead:{...parent.header,evidence:parent.evidence};
     }else {head=await this.head(signal,target.source);onObservedHead?.(head);}
     const context=await this.targetContext(head,target.level,signal);
     if(target.protocolHash!==undefined && target.protocolHash!==context.protocolHash)throw new Error("Contradictory target execution protocol");
