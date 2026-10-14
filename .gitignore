@@ -2,3 +2,9 @@ node_modules/
 dist/
 test-results/
 playwright-report/
+skills-meta/
+kb/.index/
+briefs/*-xruntime.jsonl
+briefs/*-gate-report.json
+briefs/*-state.json
+briefs/*.json.draft
