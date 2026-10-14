@@ -3,7 +3,9 @@ import type {
   NetworkName,
   RpcSource,
   MonitoredOperation,
+  ObservationEvidence,
 } from "./models";
+import {committeeAuthority} from "../consensus/phaseEvidence";
 import { asBlockHeader, asOperationBatch } from "./guards";
 import type { NetworkDerivedState } from "../monitor/networkMonitor";
 
@@ -59,11 +61,13 @@ export const streamSources: Record<NetworkName, readonly RpcSource[]> = {
 };
 
 export interface DelegateRight {
+  readonly evidence?: ObservationEvidence;
   address: string;
   slot: number;
   power: number;
 }
 export interface Constants {
+  readonly evidence?: ObservationEvidence;
   minimum: number;
   increment: number;
   quorum: number;
@@ -90,7 +94,7 @@ const numeric = (value: unknown): number => {
       : typeof value === "string"
         ? Number(value)
         : NaN;
-  if (!Number.isFinite(number))
+  if (!Number.isSafeInteger(number) || number < 0 || (typeof value === "string" && !/^\d+$/.test(value)))
     throw new Error("RPC returned an invalid number");
   return number;
 };
@@ -128,14 +132,16 @@ export class NetworkData {
     const cached=this.committees.get(key);if(cached)return cached;
     const pending=this.committeesPending.get(key);if(pending)return pending;
     const task=(async()=>{
-      const raw=await this.request(`/chains/main/blocks/${head.hash}/helpers/attestation_rights?level=${level}`,signal);
+      const observed=await this.requestObserved(`/chains/main/blocks/${head.hash}/helpers/attestation_rights?level=${level}`,signal,head);
+      const raw=observed.value;
       if(!Array.isArray(raw))throw new Error("Invalid rights response");
       const entry=raw.find((value:unknown)=>object(value)&&value.level===level) as JsonRecord|undefined;
       if(!entry||!Array.isArray(entry.delegates))throw new Error(`No rights at level ${level}`);
       const values=entry.delegates.map((value:unknown)=>{
         if(!object(value)||typeof value.delegate!=="string")throw new Error("Invalid delegate right");
-        return {address:value.delegate,slot:numeric(value.first_slot),power:numeric(value.attesting_power)};
+        return {address:value.delegate,slot:numeric(value.first_slot),power:numeric(value.attesting_power),evidence:observed.evidence};
       });
+      if (!committeeAuthority(values).usable) throw new Error("Invalid or contradictory committee");
       this.committees.set(key,values);
       while(this.committees.size>12)this.committees.delete(this.committees.keys().next().value!);
       this.onChange?.();return values;
@@ -150,10 +156,12 @@ export class NetworkData {
     this.constantsProto=head.proto;
     if(!this.constantsPending) {
       const task=(async()=>{
-        const raw=await this.request(`/chains/main/blocks/${head.hash}/context/constants`,this.auxiliaryController.signal);
+        const observed=await this.requestObserved(`/chains/main/blocks/${head.hash}/context/constants`,this.auxiliaryController.signal,head);
+        const raw=observed.value;
         if(!object(raw))throw new Error("Invalid constants");
         const value={minimum:numeric(raw.minimal_block_delay),increment:numeric(raw.delay_increment_per_round),
-          quorum:numeric(raw.consensus_threshold_size),committee:numeric(raw.consensus_committee_size)};
+          quorum:numeric(raw.consensus_threshold_size),committee:numeric(raw.consensus_committee_size),evidence:observed.evidence};
+        if (value.minimum <= 0 || value.committee <= 0 || value.quorum <= 0 || value.quorum > value.committee) throw new Error("Invalid committee total/threshold");
         if(this.constantsProto===head.proto)this.constants={at:Date.now(),value};
         return value;
       })();
@@ -164,6 +172,10 @@ export class NetworkData {
   }
 
   async request(path: string, signal?: AbortSignal): Promise<unknown> {
+    return (await this.requestObserved(path,signal)).value;
+  }
+
+  private async requestObserved(path: string, signal?: AbortSignal, head?:BlockHeader): Promise<{value:unknown;evidence:ObservationEvidence}> {
     const pool = [
       this.source,
       ...sources[this.network].filter((s) => s !== this.source),
@@ -183,7 +195,7 @@ export class NetworkData {
           throw new Error(`${source.name}: HTTP ${response.status}`);
         const result: unknown = await response.json();
         this.source = source;
-        return result;
+        return {value:result,evidence:Object.freeze({source:Object.freeze({...source}),receivedAt:Date.now(),receivedMonotonic:performance.now(),...(head ? {requestedHeadHash:head.hash,observedHeadHash:head.hash,predecessor:head.predecessor,...(head.proto === undefined ? {} : {protocol:head.proto}),...(head.chainId ? {chainId:head.chainId} : {})} : {})})};
       } catch (failure) {
         error = failure;
       }
@@ -192,18 +204,18 @@ export class NetworkData {
   }
 
   async head(signal: AbortSignal): Promise<BlockHeader> {
-    return asBlockHeader(
-      await this.request("/chains/main/blocks/head/header", signal),
-    );
+    const observed = await this.requestObserved("/chains/main/blocks/head/header",signal);
+    return {...asBlockHeader(observed.value),evidence:observed.evidence};
   }
 
-  async pending(signal: AbortSignal): Promise<readonly MonitoredOperation[]> {
-    const raw = await this.request(
+  async pending(signal: AbortSignal, head?: BlockHeader): Promise<readonly MonitoredOperation[]> {
+    const observed = await this.requestObserved(
       "/chains/main/mempool/pending_operations?version=2&refused=false&outdated=false&branch_refused=false&branch_delayed=false",
-      signal,
+      signal,head,
     );
+    const raw = observed.value;
     if (!object(raw)) throw new Error("Invalid mempool response");
-    return asOperationBatch(raw.validated ?? raw.applied ?? []);
+    return asOperationBatch(raw.validated ?? raw.applied ?? []).map(operation => ({...operation,evidence:observed.evidence}));
   }
 
   async derive(head: BlockHeader, signal: AbortSignal): Promise<Derived> {

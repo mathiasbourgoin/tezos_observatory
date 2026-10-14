@@ -6,7 +6,27 @@ export interface RpcSource {
   readonly baseUrl: string;
 }
 
+/** Facts captured once at receipt; current transport cannot relabel them. */
+export interface ObservationEvidence {
+  readonly source: RpcSource;
+  readonly chainId?: string;
+  readonly requestedHeadHash?: string;
+  readonly observedHeadHash?: string;
+  readonly predecessor?: string;
+  readonly protocol?: number;
+  readonly receivedAt: number;
+  readonly receivedMonotonic: number;
+}
+
+export interface CandidateObservation {
+  readonly identity: string;
+  readonly header: BlockHeader;
+  readonly evidence: ObservationEvidence;
+}
+
 export interface BlockHeader {
+  readonly chainId?: string;
+  readonly evidence?: ObservationEvidence;
   readonly proto?: number;
   readonly level: number;
   readonly hash: string;
@@ -25,6 +45,7 @@ export interface ConsensusContent {
 }
 
 export interface MonitoredOperation {
+  readonly evidence?: ObservationEvidence;
   readonly hash: string;
   readonly contents: readonly ConsensusContent[];
 }

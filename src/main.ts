@@ -1,4 +1,5 @@
 import "./dashboard.css";
+import {groupsFor, committeeAuthority, signerPower} from "./consensus/phaseEvidence";
 import {
   createDashboard,
   type NetworkViewModel,
@@ -17,7 +18,6 @@ import {
 } from "./rpc/networkData";
 import type {
   NetworkName,
-  MonitoredOperation,
   BlockHeader,
 } from "./rpc/models";
 import { proposalRound, roundSchedule } from "./consensus/roundSchedule";
@@ -39,21 +39,20 @@ const dashboard = createDashboard(root, {
       } else if (!document.hidden) runtime.monitor.start();
     }
   },
+  onSelect(network, identity) {
+    const runtime = runtimes.get(network);
+    if (!runtime) return;
+    runtime.selectedIdentity = identity; scheduleRender(runtime);
+  },
   onReconnect() {
     if (!userPaused && !document.hidden)
       for (const runtime of runtimes.values()) runtime.monitor.refresh();
   },
 });
 
-interface Group {
-  level: number;
-  round: number;
-  payload: string;
-  pre: Set<string>;
-  att: Set<string>;
-}
 interface Runtime {
   network: NetworkName;
+  selectedIdentity?: string;
   data: NetworkData;
   monitor: NetworkMonitor<Derived>;
   view: NetworkMonitorView<Derived> | null;
@@ -67,35 +66,6 @@ interface Runtime {
   recent: NonNullable<NetworkViewModel["recentConsensus"]>;
 }
 
-function groupsFor(
-  operations: readonly MonitoredOperation[],
-  rights: readonly DelegateRight[],
-  level: number,
-): Group[] {
-  const bySlot = new Map(rights.map((right) => [right.slot, right.address]));
-  const groups = new Map<string, Group>();
-  for (const operation of operations)
-    for (const content of operation.contents) {
-      if (content.level !== level || !content.block_payload_hash) continue;
-      const address = bySlot.get(content.slot);
-      if (!address) continue;
-      const payload = content.block_payload_hash;
-      const key = `${content.round}:${payload}`;
-      let group = groups.get(key);
-      if (!group) {
-        group = {
-          level,
-          round: content.round,
-          payload,
-          pre: new Set(),
-          att: new Set(),
-        };
-        groups.set(key, group);
-      }
-      (content.kind === "preattestation" ? group.pre : group.att).add(address);
-    }
-  return [...groups.values()];
-}
 
 function render(runtime: Runtime): void {
   const view = runtime.view;
@@ -155,8 +125,15 @@ function render(runtime: Runtime): void {
     observedInstance={level:proposal.level,round:proposalRound(proposal.fitness)};
   }
   if(observedInstance)consensusLevel=observedInstance.level;
-  const rights = derived?.rights.get(consensusLevel);
-  const groups = rights ? groupsFor(operations, rights, consensusLevel) : [];
+  const selectedCandidate = view.candidates.find(candidate => candidate.identity === runtime.selectedIdentity && candidate.header.level >= head.level && candidate.header.level <= head.level + 1);
+  if (selectedCandidate) {
+    consensusLevel = selectedCandidate.header.level;
+    observedInstance = {level: consensusLevel,round: proposalRound(selectedCandidate.header.fitness)};
+  }
+  const receivedRights = derived?.rights.get(consensusLevel);
+  const authority = committeeAuthority(receivedRights ?? [],constants?.committee,constants?.quorum);
+  const rights = authority.usable && constants ? receivedRights : undefined;
+  const groups = groupsFor(operations,rights ?? [],consensusLevel);
   const base = consensusLevel === head.level + 1 ? head : derived?.predecessor;
   const schedule =
     consensusLevel === head.level && successorAnchor !== undefined
@@ -179,11 +156,7 @@ function render(runtime: Runtime): void {
   const currentRound = observedInstance?.round ?? (schedule
     ? Math.max(schedule.round, consensusLevel === head.level ? headRound : 0)
     : undefined);
-  const power = (signers: Set<string>): number =>
-    (rights ?? []).reduce(
-      (sum, r) => sum + (signers.has(r.address) ? r.power : 0),
-      0,
-    );
+  const power = (signers: Set<string>): number => signerPower(signers,rights ?? []) ?? 0;
   const currentGroups = groups.filter((group) => group.round === currentRound);
   currentGroups.sort(
     (a, b) =>
@@ -191,7 +164,20 @@ function render(runtime: Runtime): void {
       power(b.pre) + power(b.att) - power(a.pre) - power(a.att) ||
       a.payload.localeCompare(b.payload),
   );
-  const selected = currentGroups[0];
+  const groupIdentity = (group: typeof groups[number]): string => JSON.stringify([group.contextKey,group.level,group.round,group.payload]);
+  const matchingCandidates = view.candidates.filter(candidate => candidate.header.level === consensusLevel && proposalRound(candidate.header.fitness) === currentRound);
+  const selected = selectedCandidate
+    ? currentGroups.find(group => group.payload === selectedCandidate.header.payload_hash && (!group.evidence || group.evidence.source.baseUrl === selectedCandidate.evidence.source.baseUrl))
+    : currentGroups.find(group => groupIdentity(group) === runtime.selectedIdentity) ?? currentGroups[0];
+  const activeCandidate = selectedCandidate ?? matchingCandidates.find(candidate => candidate.header.payload_hash === selected?.payload && candidate.evidence.source.baseUrl === selected?.evidence?.source.baseUrl);
+  const selectable = [
+    ...matchingCandidates.map(candidate => ({identity:candidate.identity,hash:candidate.header.hash,...(candidate.header.payload_hash ? {payload:candidate.header.payload_hash} : {}),level:candidate.header.level,round:proposalRound(candidate.header.fitness)})),
+    ...currentGroups.filter(group => !matchingCandidates.some(candidate => candidate.header.payload_hash === group.payload && candidate.evidence.source.baseUrl === group.evidence?.source.baseUrl)).map(group => ({identity:groupIdentity(group),payload:group.payload,level:group.level,round:group.round})),
+  ];
+  const chosenIdentity = activeCandidate?.identity ?? (selected ? groupIdentity(selected) : undefined);
+  const selectedEvidence = activeCandidate?.evidence ?? selected?.evidence;
+  const sharedPayload = activeCandidate && matchingCandidates.filter(candidate => candidate.header.payload_hash === activeCandidate.header.payload_hash && candidate.evidence.source.baseUrl === activeCandidate.evidence.source.baseUrl).length > 1;
+  const candidateEvidence = `${activeCandidate ? `Observed block hash ${activeCandidate.header.hash}` : 'Candidate hash unavailable'} · Producer unknown${sharedPayload ? ' · Shared payload evidence; signatures are not candidate-specific' : ''}${selected?.conflicts.length ? ` · Conflicting payload signer(s): ${selected.conflicts.join(', ')}` : ''}${selected?.unknownSlots.length ? ` · Unknown-rights signer slots: ${selected.unknownSlots.join(', ')}` : ''}${selectedEvidence ? ` · Source ${selectedEvidence.source.baseUrl} · requested head ${selectedEvidence.requestedHeadHash ?? 'unknown'} · observed head ${selectedEvidence.observedHeadHash ?? 'unknown'} · parent ${selectedEvidence.predecessor ?? 'unknown'} · chain ${selectedEvidence.chainId ?? 'unknown'} · protocol ${selectedEvidence.protocol ?? 'unknown'} · received ${new Date(selectedEvidence.receivedAt).toISOString()} · age ${Math.max(0,Math.floor((performance.now()-selectedEvidence.receivedMonotonic)/1000))}s` : ' · Source/context unavailable'}${authority.usable ? '' : ` · Numerical authority unavailable: ${authority.reason}`}`;
   const activityRound = currentRound;
   const hasCoverage = selected!==undefined && observedInstance!==undefined &&
     view.lastOperationAt !== null &&
@@ -200,7 +186,7 @@ function render(runtime: Runtime): void {
       (view.operationGeneration === snapshot.generation &&
         schedule !== undefined &&
         view.lastOperationAt >= schedule.startedAt));
-  const total = rights?.reduce((sum, right) => sum + right.power, 0);
+  const total = rights && authority.usable ? authority.total : undefined;
   const pre = selected?.pre ?? new Set<string>(),
     att = selected?.att ?? new Set<string>();
   const delegateView = (right: DelegateRight): DelegateView => {
@@ -225,6 +211,9 @@ function render(runtime: Runtime): void {
   const paused = userPaused || document.hidden;
   const model: NetworkViewModel = {
     status: degraded ? "degraded" : stalled ? "stalled" : "healthy",
+    candidates: selectable,
+    ...(chosenIdentity ? {selectedIdentity:chosenIdentity} : {}),
+    candidateEvidence,
     level: consensusLevel,
     consensusLevel,
     ...(currentRound === undefined ? {} : { round: currentRound }),
@@ -250,7 +239,7 @@ function render(runtime: Runtime): void {
           head.payload_hash
         ? { payload: head.payload_hash }
         : {}),
-    source: view.headStream.source?.name ?? runtime.data.source.name,
+    source: head.evidence?.source.name ?? view.headStream.source?.name ?? runtime.data.source.name,
     connection: paused
       ? "Paused"
       : view.headStream.mode === "fallback"
@@ -312,7 +301,7 @@ function render(runtime: Runtime): void {
   model.recentConsensus=runtime.recent;
   if (degraded)
     model.error = `Heads connection interrupted: ${view.headStream.error}. Retaining the last coherent observation.`;
-  if (constants) model.quorum = constants.quorum;
+  if (authority.usable && constants) model.quorum = authority.threshold;
   if (total !== undefined) model.committeePower = total;
   if (
     rights &&
@@ -430,7 +419,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
     operationSources: streamSources[network],
     proposalSources:network==="mainnet"?streamSources.mainnet.slice(0,1):sources.shadownet,
     derive: (head, signal) => data.derive(head, signal),
-    fallbackOperations: (_head, signal) => data.pending(signal),
+    fallbackOperations: (head, signal) => data.pending(signal,head),
     fallbackHead: (signal) => data.head(signal),
     onUpdate(view) {
       if (!runtime) return;

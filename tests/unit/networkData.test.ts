@@ -24,3 +24,12 @@ it("reuses prefetched committee immediately while the next level is still loadin
   expect(calls.filter(url=>url.endsWith("attestation_rights?level=101"))).toHaveLength(1);
   expect(calls.filter(url=>url.endsWith("/context/constants"))).toHaveLength(1);
 });
+
+it("rejects invalid committee values and invalid protocol quorum without losing raw operations",async()=>{
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{
+  const url=String(input),level=Number(new URL(url).searchParams.get("level"));
+  return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:1.5}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:6,consensus_committee_size:5});
+ });
+ const data=new NetworkData("mainnet"),result=await data.derive(head(120),new AbortController().signal);
+ expect(result.rights.size).toBe(0);expect(result.constants).toBeNull();
+});

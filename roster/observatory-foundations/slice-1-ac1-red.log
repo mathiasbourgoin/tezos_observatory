@@ -1,0 +1,13 @@
+AssertionError [ERR_ASSERTION]: Same-round second candidate is admitted
+
+'H1' !== 'H2'
+
+    at check (repo:/scripts/check-observatory-foundations.mjs:9:52)
+    at repo:/scripts/check-observatory-foundations.mjs:35:5 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'H1',
+  expected: 'H2',
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}

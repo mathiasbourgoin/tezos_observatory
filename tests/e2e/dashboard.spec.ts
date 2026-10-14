@@ -242,3 +242,30 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await expect(opportunities.nth(1)).toContainText('Following level · conditional');
   await expect(opportunities.nth(1)).toContainText('Level 5,489,253 · round 0');
 });
+
+ test("foundations slice 1 selects same-round shared-payload candidates and isolates competing power",async({page},testInfo)=>{
+  await prepare(page,false);const panel=page.locator(".network-panel.mainnet");
+  for(const hash of ["H1","H2"]) await send(page,"mainnet-proposals",{chain_id:"NetFixture",hash,header:{...head(101),payload_hash:"vhPayload101"}});
+  await send(page,"mainnet-operations",[vote(0)]);
+  await expect(panel.getByRole("button",{name:"Inspect candidate H1",exact:true})).toBeVisible();
+  await expect(panel.getByRole("button",{name:"Inspect candidate H2",exact:true})).toBeVisible();
+  await panel.getByRole("button",{name:"Inspect candidate H1",exact:true}).click();
+  await expect(panel.locator(".candidate-evidence")).toContainText("H1");
+  await expect(panel.locator(".candidate-evidence")).toContainText("Producer unknown");
+  await expect(panel.locator(".candidate-evidence")).toContainText("Shared payload evidence");
+  await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+  await panel.getByRole("button",{name:"Inspect candidate H2",exact:true}).click();
+  await expect(panel.locator(".candidate-evidence")).toContainText("H2");
+  await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+  const competing=vote(1);competing.contents[0]!.block_payload_hash="vhOtherPayload";
+  await send(page,"mainnet-operations",[competing]);
+  await panel.getByRole("button",{name:"Inspect payload vhOtherPayload",exact:true}).click();
+  await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+  await panel.getByRole("button",{name:"Inspect candidate H1",exact:true}).click();
+  const aggregate={hash:"replay-aggregate",contents:[{kind:"preattestations_aggregate",consensus_content:{level:101,round:0,block_payload_hash:"vhPayload101"},committee:[0,0]}]};
+  await send(page,"mainnet-operations",[aggregate,aggregate]);
+  await expect(panel.locator(".pre .gauge-counts")).toContainText("1 / 50 signers");
+  await expect(panel.locator(".pre .quorum-caption")).toContainText("19,400 more power");
+  await expect(panel.locator(".candidate-evidence")).toContainText("rpc.tzkt.io");
+  await panel.screenshot({path:`roster/observatory-foundations/slice-1-${testInfo.project.name}.png`});
+ });

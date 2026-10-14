@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { asOperationBatch, asValidatedProposal } from "../../src/rpc/guards";
+import { asBlockHeader, asOperationBatch, asValidatedProposal } from "../../src/rpc/guards";
 
 it("flattens a validated block shell header and rejects malformed wrappers", () => {
   const header = {
@@ -14,6 +14,7 @@ it("flattens a validated block shell header and rejects malformed wrappers", () 
   ).toEqual({
     level: 10,
     hash: "B10",
+    chainId: "NetXdQprcVkpaWU",
     predecessor: "B9",
     timestamp: header.timestamp,
     fitness: header.fitness,
@@ -133,3 +134,14 @@ describe("consensus operation guards", () => {
     ).toEqual([{ hash: "invalid", contents: [] }]);
   });
 });
+
+ it("rejects whole mixed malformed aggregate rather than counting valid members", () => {
+   expect(asOperationBatch([{hash:"mixed",contents:[{kind:"preattestations_aggregate",consensus_content:consensus,committee:[0,-1,10]}]}])).toEqual([{hash:"mixed",contents:[]}]);
+ });
+ it("rejects invalid applied integers and calendar timestamps while accepting offsets", () => {
+   const h={level:120,hash:"H",predecessor:"Parent",timestamp:"2026-10-14T12:00:00+02:00",fitness:[]};
+   expect(asBlockHeader(h).timestamp).toBe(h.timestamp);
+   for(const timestamp of ["2026-02-30T12:00:00Z","2026-10-14T12:00:00","2026-13-01T00:00:00Z"])
+     expect(()=>asBlockHeader({...h,timestamp})).toThrow();
+   for(const level of [-1,0.5,Infinity,Number.MAX_SAFE_INTEGER+1])expect(()=>asBlockHeader({...h,level})).toThrow();
+ });

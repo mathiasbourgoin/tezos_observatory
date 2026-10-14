@@ -8,6 +8,9 @@ export interface NetworkViewModel {
   level?: number; consensusLevel?: number; round?: number; activityRound?: number; hash?: string; payload?: string;
   appliedLevel?: number; appliedRound?: number;
   observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
+  candidates?: readonly {identity:string;hash?:string;payload?:string;level:number;round:number}[];
+  selectedIdentity?: string;
+  candidateEvidence?: string;
   recentConsensus?: RecentConsensusView[];
   observedAt?: number; blockTimestamp?: number; lastOperationAt?: number;
   source?: string; connection?: string; error?: string; note?: string;
@@ -149,7 +152,7 @@ function delegateList(network: Network, phase: 'Pre' | 'Att') {
   }};
 }
 
-export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
+export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
   root.classList.add('consensus-app');
   const header = el('header', 'masthead'), brand = el('div', 'header-brand');
   const mark = el('img', 'header-mark'); mark.src='./observatory-mark.svg'; mark.alt=''; mark.width=40; mark.height=40;
@@ -185,7 +188,10 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const consensus = el('section', 'consensus-section'), sectionTitle = el('div', 'section-heading');
     sectionTitle.append(el('h3', '', 'Committee participation')); const activity = el('span', 'subtle', 'Activity round —'); sectionTitle.append(activity);
     const selection = el('p', 'selection-label', 'Level — · payload unavailable');
-    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection, gauges);
+    const candidateControls = el('div', 'candidate-controls'); candidateControls.setAttribute('aria-label','Observed candidates and payloads');
+    const candidateEvidence = el('p','candidate-evidence table-note');
+    const candidateButtons = new Map<string,HTMLButtonElement>();
+    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection, candidateControls, candidateEvidence, gauges);
     const opportunities = el('section', 'opportunities'), timingHeader = el('div', 'section-heading'); timingHeader.append(el('h3', '', 'Next baking opportunities'));
     const countdown = el('span', 'countdown', 'Timing unavailable'); timingHeader.append(countdown);
     const timing = el('p', 'timing-detail', 'Calculated opportunity round unavailable');
@@ -228,6 +234,22 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       set(transport, `${model.connection ?? 'Monitoring'}${model.source ? ` · ${model.source}` : ''}`);
       set(notice, model.error ?? model.note ?? (model.status === 'stalled' ? 'Proposal activity continues, but the level has not advanced.' : model.status === 'loading' ? 'Waiting for the first successful observation.' : 'Live observations from this browser.'));
       set(activity, `${model.roundSource==='schedule'?'Scheduled':'Observed'} round ${number(model.activityRound)}`); set(selection, `Level ${number(model.consensusLevel ?? model.level)} · payload ${short(model.payload)}`); selection.title = model.payload ?? '';
+      const candidateKeys = new Set<string>();
+      for (const candidate of model.candidates ?? []) {
+        candidateKeys.add(candidate.identity);
+        let button = candidateButtons.get(candidate.identity);
+        if (!button) {
+          button = el('button','control-button'); button.type = 'button';
+          button.addEventListener('click', () => options.onSelect?.(network,candidate.identity));
+          candidateButtons.set(candidate.identity,button); candidateControls.append(button);
+        }
+        set(button, candidate.hash ? `Candidate ${candidate.hash}` : `Payload ${short(candidate.payload)}`);
+        button.setAttribute('aria-label', candidate.hash ? `Inspect candidate ${candidate.hash}` : `Inspect payload ${candidate.payload ?? 'unavailable'}`);
+        button.setAttribute('aria-pressed',String(candidate.identity === model.selectedIdentity));
+        button.title = `Level ${candidate.level} · round ${candidate.round} · payload ${candidate.payload ?? 'unavailable'}`;
+      }
+      for (const [key,button] of candidateButtons) if (!candidateKeys.has(key)) {button.remove();candidateButtons.delete(key);}
+      set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       pre.update(model.preattestations, model.quorum); att.update(model.attestations, model.quorum);
       missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);
       const bakers = model.nextBakers ?? [], bakerKeys = new Set<string>();

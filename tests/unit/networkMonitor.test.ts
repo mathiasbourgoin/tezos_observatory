@@ -335,3 +335,32 @@ it("retains state on refresh and ignores an obsolete fallback result", async () 
   expect(views.at(-1)?.snapshot?.head.level).toBe(20);
   expect(views.at(-1)?.headObservedAt).toBe(observedAt);
 });
+
+it("retains distinct same-round candidate hashes and immutable first receipts", () => {
+  vi.useFakeTimers();
+  const {monitor,heads,views}=setup({proposalSources:[source]});
+  heads.value(header(120));
+  const proposals=FakeTransport.instances[2] as FakeTransport<BlockHeader>;
+  const first={...header(121),hash:"H1",payload_hash:"P"};
+  proposals.value(first);vi.advanceTimersByTime(1);proposals.value({...first,hash:"H2"});
+  expect(views.at(-1)?.latestProposal?.hash).toBe("H2");
+  const view=views.at(-1) as unknown as {candidates: readonly {header:BlockHeader;evidence:{receivedAt:number;source:RpcSource}}[]};
+  expect(view.candidates.map(c=>c.header.hash)).toEqual(["H1","H2"]);
+  const receipt=view.candidates[0]?.evidence.receivedAt;
+  vi.advanceTimersByTime(1);proposals.value(first);
+  const replay=views.at(-1) as unknown as typeof view;
+  expect(replay.candidates).toHaveLength(2);expect(replay.candidates[0]?.evidence.receivedAt).toBe(receipt);
+  expect(replay.candidates[0]?.evidence.source).toEqual(source);monitor.stop();
+});
+
+it("bounds accepted and unresolved candidate products independently by first receipt", () => {
+  vi.useFakeTimers();
+  const {monitor,heads,views}=setup({proposalSources:[source]});heads.value(header(120));
+  const proposals=FakeTransport.instances[2] as FakeTransport<BlockHeader>;
+  for (let index=0;index<101;index++) {proposals.value({...header(121),hash:`accepted-${String(index).padStart(3,"0")}`});vi.advanceTimersByTime(1);}
+  for (let index=0;index<101;index++) {proposals.value({...header(1_000_000+index),hash:`unknown-${String(index).padStart(3,"0")}`});vi.advanceTimersByTime(1);}
+  expect(views.at(-1)?.candidates).toHaveLength(100);expect(views.at(-1)?.unresolvedCandidates).toHaveLength(100);
+  expect(views.at(-1)?.candidates.some(candidate=>candidate.header.hash==="accepted-000")).toBe(false);
+  expect(views.at(-1)?.candidates.some(candidate=>candidate.header.hash==="accepted-100")).toBe(true);
+  monitor.stop();
+});

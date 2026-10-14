@@ -10,3 +10,9 @@ describe("OperationStore", () => {
     expect(store.values(101)).toHaveLength(0);
   });
 });
+
+it("replay cannot renew first-receipt TTL or overwrite original immutable evidence",()=>{
+ const store=new OperationStore(10,100);const original={hash:"same",contents:[]} as const;
+ store.add([original],0);store.add([{hash:"same",contents:[{kind:"attestation",level:1,round:0,slot:0}]}],90);
+ expect(store.values(90)).toEqual([original]);expect(store.values(101)).toEqual([]);
+});

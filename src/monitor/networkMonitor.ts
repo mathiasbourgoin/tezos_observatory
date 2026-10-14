@@ -6,6 +6,8 @@ import {
 import { proposalRound } from "../consensus/roundSchedule";
 import type {
   BlockHeader,
+  CandidateObservation,
+  ObservationEvidence,
   MonitorOperationBatch,
   NetworkName,
   RpcSource,
@@ -34,6 +36,8 @@ export interface NetworkMonitorView<T extends NetworkDerivedState> {
   readonly lastOperationAt: number | null;
   readonly operationGeneration: number | null;
   readonly latestProposal: BlockHeader | null;
+  readonly candidates: readonly CandidateObservation[];
+  readonly unresolvedCandidates: readonly CandidateObservation[];
   readonly proposalStream: StreamStatus;
 }
 
@@ -80,6 +84,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private operationStatus = emptyStatus();
   private proposalStatus = emptyStatus();
   private latestProposal: BlockHeader | null = null;
+  private readonly candidates = new Map<string, CandidateObservation>();
+  private readonly unresolvedCandidates = new Map<string, CandidateObservation>();
   private proposalStreaming = false;
   private operationMode: "stream" | "fallback" | "paused" = "paused";
   private fallbackTimer: number | null = null;
@@ -105,13 +111,13 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       sources: options.headSources,
       path: "/monitor/heads/main",
       parse: asBlockHeader,
-      onValue: (head) => {
+      onValue: (head, source) => {
         if (!this.running) return;
         this.headStreaming = true;
         this.headFallbackActive = false;
         this.clearHeadFallback();
         this.headStatus = { ...this.headStatus, mode: "stream", error: null };
-        this.acceptHead(head);
+        this.acceptHead({...head, evidence: this.receipt(source, head)});
       },
       onStatus: (source, error, metrics) => {
         if (error !== null) {
@@ -141,7 +147,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             path: "/chains/main/mempool/monitor_operations?validated=true&version=1",
             reconnectOnEnd: true,
             parse: asOperationBatch,
-            onValue: (batch) => {
+            onValue: (batch, source) => {
               if (!this.running) return;
               this.operationStreaming = true;
               this.operationMode = "stream";
@@ -151,7 +157,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
                 mode: "stream",
                 error: null,
               };
-              this.acceptOperations(batch);
+              const evidence = this.receipt(source);
+              this.acceptOperations(batch.map(operation => ({...operation, evidence})));
             },
             onStatus: (source, error, metrics) => {
               if (error !== null) {
@@ -180,7 +187,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             sources: options.proposalSources!,
             path: "/monitor/validated_blocks?chain=main",
             parse: asValidatedProposal,
-            onValue: (proposal) => {
+            onValue: (proposal, source) => {
               if (!this.running) return;
               this.proposalStreaming = true;
               this.proposalStatus = {
@@ -188,7 +195,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
                 mode: "stream",
                 error: null,
               };
-              this.acceptProposal(proposal);
+              this.acceptProposal(proposal, source);
             },
             onStatus: (source, error, metrics) => {
               if (error !== null) this.proposalStreaming = false;
@@ -318,7 +325,35 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
           this.derivingGeneration = null;
       });
   }
-  private acceptProposal(proposal: BlockHeader): void {
+  private receipt(source: RpcSource, observed?: BlockHeader): ObservationEvidence {
+    const head = this.state.snapshot()?.head;
+    return Object.freeze({
+      source: Object.freeze({...source}),
+      ...(observed?.chainId ? {chainId: observed.chainId} : {}),
+      ...(head ? {requestedHeadHash: head.hash} : {}),
+      ...(observed ? {observedHeadHash: observed.hash, predecessor: observed.predecessor, ...(observed.proto === undefined ? {} : {protocol: observed.proto})} : head?.evidence?.source.baseUrl === source.baseUrl ? {observedHeadHash: head.hash, predecessor: head.predecessor, ...(head.proto === undefined ? {} : {protocol: head.proto})} : {}),
+      receivedAt: Date.now(), receivedMonotonic: performance.now(),
+    });
+  }
+
+  private trimCandidates(product: Map<string, CandidateObservation>): void {
+    while (product.size > 100) {
+      const oldest = [...product.values()].sort((a,b) => a.evidence.receivedMonotonic - b.evidence.receivedMonotonic || a.identity.localeCompare(b.identity))[0];
+      if (!oldest) break;
+      product.delete(oldest.identity);
+    }
+  }
+
+  private acceptProposal(proposal: BlockHeader, source: RpcSource): void {
+    const identity = JSON.stringify([source.network, source.baseUrl, proposal.chainId ?? "unknown", proposal.hash]);
+    if (this.candidates.has(identity) || this.unresolvedCandidates.has(identity)) return;
+    const evidence = this.receipt(source, proposal);
+    const candidate: CandidateObservation = Object.freeze({identity, header: Object.freeze({...proposal,evidence}), evidence});
+    const currentHead = this.state.snapshot()?.head;
+    const accepted = currentHead !== undefined && proposal.level >= currentHead.level && proposal.level <= currentHead.level + 1;
+    const product = accepted ? this.candidates : this.unresolvedCandidates;
+    product.set(identity,candidate); this.trimCandidates(product);
+    if (!accepted) {this.emit(); return;}
     const head = this.state.snapshot()?.head;
     if (
       head !== undefined &&
@@ -332,10 +367,10 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       previous !== null &&
       (proposal.level < previous.level ||
         (proposal.level === previous.level &&
-          proposalRound(proposal.fitness) <= proposalRound(previous.fitness)))
+          proposalRound(proposal.fitness) < proposalRound(previous.fitness)))
     )
       return;
-    this.latestProposal = proposal;
+    this.latestProposal = candidate.header;
     this.emit();
   }
   private acceptOperations(batch: MonitorOperationBatch): void {
@@ -454,6 +489,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       lastOperationAt: this.lastOperationAt,
       operationGeneration: this.operationGeneration,
       latestProposal: this.latestProposal,
+      candidates: [...this.candidates.values()],
+      unresolvedCandidates: [...this.unresolvedCandidates.values()],
       proposalStream: this.proposalStatus,
     });
   }

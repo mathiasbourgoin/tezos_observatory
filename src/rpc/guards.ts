@@ -7,19 +7,32 @@ import type {
 
 type JsonRecord = Record<string, unknown>;
 
+/** Validate local calendar fields before Date.parse can normalize rollover dates. */
+export function validTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
+  if (!match) return false;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+  if (year === undefined || month === undefined || day === undefined || hour === undefined || minute === undefined || second === undefined) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= (days[month - 1] ?? 0) && hour < 24 && minute < 60 && second < 60 && Number(match[8] ?? 0) < 24 && Number(match[9] ?? 0) < 60 && Number.isFinite(Date.parse(value));
+}
+
 const record = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const nonnegativeInteger = (value: unknown): value is number =>
+export const nonnegativeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
 export function asBlockHeader(value: unknown): BlockHeader {
   if (
     !record(value) ||
-    typeof value.level !== "number" ||
+    !nonnegativeInteger(value.level) ||
     typeof value.hash !== "string" ||
     typeof value.predecessor !== "string" ||
-    typeof value.timestamp !== "string" ||
+    !validTimestamp(value.timestamp) ||
+    (value.proto !== undefined && !nonnegativeInteger(value.proto)) ||
     !Array.isArray(value.fitness) ||
     !value.fitness.every((item) => typeof item === "string")
   ) {
@@ -48,7 +61,7 @@ export function asValidatedProposal(value: unknown): BlockHeader {
   ) {
     throw new Error("Invalid validated block from monitor/validated_blocks");
   }
-  return asBlockHeader({ ...value.header, hash: value.hash });
+  return {...asBlockHeader({ ...value.header, hash: value.hash }),chainId:value.chain_id};
 }
 
 function asOperation(value: unknown): MonitoredOperation {
@@ -59,9 +72,10 @@ function asOperation(value: unknown): MonitoredOperation {
   ) {
     throw new Error("Invalid operation from mempool monitor");
   }
+  let invalid = false;
   const contents: ConsensusContent[] = value.contents.flatMap(
     (content): ConsensusContent[] => {
-      if (!record(content)) return [];
+      if (!record(content)) {invalid = true; return [];}
       if (
         content.kind === "preattestations_aggregate" ||
         content.kind === "attestations_aggregate"
@@ -73,8 +87,7 @@ function asOperation(value: unknown): MonitoredOperation {
           !nonnegativeInteger(consensus.round) ||
           typeof consensus.block_payload_hash !== "string" ||
           !Array.isArray(content.committee)
-        )
-          return [];
+        ) {invalid = true; return [];}
         const kind =
           content.kind === "preattestations_aggregate"
             ? "preattestation"
@@ -89,19 +102,16 @@ function asOperation(value: unknown): MonitoredOperation {
               : record(member)
                 ? member.slot
                 : undefined;
-          if (!nonnegativeInteger(slot)) return [];
+          if (!nonnegativeInteger(slot)) {invalid = true; return [];}
           return [{ kind, level, round, slot, block_payload_hash }];
         });
       }
+      if (content.kind !== "preattestation" && content.kind !== "attestation" && content.kind !== "attestation_with_dal") return [];
       if (
-        (content.kind !== "preattestation" &&
-          content.kind !== "attestation" &&
-          content.kind !== "attestation_with_dal") ||
         !nonnegativeInteger(content.level) ||
         !nonnegativeInteger(content.round) ||
         !nonnegativeInteger(content.slot)
-      )
-        return [];
+      ) {invalid = true; return [];}
       const payload =
         typeof content.block_payload_hash === "string"
           ? { block_payload_hash: content.block_payload_hash }
@@ -117,7 +127,7 @@ function asOperation(value: unknown): MonitoredOperation {
       ];
     },
   );
-  return { hash: value.hash, contents };
+  return { hash: value.hash, contents: invalid ? [] : contents };
 }
 
 export function asOperationBatch(value: unknown): MonitorOperationBatch {
