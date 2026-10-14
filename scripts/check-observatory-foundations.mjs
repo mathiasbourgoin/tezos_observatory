@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
 const browserChecks=new Set(['AC-4','AC-20']);
-const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12','AC-17',...browserChecks]);
+const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12',...browserChecks]);
 export function classifyBrowserReport(report,runnerStatus,criterion) {
   let completed=0;
   const behavioralFailures=[];
@@ -105,6 +105,7 @@ try {
     check(view.candidates[0].evidence.source.baseUrl,source.baseUrl,'Immutable source attribution');
     check(view.candidates[0].evidence.requestedHeadHash,undefined,'Unpinned stream has no requested-head hash');
     check(view.candidates[0].evidence.observedHeadHash,'Parent','Only same-observer observed head context is captured');
+  // Scoped context assertions below remain partial until slice 6 uses the retained application store.
   } else if(criterion==='AC-17') {
     const originalFetch=globalThis.fetch;
     try {
