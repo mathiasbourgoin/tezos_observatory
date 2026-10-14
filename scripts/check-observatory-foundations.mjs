@@ -5,7 +5,7 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
-const browserChecks=new Set(['AC-4','AC-20','AC-21']);
+const browserChecks=new Set(['AC-4','AC-20']);
 const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12',...browserChecks]);
 export function classifyBrowserReport(report,runnerStatus,criterion) {
   let completed=0;
