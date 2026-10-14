@@ -3,12 +3,18 @@ name: Quality
 on:
   push:
   pull_request:
+  workflow_call:
+    inputs:
+      pages_artifact:
+        description: Upload the verified dist directory for GitHub Pages
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: quality-${{ github.ref }}
+  group: quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -27,6 +33,20 @@ jobs:
       - run: npx playwright install --with-deps chromium firefox
       - run: npm run test:e2e
       - run: npm run build
+      - name: Validate Pages artifact
+        if: ${{ inputs.pages_artifact }}
+        run: |
+          test -s dist/index.html
+          test -s dist/favicon.svg
+          test -s dist/observatory-mark.svg
+          test -d dist/assets
+          test -z "$(find dist -type l -print -quit)"
+          test -z "$(find dist -type f -links +1 -print -quit)"
+      - name: Upload verified Pages artifact
+        if: ${{ inputs.pages_artifact }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
