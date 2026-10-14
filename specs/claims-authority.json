@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "authorities": {
+    "observatory-foundations": {
+      "requirement": "root coordinator under delegated project authority (2026-10-14)",
+      "acceptance-criterion": "root coordinator under delegated project authority (2026-10-14)",
+      "check": "root coordinator under delegated project authority (2026-10-14)"
+    }
+  }
+}

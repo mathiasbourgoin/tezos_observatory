@@ -1,3 +1,9 @@
+---
+status: historical
+schema-version: 2
+last-updated: 2026-10-14
+---
+
 # Unresolved baseline risks
 
 This onboarding record separates reproduced observations from hypotheses. It does not claim fixes have shipped.

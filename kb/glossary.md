@@ -1,3 +1,10 @@
+---
+status: live-doctrine
+schema-version: 2
+last-updated: 2026-10-14
+superseded-by: null
+---
+
 # Observation vocabulary
 
 - Applied head: the head a selected source reports as applied; not independent network-wide agreement.

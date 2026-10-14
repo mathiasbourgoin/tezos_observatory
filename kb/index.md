@@ -1,7 +1,13 @@
-# Tezos Observatory knowledge base
+---
+title: Claims projection
+status: derived
+schema-version: 2
+---
 
-Product and intended behavior are recorded in [spec](spec.md), hard constraints in [properties](properties.md), code structure in [architecture](architecture.md), unresolved findings in [risks](risks.md), and vocabulary in [glossary](glossary.md). [Project authority](../.harness/rules/project-authority.md) records delegated intermediate decisions and retained publication/deployment approval.
+<!-- claims-projection {"freshness_digest":"df956427d1682044239f38a92ca709c4e916d8790b615436699c6e60555549d7","model_digest":"88f0e279b244d15ec62d1384f6a74e3d51e7c69b98121933d9e3516a0d1bf5f2","renderer_version":"1.2","selection_policy_version":"1.2"} -->
 
-Baseline review revision: `d9a58f2e072d640677782afb0427157183c99f80`. The worktree includes the reviewed Node-type/Vitest configuration correction and design guidance; this is onboarding intent, not certification that the ambitious V3 already exists. Clean Node 22 verification reported 38 unit and 22 Chromium/Firefox tests plus typecheck/build passing. Independent Node 26 verification reproduced those results. Live provider coverage remains limited.
 
-Roadmap order: install and verify Roster; close correctness/evidence review; validate specification and planning; dedicated ASTRA research/design/direct V3 implementation; independent review and QA; maintainer publication/deployment approval; verify served revision and actual-origin RPC behavior. Existing comparative direction: [Explorus/Teztale review](../docs/reviews/2026-10-14-explorus-teztale.md) and [anti-generic design guidance](../docs/reviews/2026-10-14-v3-anti-generic-design.md).
+## Generated views
+
+- [Specification](spec.md)
+- [Properties](properties.md)

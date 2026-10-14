@@ -1,0 +1,7 @@
+# Deterministic check policy
+
+Standalone commands in the draft spec are required implementation deliverables, currently absent and unexecuted. Every semantic check exits0 only after exercising/asserting its specified behavior,1 only for a behavioral assertion,>=2 for setup/import/runtime/timeout/incomplete execution. No raw test-runner exit1 is treated as a red assertion. Success must not be produced by missing/empty scenarios or skipped browsers. Browser boundary cases exercise actual production `/` through both Chromium and Firefox; RPC fixtures control evidence, not bypass the product boundary. Self-contained entrypoints may reuse existing project test support; before introducing generic infrastructure recheck library index and extend selected upstream capability instead of rebuilding it locally.
+
+Library search performed 2026-10-14 against canonical /home/mathias/dev/library-index/data/INDEX.md: existing Roster engineering workflow and engineering-harness entries relevant; no additional library selected. Root already recorded Roster consumer use in index commit485cafd. No generic harness built in specification phase.
+
+Exact supplementary gates on Node22: `rtk npm ci`, `rtk npm run check`, `rtk npm test`, `rtk npm run test:e2e`, `rtk npm run build`. Both Chromium and Firefox required. These do not replace semantic assertion/error distinction or independent actual integer numerical audit. Bounded live-origin checks reported separately and cannot establish global coverage/finality. ASTRA visual acceptance later.

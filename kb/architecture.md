@@ -1,3 +1,10 @@
+---
+status: live-doctrine
+schema-version: 2
+last-updated: 2026-10-14
+superseded-by: null
+---
+
 # Architecture and verification boundaries
 
 `src/index.html` loads production `src/main.ts`. Main orchestrates two network runtimes, data enrichment, selection and dashboard models. `src/dashboardView.ts` owns production DOM updates; `src/dashboard.css` owns responsive presentation. `src/fixtures/` exercises component fixtures and is not the production dashboard.
