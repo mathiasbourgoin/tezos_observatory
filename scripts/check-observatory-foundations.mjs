@@ -1,19 +1,43 @@
 import assert, {AssertionError} from 'node:assert/strict';
 import {createServer} from 'vite';
+import {spawnSync} from 'node:child_process';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
-const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12']);
+const browserChecks=new Set(['AC-4','AC-20','AC-21']);
+const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12',...browserChecks]);
 let server;
 let monitor;
 let assertions = 0;
 const check = (actual,expected,message) => {assert.deepEqual(actual,expected,message);assertions++;};
 try {
   const [criterion,...options] = process.argv.slice(2);
-  if (!implemented.has(criterion) || options.length) throw new Error(`Incomplete or invalid check invocation: ${criterion}. Implemented interim checks: ${[...implemented].join(', ')}`);
+  if (!implemented.has(criterion)) throw new Error(`Incomplete or invalid check invocation: ${criterion}. Implemented interim checks: ${[...implemented].join(', ')}`);
+  if (browserChecks.has(criterion)) {
+    if(options.length!==2 || options[0]!=='--browsers' || options[1]!=='chromium,firefox')throw new Error('Both required browsers must be explicitly requested: --browsers chromium,firefox');
+    const child=spawnSync('rtk',['proxy',process.execPath,'node_modules/@playwright/test/cli.js','test','tests/e2e/dashboard.spec.ts','--grep',`foundations ${criterion} `,'--project','chromium','--project','firefox','--reporter=json'],{encoding:'utf8',maxBuffer:10_000_000,timeout:90_000});
+    if(child.error || child.signal)throw child.error??new Error(`Browser workflow terminated: ${child.signal}`);
+    let report;
+    try{report=JSON.parse(child.stdout);}catch{throw new Error(`Browser report missing/invalid: ${child.stderr}`);}
+    if(report.errors?.length)throw new Error(JSON.stringify(report.errors));
+    const tests=[];
+    const visit=suite=>{for(const spec of suite.specs??[])tests.push(...spec.tests);for(const nested of suite.suites??[])visit(nested);};
+    for(const suite of report.suites??[])visit(suite);
+    if(tests.length!==2 || new Set(tests.map(test=>test.projectName)).size!==2 || !['chromium','firefox'].every(browser=>tests.some(test=>test.projectName===browser)))throw new Error('Incomplete execution: required production-page scenario/browser missing');
+    for(const test of tests){
+      if(test.results?.length!==1)throw new Error('Incomplete execution: missing/retried browser result');
+      const result=test.results[0];
+      if(result.status==='passed'){assertions++;continue;}
+      if(result.status!=='failed' || !result.errors?.length)throw new Error(`Execution failed without completed assertion: ${result.status}`);
+      if(result.errors.some(error=>!/(?:^|\n)(?:Error: )?expect\(/.test((error.message??'').replace(/\u001b\[[0-9;]*m/g,''))))throw new Error(JSON.stringify(result.errors));
+      assert.fail(result.errors.map(error=>error.message).join('\n'));
+    }
+    if(child.status!==0)throw new Error(`Runner exited ${child.status} despite passing scenarios`);
+  } else if(options.length)throw new Error('Unexpected check options');
   server = await createServer({server:{middlewareMode:true,hmr:false,ws:false},appType:'custom'});
   const {asOperationBatch,asBlockHeader} = await server.ssrLoadModule('/rpc/guards.ts');
   const {groupsFor,committeeAuthority,signerPower} = await server.ssrLoadModule('/consensus/phaseEvidence.ts');
   const {NetworkMonitor} = await server.ssrLoadModule('/monitor/networkMonitor.ts');
+  const {NetworkData}=await server.ssrLoadModule('/rpc/networkData.ts');
   const source = {network:'mainnet',name:'Observer A',baseUrl:'https://observer-a.invalid'};
   const rights = [{address:'D1',slot:0,power:3},{address:'D2',slot:1,power:2}];
   const context = {source,chainId:'NetFixture',requestedHeadHash:'Parent',observedHeadHash:'Parent',predecessor:'Grandparent',protocolLevel:4,receivedAt:Date.now(),receivedMonotonic:performance.now()};
@@ -21,7 +45,17 @@ try {
   const aggregate = (committee) => ({hash:`aggregate-${JSON.stringify(committee)}`,contents:[{kind:'preattestations_aggregate',consensus_content:{level:120,round:2,block_payload_hash:'P'},committee}]});
   const admit = raw => asOperationBatch(raw).map(operation => ({...operation,evidence:context}));
   const header = {level:119,hash:'Parent',predecessor:'Grandparent',timestamp:'2026-10-14T12:00:00+02:00',fitness:['02','00000077','','ffffffff','00000000'],proto:4};
-  if (criterion === 'AC-1' || criterion === 'AC-9') {
+  if(criterion==='AC-4' || criterion==='AC-21') {
+    const originalFetch=globalThis.fetch;
+    try {
+      const data=new NetworkData('shadownet');let finish;let capturedSignal;let reads=0;
+      globalThis.fetch=(_input,options)=>{reads++;capturedSignal=options?.signal;return new Promise(resolve=>{finish=resolve;});};
+      const aliases=data.loadAliases();data.pause();check(capturedSignal.aborted,true,'Alias request joins collection cancellation');
+      data.resume();finish(Response.json([{address:'D1',alias:'Cancelled alias'}]));await aliases;check(data.alias('D1'),undefined,'Cancelled alias cannot commit after same-context resume');
+      const eligibility=data.loadEligibility(header,[{address:'D1',slot:0,power:3}],new AbortController().signal);data.pause();data.resume();finish(Response.json(true));await eligibility;check(data.forbidden('D1'),undefined,'Cancelled eligibility cannot commit after resume');
+      data.pause();const before=reads;await data.loadAliases();check(reads,before,'Paused facade starts no auxiliary reads');
+    }finally{globalThis.fetch=originalFetch;}
+  } else if (criterion === 'AC-1' || criterion === 'AC-9') {
     globalThis.window = globalThis;
     const transports = [];
     let view;
@@ -78,7 +112,7 @@ try {
     for (const level of [-1,0.5,Infinity,Number.MAX_SAFE_INTEGER+1]) {assert.throws(()=>asBlockHeader({...header,level}));assertions++;}
   }
   if (!assertions) throw new Error('Incomplete execution: no assertions ran');
-  console.log(`${criterion}: ${assertions} behavioral assertions passed`);
+  console.log(`${criterion}: ${assertions} assertion groups passed${browserChecks.has(criterion) ? " including production / in chromium and firefox" : ""}`);
 } catch (error) {
   console.error(error);
   process.exitCode = error instanceof AssertionError ? 1 : 2;

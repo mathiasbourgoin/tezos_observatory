@@ -108,6 +108,9 @@ export class NetworkData {
   private constantsProto: number | undefined;
   private constantsPending: Promise<Constants> | null = null;
   private auxiliaryController = new AbortController();
+  private collecting = true;
+  private collectionGeneration = 0;
+  private aliasesLoading = false;
   private readonly committees = new Map<string,readonly DelegateRight[]>();
   private readonly committeesPending = new Map<string,Promise<readonly DelegateRight[]>>();
   private readonly aliases = new Map<string, string>();
@@ -122,9 +125,19 @@ export class NetworkData {
   }
 
   pause():void {
+    this.collecting=false;this.collectionGeneration++;
     this.auxiliaryController.abort();
+    this.constantsPending=null;this.committeesPending.clear();this.aliasesLoading=false;
+  }
+
+  resume():void {
+    if(this.collecting)return;
+    this.collecting=true;this.collectionGeneration++;
     this.auxiliaryController=new AbortController();
-    this.constantsPending=null;
+  }
+
+  private assertCollecting(generation:number,signal?:AbortSignal):void {
+    if(!this.collecting || generation!==this.collectionGeneration || signal?.aborted || this.auxiliaryController.signal.aborted) throw new Error("Cancelled collection generation");
   }
 
   private async committee(head:BlockHeader,level:number,signal:AbortSignal):Promise<readonly DelegateRight[]> {
@@ -132,7 +145,9 @@ export class NetworkData {
     const cached=this.committees.get(key);if(cached)return cached;
     const pending=this.committeesPending.get(key);if(pending)return pending;
     const task=(async()=>{
+      const generation=this.collectionGeneration;
       const observed=await this.requestObserved(`/chains/main/blocks/${head.hash}/helpers/attestation_rights?level=${level}`,signal,head);
+      this.assertCollecting(generation,signal);
       const raw=observed.value;
       if(!Array.isArray(raw))throw new Error("Invalid rights response");
       const entry=raw.find((value:unknown)=>object(value)&&value.level===level) as JsonRecord|undefined;
@@ -150,13 +165,15 @@ export class NetworkData {
     try{return await task;}finally{if(this.committeesPending.get(key)===task)this.committeesPending.delete(key);}
   }
 
-  private async protocolConstants(head:BlockHeader):Promise<Constants> {
+  private async protocolConstants(head:BlockHeader,signal:AbortSignal):Promise<Constants> {
     if(this.constants&&this.constantsProto===head.proto&&Date.now()-this.constants.at<3_600_000)return this.constants.value;
     if(this.constantsProto!==head.proto)this.constantsPending=null;
     this.constantsProto=head.proto;
     if(!this.constantsPending) {
       const task=(async()=>{
-        const observed=await this.requestObserved(`/chains/main/blocks/${head.hash}/context/constants`,this.auxiliaryController.signal,head);
+        const generation=this.collectionGeneration;
+        const observed=await this.requestObserved(`/chains/main/blocks/${head.hash}/context/constants`,signal,head);
+        this.assertCollecting(generation,signal);
         const raw=observed.value;
         if(!object(raw))throw new Error("Invalid constants");
         const value={minimum:numeric(raw.minimal_block_delay),increment:numeric(raw.delay_increment_per_round),
@@ -176,24 +193,25 @@ export class NetworkData {
   }
 
   private async requestObserved(path: string, signal?: AbortSignal, head?:BlockHeader): Promise<{value:unknown;evidence:ObservationEvidence}> {
+    const generation=this.collectionGeneration;
+    this.assertCollecting(generation,signal);
     const pool = [
       this.source,
       ...sources[this.network].filter((s) => s !== this.source),
     ];
     let error: unknown;
     for (const source of pool) {
-      if (signal?.aborted) throw signal.reason;
+      this.assertCollecting(generation,signal);
       this.requests++;
       try {
         const response = await fetch(source.baseUrl + path, {
           cache: "no-store",
-          signal: signal
-            ? AbortSignal.any([signal, AbortSignal.timeout(8000)])
-            : AbortSignal.timeout(8000),
+          signal: AbortSignal.any([this.auxiliaryController.signal,...(signal ? [signal] : []),AbortSignal.timeout(8000)]),
         });
         if (!response.ok)
           throw new Error(`${source.name}: HTTP ${response.status}`);
         const result: unknown = await response.json();
+        this.assertCollecting(generation,signal);
         this.source = source;
         const pinnedHead = head && path.includes(`/blocks/${head.hash}/`) ? head : undefined;
         const sameObserverHead = head?.evidence?.source.baseUrl === source.baseUrl ? head : undefined;
@@ -252,7 +270,7 @@ export class NetworkData {
       ...tasks,
       (async () => {
         try {
-          constants=await this.protocolConstants(head);
+          constants=await this.protocolConstants(head,signal);
         } catch (error) {
           errors.push(`Protocol constants: ${String(error)}`);
         }
@@ -265,8 +283,10 @@ export class NetworkData {
     return this.aliases.get(address);
   }
   async loadAliases(): Promise<void> {
-    if (this.aliasesLoaded) return;
-    this.aliasesLoaded = true;
+    if (!this.collecting || this.aliasesLoaded || this.aliasesLoading) return;
+    this.aliasesLoading=true;
+    const generation=this.collectionGeneration;
+    const signal=AbortSignal.any([this.auxiliaryController.signal,AbortSignal.timeout(8000)]);
     const base =
       this.network === "mainnet"
         ? "https://api.tzkt.io"
@@ -274,10 +294,11 @@ export class NetworkData {
     try {
       const response = await fetch(
         `${base}/v1/delegates?limit=10000&select=address,alias`,
-        { signal: AbortSignal.timeout(8000) },
+        {signal},
       );
       if (!response.ok) throw new Error(`TzKT HTTP ${response.status}`);
       const raw: unknown = await response.json();
+      this.assertCollecting(generation,signal);
       if (Array.isArray(raw))
         for (const item of raw) {
           if (
@@ -287,8 +308,11 @@ export class NetworkData {
           )
             this.aliases.set(item.address, item.alias);
         }
+      this.aliasesLoaded=true;
     } catch {
       /* Alias availability never determines consensus health. */
+    } finally {
+      if(generation===this.collectionGeneration)this.aliasesLoading=false;
     }
   }
 
@@ -303,10 +327,12 @@ export class NetworkData {
     const key = `${head.proto??"unknown"}:${level}:${round}`;
     const cached = this.rightCache.get(key);
     if (cached) return cached;
+    const generation=this.collectionGeneration;
     const raw = await this.request(
       `/chains/main/blocks/${head.hash}/helpers/baking_rights?level=${level}&max_round=${round}&all=true`,
       signal,
     );
+    this.assertCollecting(generation,signal);
     if (!Array.isArray(raw)) throw new Error("Invalid baking rights response");
     const rights = raw.flatMap((value: unknown): BakingRight[] =>
       object(value) &&
@@ -331,14 +357,15 @@ export class NetworkData {
   ): Promise<void> {
     // Mainnet's hundreds of delegates must not generate an RPC fanout every block.
     // Shadownet's small committee is queried once per minute, with three requests in flight.
-    if (this.network !== "shadownet") return;
+    if (!this.collecting || this.network !== "shadownet") return;
+    const generation=this.collectionGeneration;
     const pending = delegates.filter(
       (d) => Date.now() - (this.eligibility.get(d.address)?.at ?? 0) > 60_000,
     );
     let cursor = 0;
     await Promise.all(
       Array.from({ length: Math.min(3, pending.length) }, async () => {
-        while (cursor < pending.length && !signal.aborted) {
+        while (cursor < pending.length && !signal.aborted && this.collecting && generation===this.collectionGeneration) {
           const right = pending[cursor++];
           if (!right) break;
           try {
@@ -346,6 +373,7 @@ export class NetworkData {
               `/chains/main/blocks/${head.hash}/context/delegates/${right.address}/is_forbidden`,
               signal,
             );
+            this.assertCollecting(generation,signal);
             if (typeof raw === "boolean")
               this.eligibility.set(right.address, {
                 at: Date.now(),

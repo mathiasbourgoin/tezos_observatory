@@ -48,3 +48,49 @@ it("preserves raw pending branches and labels only actually pinned auxiliary req
  expect(derived.rights.get(120)?.[0]?.evidence?.requestedHeadHash).toBe("B120");
  expect(derived.rights.get(120)?.[0]?.evidence?.observedHeadHash).toBeUndefined();
 });
+
+it("starts no alias reads while paused",async()=>{
+ const fetchMock=vi.fn(async()=>Response.json([]));vi.stubGlobal("fetch",fetchMock);
+ const data=new NetworkData("mainnet");data.pause();await data.loadAliases();expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("aborts alias requests and rejects their late bodies after pause",async()=>{
+ let finish:(response:Response)=>void=()=>undefined;let signal:AbortSignal|undefined;
+ vi.stubGlobal("fetch",(_input:unknown,options?:RequestInit)=>{signal=options?.signal??undefined;return new Promise<Response>(resolve=>{finish=resolve;});});
+ const data=new NetworkData("mainnet"),pending=data.loadAliases();data.pause();
+ expect(signal?.aborted).toBe(true);finish(Response.json([{address:"D1",alias:"Cancelled alias"}]));await pending;expect(data.alias("D1")).toBeUndefined();
+});
+
+it("rejects late eligibility evidence even when fetch ignores cancellation",async()=>{
+ let finish:(response:Response)=>void=()=>undefined;
+ vi.stubGlobal("fetch",()=>new Promise<Response>(resolve=>{finish=resolve;}));
+ const data=new NetworkData("shadownet"),pending=data.loadEligibility(head(120),[{address:"D1",slot:0,power:5}],new AbortController().signal);
+ data.pause();finish(Response.json(true));await pending;expect(data.forbidden("D1")).toBeUndefined();
+});
+
+it("cannot poison same-head rights/constants caches with cancelled-generation responses",async()=>{
+ const finishes:{url:string;finish:(response:Response)=>void}[]=[];
+ vi.stubGlobal("fetch",(input:string|URL|Request)=>new Promise<Response>(finish=>{finishes.push({url:String(input),finish});}));
+ const data=new NetworkData("mainnet"),signal=new AbortController().signal;
+ const pending=data.derive(head(120),signal);data.pause();data.resume();
+ for(const request of finishes){const level=Number(new URL(request.url).searchParams.get("level"));request.finish(Response.json(request.url.includes("attestation_rights")?[{level,delegates:[{delegate:"Old",first_slot:0,attesting_power:5}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5}));}
+ await pending;
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{const url=String(input),level=Number(new URL(url).searchParams.get("level"));return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"Fresh",first_slot:0,attesting_power:5}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:3,consensus_committee_size:5});});
+ const fresh=await data.derive(head(120),signal);expect(fresh.rights.get(120)?.[0]?.address).toBe("Fresh");expect(fresh.constants?.quorum).toBe(3);
+});
+
+it("rejects cancelled baking rights before they can enter the same-context cache",async()=>{
+ let finish:(response:Response)=>void=()=>undefined;vi.stubGlobal("fetch",()=>new Promise<Response>(resolve=>{finish=resolve;}));
+ const data=new NetworkData("mainnet"),signal=new AbortController().signal;
+ const pending=data.bakers(head(120),121,2,signal);data.pause();data.resume();finish(Response.json([{level:121,round:2,delegate:"Cancelled"}]));await expect(pending).rejects.toThrow("Cancelled collection generation");
+ vi.stubGlobal("fetch",async()=>Response.json([{level:121,round:2,delegate:"Fresh"}]));
+ expect((await data.bakers(head(120),121,2,signal))[0]?.delegate).toBe("Fresh");
+});
+
+it("cancelled fallback bodies cannot change the displayed responding source",async()=>{
+ let finish:((response:Response)=>void)|undefined;let reads=0;
+ vi.stubGlobal("fetch",()=>++reads===1?Promise.resolve(new Response("",{status:503})):new Promise<Response>(resolve=>{finish=resolve;}));
+ const data=new NetworkData("mainnet"),originalSource=data.source.baseUrl,pending=data.head(new AbortController().signal);
+ await vi.waitFor(()=>expect(finish).toBeDefined());data.pause();data.resume();finish?.(Response.json(head(120)));
+ await expect(pending).rejects.toThrow("Cancelled collection generation");expect(data.source.baseUrl).toBe(originalSource);expect(reads).toBe(2);
+});

@@ -1,10 +1,27 @@
 import {expect, test, type Page} from '@playwright/test';
 
+// Runtime/import failures must remain execution errors in semantic reports.
+const executionErrors=new WeakMap<Page,string[]>();
+test.beforeEach(async({page})=>{
+  const errors:string[]=[];executionErrors.set(page,errors);
+  page.on('pageerror',error=>errors.push(`Browser runtime error: ${error.message}`));
+  page.on('response',response=>{
+    const url=new URL(response.url());
+    if(url.hostname==='127.0.0.1' && response.status()>=400 && /\.(?:ts|js|css)(?:$|\?)/.test(url.pathname))errors.push(`Production asset failed: ${url.pathname} HTTP ${response.status()}`);
+  });
+});
+test.afterEach(async({page})=>{
+  const errors=executionErrors.get(page)??[];
+  if(errors.length)throw new Error(errors.join('\n'));
+});
+
 type Channel = 'mainnet-head' | 'mainnet-operations' | 'shadownet-head' | 'shadownet-operations' | 'mainnet-proposals' | 'shadownet-proposals';
 declare global {
   interface Window {
     mockStreams: Record<string, ReadableStreamDefaultController<Uint8Array>>;
     mockInitialOperations: boolean;
+    mockHidden: boolean;
+    mockRequests: {url:string;aborted:boolean}[];
   }
 }
 
@@ -26,13 +43,17 @@ async function send(page: Page, channel: Channel, value: unknown): Promise<void>
   }, {channel, value});
 }
 
-async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level): Promise<void> {
-  await page.addInitScript(({initialOperations, initialHead}) => {
+async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false): Promise<void> {
+  await page.addInitScript(({initialOperations, initialHead, initiallyHidden}) => {
+    window.mockHidden=initiallyHidden;window.mockRequests=[];
+    Object.defineProperty(document,"hidden",{configurable:true,get:()=>window.mockHidden});
     window.mockStreams = {};
     window.mockInitialOperations = initialOperations;
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, options) => {
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+      const entry={url:url.href,aborted:options?.signal?.aborted??false};window.mockRequests.push(entry);
+      options?.signal?.addEventListener('abort',()=>{entry.aborted=true;},{once:true});
       const monitoring = url.pathname.includes('/monitor/heads/') || url.pathname.endsWith('/monitor_operations') || url.pathname.includes('/monitor/validated_blocks');
       if (!monitoring) return originalFetch(input, options);
       const network = url.hostname.includes('shadownet') ? 'shadownet' : 'mainnet';
@@ -45,7 +66,7 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
       }});
       return new Response(body, {headers: {'Content-Type': 'application/json'}});
     };
-  }, {initialOperations, initialHead});
+  }, {initialOperations, initialHead,initiallyHidden});
 
   await page.route('https://**/*', async route => {
     const url = new URL(route.request().url());
@@ -66,6 +87,7 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
     await route.fulfill({json: result, headers: {'Access-Control-Allow-Origin': '*'}});
   });
   await page.goto('/');
+  if(initiallyHidden)return;
   await expect(page.locator('.mainnet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
   await expect(page.locator('.shadownet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
 }
@@ -268,4 +290,40 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await expect(panel.locator(".pre .quorum-caption")).toContainText("19,400 more power");
   await expect(panel.locator(".candidate-evidence")).toContainText("rpc.tzkt.io");
   await panel.screenshot({path:`roster/observatory-foundations/slice-1-${testInfo.project.name}.png`});
+ });
+
+ test("foundations AC-4 initially hidden starts no work and permitted generations restart",async({page})=>{
+  await prepare(page,false,head(),100,true);
+  expect(await page.evaluate(()=>window.mockRequests.length)).toBe(0);
+  await page.evaluate(()=>{window.mockHidden=false;document.dispatchEvent(new Event("visibilitychange"));});
+  await expect(page.locator(".mainnet .headline")).toContainText("100");
+  await expect.poll(()=>page.evaluate(()=>window.mockRequests.filter(request=>request.url.includes("/v1/delegates")).length)).toBe(2);
+  await page.evaluate(()=>{window.mockHidden=true;document.dispatchEvent(new Event("visibilitychange"));});
+  const paused=await page.evaluate(()=>window.mockRequests.length);
+  await page.waitForTimeout(100);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(paused);
+  expect(await page.evaluate(()=>window.mockRequests.filter(request=>request.url.includes("/monitor/")).every(request=>request.aborted))).toBe(true);
+  await page.evaluate(()=>{window.mockHidden=false;document.dispatchEvent(new Event("visibilitychange"));});
+  await expect.poll(()=>page.evaluate(()=>window.mockRequests.length)).toBeGreaterThan(paused);
+  await send(page,"mainnet-operations",[vote(0)]);await expect(page.locator(".mainnet .pre .gauge-counts")).toContainText("600 / 30,000 power");
+ });
+ test("foundations AC-20 manual pause survives pagehide pageshow and visibility restoration",async({page})=>{
+  await prepare(page);await page.getByRole("button",{name:"Pause",exact:true}).click();
+  const count=await page.evaluate(()=>window.mockRequests.length);
+  await page.evaluate(()=>{window.dispatchEvent(new Event("pagehide"));window.dispatchEvent(new Event("pageshow"));window.mockHidden=true;document.dispatchEvent(new Event("visibilitychange"));window.mockHidden=false;document.dispatchEvent(new Event("visibilitychange"));});
+  await expect(page.getByRole("button",{name:"Resume",exact:true})).toBeVisible();
+  await page.waitForTimeout(100);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(count);
+  await page.getByRole("button",{name:"Resume",exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.mockRequests.length)).toBeGreaterThan(count);
+ });
+ test("foundations AC-21 paused local candidate inspection starts no external reads",async({page})=>{
+  await prepare(page,false);
+  for(const hash of ["H1","H2"])await send(page,"mainnet-proposals",{chain_id:"NetFixture",hash,header:{...head(101),payload_hash:"vhPayload101"}});
+  await send(page,"mainnet-operations",[vote(0)]);const panel=page.locator(".network-panel.mainnet");
+  await expect(panel.getByRole("button",{name:"Inspect candidate H1",exact:true})).toBeVisible();
+  await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+  await page.getByRole("button",{name:"Pause",exact:true}).click();const count=await page.evaluate(()=>window.mockRequests.length);
+  await panel.getByRole("button",{name:"Inspect candidate H2",exact:true}).click();
+  await expect(panel.locator(".candidate-evidence")).toContainText("H2");await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+  await panel.locator(".missing-section summary").first().click();await expect(panel.locator(".missing-section details").first()).toHaveAttribute("open","");
+  expect(await page.evaluate(()=>window.mockRequests.length)).toBe(count);
  });

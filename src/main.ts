@@ -26,18 +26,14 @@ declare const __APP_REVISION__: string;
 const root = document.getElementById("app");
 if (!root) throw new Error("Missing dashboard root");
 let userPaused = false;
+let pageActive = true;
+const collectionAllowed = (): boolean => pageActive && !userPaused && !document.hidden;
 const runtimes = new Map<NetworkName, Runtime>();
 const dashboard = createDashboard(root, {
   revision: __APP_REVISION__,
   onPauseChange(paused) {
     userPaused = paused;
-    for (const runtime of runtimes.values()) {
-      if (paused) {
-        runtime.monitor.stop();
-        runtime.data.pause();
-        runtime.opportunityController.abort();
-      } else if (!document.hidden) runtime.monitor.start();
-    }
+    for (const runtime of runtimes.values()) syncCollection(runtime);
   },
   onSelect(network, identity) {
     const runtime = runtimes.get(network);
@@ -45,13 +41,15 @@ const dashboard = createDashboard(root, {
     runtime.selectedIdentity = identity; scheduleRender(runtime);
   },
   onReconnect() {
-    if (!userPaused && !document.hidden)
-      for (const runtime of runtimes.values()) runtime.monitor.refresh();
+    if (collectionAllowed()) for (const runtime of runtimes.values()) {
+      stopCollection(runtime);syncCollection(runtime);runtime.monitor.refreshDerived();
+    }
   },
 });
 
 interface Runtime {
   network: NetworkName;
+  collectionActive: boolean;
   selectedIdentity?: string;
   data: NetworkData;
   monitor: NetworkMonitor<Derived>;
@@ -62,10 +60,24 @@ interface Runtime {
   opportunityController: AbortController;
   eligibilityHead: string;
   requestFrame: number | null;
-  lastDeriveRetry: number;
   recent: NonNullable<NetworkViewModel["recentConsensus"]>;
 }
 
+
+function stopCollection(runtime:Runtime):void {
+  runtime.collectionActive=false;runtime.monitor.stop();runtime.data.pause();runtime.opportunityController.abort();
+}
+
+function syncCollection(runtime:Runtime):void {
+  if(!collectionAllowed()) {
+    if(runtime.collectionActive)stopCollection(runtime);
+  } else if(!runtime.collectionActive) {
+    runtime.collectionActive=true;runtime.data.resume();
+    runtime.opportunityController=new AbortController();runtime.opportunityKey="";runtime.opportunityAt=0;runtime.eligibilityHead="";
+    runtime.monitor.start();void runtime.data.loadAliases().then(()=>scheduleRender(runtime));
+  }
+  scheduleRender(runtime);
+}
 
 function render(runtime: Runtime): void {
   const view = runtime.view;
@@ -74,7 +86,7 @@ function render(runtime: Runtime): void {
     const error = view?.headStream.error;
     dashboard.update(runtime.network, {
       status: error ? "degraded" : "loading",
-      connection: document.hidden || userPaused ? "Paused" : "Connecting",
+      connection: !collectionAllowed() ? "Paused" : "Connecting",
       ...(error ? { error } : {}),
       sources: sources[runtime.network].map((s) => ({
         name: s.name,
@@ -181,7 +193,7 @@ function render(runtime: Runtime): void {
   const activityRound = currentRound;
   const hasCoverage = selected!==undefined && observedInstance!==undefined &&
     view.lastOperationAt !== null &&
-    ((view.operationMode === "stream" &&
+    ((!collectionAllowed()) || (view.operationMode === "stream" &&
       view.operationStream.mode === "stream") ||
       (view.operationGeneration === snapshot.generation &&
         schedule !== undefined &&
@@ -208,7 +220,7 @@ function render(runtime: Runtime): void {
   const degraded = view.headStream.error !== null;
   const stalled =
     headRound >= 3 || age > Math.max(30, (constants?.minimum ?? 6) * 5);
-  const paused = userPaused || document.hidden;
+  const paused = !collectionAllowed();
   const model: NetworkViewModel = {
     status: degraded ? "degraded" : stalled ? "stalled" : "healthy",
     candidates: selectable,
@@ -309,13 +321,13 @@ function render(runtime: Runtime): void {
     hasCoverage &&
     currentRound !== undefined
   ) {
-    model.preattestations = {
+    if (!paused || pre.size > 0) model.preattestations = {
       count: pre.size,
       expected: rights.length,
       power: power(pre),
       total,
     };
-    model.attestations = {
+    if (!paused || att.size > 0) model.attestations = {
       count: att.size,
       expected: rights.length,
       power: power(att),
@@ -340,14 +352,6 @@ function render(runtime: Runtime): void {
     }
   }
   dashboard.update(runtime.network, model);
-  if (
-    (derived?.errors.length || (derived && !rights)) &&
-    !paused &&
-    now - runtime.lastDeriveRetry > (rights?30_000:1500)
-  ) {
-    runtime.lastDeriveRetry = now;
-    runtime.monitor.refreshDerived();
-  }
   if (rights && runtime.eligibilityHead !== head.hash && !paused) {
     runtime.eligibilityHead = head.hash;
     void runtime.data
@@ -372,9 +376,7 @@ async function loadOpportunities(
 ): Promise<void> {
   const key = `${head.hash}:${level}:${round}`;
   if (
-    key === runtime.opportunityKey &&
-    (runtime.opportunities.length > 0 ||
-      Date.now() - runtime.opportunityAt < 30_000)
+    key === runtime.opportunityKey
   )
     return;
   runtime.opportunityKey = key;
@@ -388,7 +390,7 @@ async function loadOpportunities(
     runtime.data.bakers(head, level, round, signal),
     runtime.data.bakers(head, level + 1, 0, signal),
   ]);
-  if (signal.aborted || runtime.view?.snapshot?.head.hash !== head.hash) return;
+  if (signal.aborted || !collectionAllowed() || !runtime.collectionActive || runtime.view?.snapshot?.head.hash !== head.hash) return;
   const opportunities: NonNullable<NetworkViewModel["nextBakers"]> = [];
   result.forEach((item, index) => {
     if (item.status === "fulfilled")
@@ -429,6 +431,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
   });
   runtime = {
     network,
+    collectionActive:false,
     data,
     monitor,
     view: null,
@@ -438,27 +441,21 @@ for (const network of ["mainnet", "shadownet"] as const) {
     opportunityController: new AbortController(),
     eligibilityHead: "",
     requestFrame: null,
-    lastDeriveRetry: Date.now(),
     recent: [],
   };
   data.onChange=()=>scheduleRender(runtime);
   runtimes.set(network, runtime);
   dashboard.update(network, { status: "loading" });
-  void data.loadAliases().then(() => scheduleRender(runtime));
-  if (!document.hidden) monitor.start();
+  data.pause();syncCollection(runtime);
 }
 document.addEventListener("visibilitychange", () => {
-  for (const runtime of runtimes.values()) {
-    if (document.hidden || userPaused) {
-      runtime.monitor.stop();
-      runtime.data.pause();
-      runtime.opportunityController.abort();
-    } else runtime.monitor.start();
-    scheduleRender(runtime);
-  }
+  for(const runtime of runtimes.values())syncCollection(runtime);
 });
 window.addEventListener("pagehide", () => {
-  for (const runtime of runtimes.values()) runtime.monitor.stop();
+  pageActive=false;for(const runtime of runtimes.values())syncCollection(runtime);
+});
+window.addEventListener("pageshow", () => {
+  pageActive=true;for(const runtime of runtimes.values())syncCollection(runtime);
 });
 setInterval(() => {
   dashboard.tick();

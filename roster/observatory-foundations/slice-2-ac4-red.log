@@ -1,0 +1,24 @@
+AssertionError [ERR_ASSERTION]: Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+Expected: [32m0[39m
+Received: [31m2[39m
+
+  280 |  test("foundations AC-4 initially hidden starts no work and permitted generations restart",async({page})=>{
+  281 |   await prepare(page,false,head(),100,true);
+> 282 |   expect(await page.evaluate(()=>window.mockRequests.length)).toBe(0);
+      |                                                               ^
+  283 |   await page.evaluate(()=>{window.mockHidden=false;document.dispatchEvent(new Event("visibilitychange"));});
+  284 |   await expect(page.locator(".mainnet .headline")).toContainText("100");
+  285 |   await expect.poll(()=>page.evaluate(()=>window.mockRequests.filter(request=>request.url.includes("/v1/delegates")).length)).toBe(2);
+    at repo:/tests/e2e/dashboard.spec.ts:282:63
+    at repo:/scripts/check-observatory-foundations.mjs:32:14
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: undefined,
+  operator: 'fail',
+  diff: 'simple'
+}
