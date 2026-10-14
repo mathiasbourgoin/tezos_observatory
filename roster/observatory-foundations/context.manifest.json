@@ -1,6 +1,6 @@
 {
   "candidates": [],
-  "freshness_digest": "df956427d1682044239f38a92ca709c4e916d8790b615436699c6e60555549d7",
+  "freshness_digest": "113f75b401e86d28db76e2179c62d2a2323e83ab3f7d718f327edc60ccca8512",
   "mandatory_claims": [
     "observatory-foundations/AC-1",
     "observatory-foundations/AC-10",
@@ -167,9 +167,13 @@
     "observatory-foundations/FR-087",
     "observatory-foundations/FR-088",
     "observatory-foundations/FR-089",
-    "observatory-foundations/FR-090"
+    "observatory-foundations/FR-090",
+    "observatory-foundations/FR-091",
+    "observatory-foundations/FR-092",
+    "observatory-foundations/FR-093",
+    "observatory-foundations/FR-094"
   ],
-  "model_digest": "88f0e279b244d15ec62d1384f6a74e3d51e7c69b98121933d9e3516a0d1bf5f2",
+  "model_digest": "d901111614cdd6f1741986c5ecec939c693c961dbbc88c2a873ff4631efd3507",
   "schema_version": 1,
   "sources": [
     "specs/observatory-foundations.md"

@@ -296,6 +296,15 @@ All29 resolved by explicit root decisions. Clarification questions1 plus resolut
 - **FR-088** [US-8]: When prediction inputs are missing or prediction expires without observation, the observatory MUST show unavailable or prediction elapsed/awaiting observation respectively. Scenario trace: [US-8-S3].
 - **FR-089** [US-8]: When displaying progression, the observatory MUST distinguish observed same-level round advance, applied next-level advance, same-height reorg and skipped delivered levels without inventing intermediate blocks or events. Scenario trace: [US-8-S3].
 
+### Accepted planning clarifications
+
+- **FR-091** [US-5]: When an active candidate is evicted while its session instance remains retained, the observatory MUST preserve historical candidate inspection separately from LIVE-active membership; each snapshot retains at most 100 candidate facts, discloses partial retention at that limit and protects currently pinned selection facts. A pin freezes on history-entry eviction, not merely active-index eviction. Scenario trace: [US-5-S1; US-5-S2; US-5-S3].
+- **FR-092** [US-8]: When replay concerns a retired identity outside retained or admissible LIVE context, the observatory MUST NOT recreate a live crossing; uncertain prior crossing history permits observed-quorum or raw-evidence presentation without an invented crossing. Retirement requires provenance facts, and crossing memory remains bounded without weakening at-most-once behavior. Scenario trace: [US-8-S1; US-8-S2].
+- **FR-093** [US-5]: When evidence is replayed or retained, the observatory MUST bound per-record raw provenance and replay growth through the accepted 10000-operation limit and unique delegate/identity facts while preserving mandatory attribution; candidate-fact truncation MUST NOT certify complete coverage or measured zero. Scenario trace: [US-5-S2; US-2-S1].
+- **FR-094** [US-7]: When explicitly comparing sources, the observatory MUST prioritize identity and head reads, then pending as the default third read; compatible cached rights retain original provenance, otherwise power remains unknown. Any data-dependent choice requires pending to be known unavailable within that workflow and the same three-read budget, without retries, cascading or a fourth read. Scenario trace: [US-7-S1; US-7-S2].
+
+Root approved these planning clarifications on 2026-10-14. Existing acceptance checks remain mandatory; implementation must exercise same-context floods, evicted replay and proven reorg return rather than treating a proposed bounded strategy as established evidence.
+
 ## Acceptance Criteria
 
 - AC-1 [US-1 happy path]: Given H1/H2 at 120/2 sharing P and committee D1=3,D2=2,total=5,threshold=4, when D1 arrives individually and in repeated aggregates and D2 votes Q, then both candidates remain selectable, P=3/Q=2 with deficits 1/2 and no inferred producer.
@@ -319,23 +328,23 @@ All29 resolved by explicit root decisions. Clarification questions1 plus resolut
 - AC-19 [US-3, C-11]: Given source and operation floods or oversized snapshots, when collected, then only configured providers participate, storage stays at 10000 operations and 100 unresolved candidates per network, bounded snapshots are partial and eligibility uses at most three workers without Mainnet fanout.
 - AC-20 [US-4, C-12]: Given manual pause before visibility/pagehide/BFCache restoration, when pageshow becomes visible, then pause persists; only enabled visible collection resumes with fresh generation.
 - AC-21 [US-4, C-13]: Given cancelled alias/rights/comparison responses and coherent cached data while paused, when local view renders and old responses finish after resume, then local inspection works without external reads and cancelled responses never commit.
-- AC-22 [US-5, C-14]: Given pinned retained identity, when late same-identity facts arrive then inspection identity/controls remain stable while evidence may enrich; after eviction its one separately marked frozen copy stays static and a new pin replaces it.
+- AC-22 [US-5, C-14]: Given pinned retained identity, when late same-identity facts arrive then inspection identity/controls remain stable while evidence may enrich; after eviction its one separately marked frozen copy stays static and a new pin replaces it. Active-index eviction alone preserves historical candidate inspection; freezing occurs on history eviction.
 - AC-23 [US-5, C-15]: Given same-payload candidates from multiple observers and unresolved target without block hash, when retaining/promoting, then instances and candidates retain distinct stated identities, no hash is invented and promotion removes quarantine duplicate under independent product bounds.
-- AC-24 [US-5, C-16]: Given 151 histories,101 accepted and101 unresolved candidates with equal receipt ties and repeated oldest identity, when trimming, then unresolved entries cannot evict accepted entries and oldest first monotonic receipt with lexical identity ties enforces150/100/100, replay cannot refresh eviction and enormous claimed level has no preference.
+- AC-24 [US-5, C-16]: Given 151 histories,101 accepted and101 unresolved candidates with equal receipt ties and repeated oldest identity, when trimming, then unresolved entries cannot evict accepted entries and oldest first monotonic receipt with lexical identity ties enforces150/100/100, replay cannot refresh eviction and enormous claimed level has no preference. Each snapshot retains at most 100 candidate facts, explicitly qualifies partial fact retention, protects the pinned selection and bounds raw replay growth through the 10000-operation limit and unique evidence facts; truncation cannot certify zero or completeness.
 - AC-25 [US-5, C-17]: Given pin baseline, replay,late same-identity facts and first accepted distinct candidates/candidate-free instances, when counting newer items, then only defined distinct selectable units count without double counting; action returns newest coherent live context or explicit live unavailable.
 - AC-26 [US-6, C-18]: Given whitespace/case-varied substring query, explicit address/alias/power sort and arriving aliases, when matches update, then trim/case-insensitive substring semantics apply, empty shows all, address ties are deterministic and new matches append without reordering existing rows or moving focus/scroll until explicit resort.
 - AC-27 [US-6, C-19]: Given valid-rights delegate,unknown-rights signer and incomplete opposite phase, when inspected, then committee contains only validated-rights delegates, unknown signer stays separately inspectable and each phase distinguishes received,snapshot-absent,partial/unavailable without fabricated rights/global inactivity.
 - AC-28 [US-7, C-20]: Given equal proven head fields,different candidate hashes sharing payload,or insufficient historical context, when compared, then equality proves head agreement only,hash conflict gives divergence and historical uncertainty gives partial/unavailable with current B head separately labelled,never full vote agreement/finality.
 - AC-29 [US-7, C-21]: Given slow identity/head/rights/pending endpoints,redirects,incomplete bodies and second click, when comparison runs, then all reads count toward three, each original read including redirects/body completes within eight seconds,total is at most24 seconds and second click adds no reads,retries,cascade or polling.
 - AC-30 [US-7, C-22]: Given fetched comparison and eligibility under exact coherent context, when monotonic age reaches60 seconds or context invalidates, then state is stale immediately at boundary/invalidation,comparison invalidation stays sticky on return,receipt wall time remains shown and no auto-refresh occurs.
-- AC-31 [US-8, C-23]: Given first observation at quorum or below-to-threshold transition, when accepted, then first reports observed quorum without crossing and latter emits at most one crossing per phase/identity/context; corrections,reduction/recovery,selection,transport loss/render cannot reset maximum/dedup.
+- AC-31 [US-8, C-23]: Given first observation at quorum or below-to-threshold transition, when accepted, then first reports observed quorum without crossing and latter emits at most one crossing per phase/identity/context; corrections,reduction/recovery,selection,transport loss/render cannot reset maximum/dedup. Evicted or retired replay and proven reorg return must preserve at-most-once behavior with bounded memory; uncertain prior crossing history reports observed quorum or raw state without an invented crossing, and retirement is justified by provenance rather than the clock alone.
 - AC-32 [US-8, C-24]: Given more than12 events,history eviction and replay/render/resume, when events retained, then no more than12 immutable attributed events per network survive independently of history without duplicate accepted-observation events or fabricated crossings/progression from changed payload,candidate,source,context or historical selection.
 - AC-33 [US-8, C-25]: Given conditional same-level R+1 and next-level R0 branches, when inspected, then both may coexist with explicit conditions; expected producer requires coherent context-pinned baking rights,conflicting/missing rights yield unknown,observed hash is shown and future hash unavailable.
 - AC-34 [US-8, C-26]: Given coherent timing/reference head or missing inputs,expired prediction,reorg and skipped delivered levels, when displaying applied values,opportunities/progression, then actual applied level/round/time remains primary and separate from selected consensus/plans,countdowns for both conditional branches are qualified protocol predictions,next-level boundary conditional on hypothetical production,missing is unavailable,expiry awaiting observation,and transitions are distinguished without invented blocks/events.
 - AC-35 [US-7, C-27]: Given existing bounded primary fallback to B and explicit comparison/reconciliation failure, when displaying results, then primary result retains actual B source/context and comparison/reconciliation performs no automatic fallback.
 - AC-36 [US-2, C-28]: Given source-limited positive/absent/partial/unavailable evidence and compared fields, when labels appear, then labels name that scope and do not imply global healthy/missing/finalized status; unavailable global completeness/finality evidence explains the narrower claims.
 - AC-37 [US-5, C-29]: Given bounded session history and explicit single-provider comparison, when session reload/reset occurs, then nonarchival history loss is disclosed and no archive completeness or archival observer-difference timeline is promised in foundations; maintainer branching navigation remains required for later ASTRA.
-- AC-38 [US-7, C-9, C-20, C-21]: Given identity/head/pending consume the three-read comparison budget, when rights cannot be fetched, then cached rights may authorize power only with proven chain/head/protocol/target compatibility and original rights provenance; otherwise raw unknown-power remains valid partial comparison without extra reads or fabricated second-source rights, and fetched current B head stays distinct from selected historical context.
+- AC-38 [US-7, C-9, C-20, C-21]: Given identity/head/pending consume the three-read comparison budget, when rights cannot be fetched, then cached rights may authorize power only with proven chain/head/protocol/target compatibility and original rights provenance; otherwise raw unknown-power remains valid partial comparison without extra reads or fabricated second-source rights, and fetched current B head stays distinct from selected historical context. Identity and head precede pending as the default third read; no default rights-first or hidden fourth read is allowed, and any data-dependent alternative requires pending to be known unavailable within the same explicit workflow and budget.
 
 ## Edge Cases
 
@@ -502,6 +511,10 @@ Exact supplementary gates on Node22: `rtk npm ci`, `rtk npm run check`, `rtk npm
 {"record":"requirement","id":"FR-087","lifecycle":"active","external_sources":[],"depends_on":[]}
 {"record":"requirement","id":"FR-088","lifecycle":"active","external_sources":[],"depends_on":[]}
 {"record":"requirement","id":"FR-089","lifecycle":"active","external_sources":[],"depends_on":[]}
+{"record":"requirement","id":"FR-091","lifecycle":"active","external_sources":[],"depends_on":[]}
+{"record":"requirement","id":"FR-092","lifecycle":"active","external_sources":[],"depends_on":[]}
+{"record":"requirement","id":"FR-093","lifecycle":"active","external_sources":[],"depends_on":[]}
+{"record":"requirement","id":"FR-094","lifecycle":"active","external_sources":[],"depends_on":[]}
 {"record":"acceptance-criterion","id":"AC-1","for":["FR-001","FR-002","FR-003","FR-004","FR-007","FR-011"]}
 {"record":"acceptance-criterion","id":"AC-2","for":["FR-015","FR-018","FR-019","FR-021","FR-022"]}
 {"record":"acceptance-criterion","id":"AC-3","for":["FR-025","FR-026","FR-027","FR-028","FR-029"]}
@@ -523,23 +536,23 @@ Exact supplementary gates on Node22: `rtk npm ci`, `rtk npm run check`, `rtk npm
 {"record":"acceptance-criterion","id":"AC-19","for":["FR-016","FR-037","FR-038","FR-046"]}
 {"record":"acceptance-criterion","id":"AC-20","for":["FR-039","FR-041","FR-042"]}
 {"record":"acceptance-criterion","id":"AC-21","for":["FR-040","FR-043","FR-044"]}
-{"record":"acceptance-criterion","id":"AC-22","for":["FR-050","FR-051","FR-052","FR-053"]}
+{"record":"acceptance-criterion","id":"AC-22","for":["FR-050","FR-051","FR-052","FR-053","FR-091"]}
 {"record":"acceptance-criterion","id":"AC-23","for":["FR-001","FR-045","FR-046","FR-048"]}
-{"record":"acceptance-criterion","id":"AC-24","for":["FR-002","FR-046","FR-047","FR-049"]}
+{"record":"acceptance-criterion","id":"AC-24","for":["FR-002","FR-046","FR-047","FR-049","FR-091","FR-093"]}
 {"record":"acceptance-criterion","id":"AC-25","for":["FR-054","FR-055"]}
 {"record":"acceptance-criterion","id":"AC-26","for":["FR-058","FR-061","FR-062"]}
 {"record":"acceptance-criterion","id":"AC-27","for":["FR-018","FR-059","FR-060","FR-063"]}
 {"record":"acceptance-criterion","id":"AC-28","for":["FR-065","FR-066","FR-067","FR-068"]}
 {"record":"acceptance-criterion","id":"AC-29","for":["FR-070","FR-071","FR-072"]}
 {"record":"acceptance-criterion","id":"AC-30","for":["FR-014","FR-030","FR-032","FR-073","FR-074","FR-075"]}
-{"record":"acceptance-criterion","id":"AC-31","for":["FR-077","FR-078","FR-079"]}
+{"record":"acceptance-criterion","id":"AC-31","for":["FR-077","FR-078","FR-079","FR-092"]}
 {"record":"acceptance-criterion","id":"AC-32","for":["FR-080","FR-081"]}
 {"record":"acceptance-criterion","id":"AC-33","for":["FR-083","FR-084","FR-085","FR-086"]}
 {"record":"acceptance-criterion","id":"AC-34","for":["FR-082","FR-085","FR-087","FR-088","FR-089"]}
 {"record":"acceptance-criterion","id":"AC-35","for":["FR-036","FR-072","FR-076"]}
 {"record":"acceptance-criterion","id":"AC-36","for":["FR-019","FR-021","FR-063","FR-066"]}
 {"record":"acceptance-criterion","id":"AC-37","for":["FR-057","FR-064"]}
-{"record":"acceptance-criterion","id":"AC-38","for":["FR-013","FR-030","FR-068","FR-069","FR-070","FR-090"]}
+{"record":"acceptance-criterion","id":"AC-38","for":["FR-013","FR-030","FR-068","FR-069","FR-070","FR-090","FR-094"]}
 {"record":"check","id":"CHECK-1","for":["AC-1"]}
 {"record":"check","id":"CHECK-2","for":["AC-2"]}
 {"record":"check","id":"CHECK-3","for":["AC-3"]}
