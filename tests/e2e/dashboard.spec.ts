@@ -292,7 +292,7 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await panel.screenshot({path:`roster/observatory-foundations/slice-1-${testInfo.project.name}.png`});
  });
 
- test("foundations AC-4 initially hidden starts no work and permitted generations restart",async({page})=>{
+ test("foundations AC-4 initially hidden starts no work and permitted generations restart",async({page},testInfo)=>{
   await prepare(page,false,head(),100,true);
   expect(await page.evaluate(()=>window.mockRequests.length)).toBe(0);
   await page.evaluate(()=>{window.mockHidden=false;document.dispatchEvent(new Event("visibilitychange"));});
@@ -305,8 +305,9 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await page.evaluate(()=>{window.mockHidden=false;document.dispatchEvent(new Event("visibilitychange"));});
   await expect.poll(()=>page.evaluate(()=>window.mockRequests.length)).toBeGreaterThan(paused);
   await send(page,"mainnet-operations",[vote(0)]);await expect(page.locator(".mainnet .pre .gauge-counts")).toContainText("600 / 30,000 power");
+  testInfo.annotations.push({type:"foundation-verified",description:"AC-4"});
  });
- test("foundations AC-20 manual pause survives pagehide pageshow and visibility restoration",async({page})=>{
+ test("foundations AC-20 manual pause survives pagehide pageshow and visibility restoration",async({page},testInfo)=>{
   await prepare(page);await page.getByRole("button",{name:"Pause",exact:true}).click();
   const count=await page.evaluate(()=>window.mockRequests.length);
   await page.evaluate(()=>{window.dispatchEvent(new Event("pagehide"));window.dispatchEvent(new Event("pageshow"));window.mockHidden=true;document.dispatchEvent(new Event("visibilitychange"));window.mockHidden=false;document.dispatchEvent(new Event("visibilitychange"));});
@@ -314,8 +315,9 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await page.waitForTimeout(100);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(count);
   await page.getByRole("button",{name:"Resume",exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.mockRequests.length)).toBeGreaterThan(count);
+  testInfo.annotations.push({type:"foundation-verified",description:"AC-20"});
  });
- test("foundations AC-21 paused local candidate inspection starts no external reads",async({page})=>{
+ test("foundations AC-21 paused local candidate inspection starts no external reads",async({page},testInfo)=>{
   await prepare(page,false);
   for(const hash of ["H1","H2"])await send(page,"mainnet-proposals",{chain_id:"NetFixture",hash,header:{...head(101),payload_hash:"vhPayload101"}});
   await send(page,"mainnet-operations",[vote(0)]);const panel=page.locator(".network-panel.mainnet");
@@ -326,4 +328,5 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await expect(panel.locator(".candidate-evidence")).toContainText("H2");await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
   await panel.locator(".missing-section summary").first().click();await expect(panel.locator(".missing-section details").first()).toHaveAttribute("open","");
   expect(await page.evaluate(()=>window.mockRequests.length)).toBe(count);
+  testInfo.annotations.push({type:"foundation-verified",description:"AC-21"});
  });

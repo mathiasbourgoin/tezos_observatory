@@ -1,10 +1,41 @@
 import assert, {AssertionError} from 'node:assert/strict';
 import {createServer} from 'vite';
 import {spawnSync} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
+import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
 const browserChecks=new Set(['AC-4','AC-20','AC-21']);
 const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12',...browserChecks]);
+export function classifyBrowserReport(report,runnerStatus,criterion) {
+  let completed=0;
+  const behavioralFailures=[];
+    if(report.errors?.length)throw new Error(JSON.stringify(report.errors));
+    const tests=[];
+    const visit=suite=>{for(const spec of suite.specs??[])tests.push(...spec.tests);for(const nested of suite.suites??[])visit(nested);};
+    for(const suite of report.suites??[])visit(suite);
+    if(tests.length!==2 || new Set(tests.map(test=>test.projectName)).size!==2 || !['chromium','firefox'].every(browser=>tests.some(test=>test.projectName===browser)))throw new Error('Incomplete execution: required production-page scenario/browser missing');
+    for(const test of tests){
+      if(test.results?.length!==1)throw new Error('Incomplete execution: missing/retried browser result');
+      const result=test.results[0];
+      if(result.status==='passed'){
+        if(result.errors?.length)throw new Error('Inconsistent execution: passed result contains errors');
+        if(!test.annotations?.some(annotation=>annotation.type==='foundation-verified' && annotation.description===criterion))throw new Error('Incomplete execution: scenario did not finish its behavioral assertions');
+        completed++;continue;
+      }
+      if(result.status!=='failed' || !result.errors?.length)throw new Error(`Execution failed without completed assertion: ${result.status}`);
+      if(result.errors.some(error=>!/(?:^|\n)(?:Error: )?expect\(/.test((error.message??'').replace(/\u001b\[[0-9;]*m/g,''))))throw new Error(JSON.stringify(result.errors));
+      behavioralFailures.push(...result.errors.map(error=>error.message));
+    }
+    if(behavioralFailures.length) {
+      if(runnerStatus!==1)throw new Error(`Execution failed with inconsistent assertion runner status: ${runnerStatus}`);
+      assert.fail(behavioralFailures.join('\n'));
+    }
+    if(runnerStatus!==0)throw new Error(`Runner exited ${runnerStatus} despite passing scenarios`);
+    return completed;
+}
+
+if(process.argv[1] && pathToFileURL(resolve(process.argv[1])).href===import.meta.url) {
 let server;
 let monitor;
 let assertions = 0;
@@ -18,20 +49,7 @@ try {
     if(child.error || child.signal)throw child.error??new Error(`Browser workflow terminated: ${child.signal}`);
     let report;
     try{report=JSON.parse(child.stdout);}catch{throw new Error(`Browser report missing/invalid: ${child.stderr}`);}
-    if(report.errors?.length)throw new Error(JSON.stringify(report.errors));
-    const tests=[];
-    const visit=suite=>{for(const spec of suite.specs??[])tests.push(...spec.tests);for(const nested of suite.suites??[])visit(nested);};
-    for(const suite of report.suites??[])visit(suite);
-    if(tests.length!==2 || new Set(tests.map(test=>test.projectName)).size!==2 || !['chromium','firefox'].every(browser=>tests.some(test=>test.projectName===browser)))throw new Error('Incomplete execution: required production-page scenario/browser missing');
-    for(const test of tests){
-      if(test.results?.length!==1)throw new Error('Incomplete execution: missing/retried browser result');
-      const result=test.results[0];
-      if(result.status==='passed'){assertions++;continue;}
-      if(result.status!=='failed' || !result.errors?.length)throw new Error(`Execution failed without completed assertion: ${result.status}`);
-      if(result.errors.some(error=>!/(?:^|\n)(?:Error: )?expect\(/.test((error.message??'').replace(/\u001b\[[0-9;]*m/g,''))))throw new Error(JSON.stringify(result.errors));
-      assert.fail(result.errors.map(error=>error.message).join('\n'));
-    }
-    if(child.status!==0)throw new Error(`Runner exited ${child.status} despite passing scenarios`);
+    assertions+=classifyBrowserReport(report,child.status,criterion);
   } else if(options.length)throw new Error('Unexpected check options');
   server = await createServer({server:{middlewareMode:true,hmr:false,ws:false},appType:'custom'});
   const {asOperationBatch,asBlockHeader} = await server.ssrLoadModule('/rpc/guards.ts');
@@ -118,4 +136,6 @@ try {
   process.exitCode = error instanceof AssertionError ? 1 : 2;
 } finally {
   try {monitor?.stop();await server?.close();} catch(error) {console.error(error);process.exitCode=2;}
+}
+
 }
