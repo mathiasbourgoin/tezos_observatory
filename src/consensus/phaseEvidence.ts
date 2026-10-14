@@ -41,7 +41,7 @@ export function signerPower(signers: ReadonlySet<string>, rights: readonly Deleg
 }
 
 export function evidenceContext(evidence?: ObservationEvidence): string {
-  return JSON.stringify([evidence?.source.network ?? "unknown", evidence?.source.baseUrl ?? "unknown", evidence?.chainId ?? "unknown", evidence?.requestedHeadHash ?? "unknown", evidence?.predecessor ?? "unknown", evidence?.protocol ?? "unknown"]);
+  return JSON.stringify([evidence?.source.network ?? "unknown", evidence?.source.baseUrl ?? "unknown", evidence?.chainId ?? "unknown", evidence?.requestedHeadHash ?? "unknown", evidence?.observedHeadHash ?? "unknown", evidence?.predecessor ?? "unknown", evidence?.protocolLevel ?? "unknown"]);
 }
 
 export function groupsFor(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number): Group[] {

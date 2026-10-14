@@ -145,3 +145,9 @@ describe("consensus operation guards", () => {
      expect(()=>asBlockHeader({...h,timestamp})).toThrow();
    for(const level of [-1,0.5,Infinity,Number.MAX_SAFE_INTEGER+1])expect(()=>asBlockHeader({...h,level})).toThrow();
  });
+
+it("preserves the RPC operation branch as a raw anchor without fabricating one",()=>{
+ const parsed=asOperationBatch([{hash:"anchored",branch:"BOriginalBranch",contents:[{kind:"preattestation",...consensus,slot:0}]}]);
+ expect((parsed[0] as unknown as {branch?:string})?.branch).toBe("BOriginalBranch");
+ expect((asOperationBatch([{hash:"unanchored",contents:[{kind:"preattestation",...consensus,slot:0}]}])[0] as unknown as {branch?:string})?.branch).toBeUndefined();
+});

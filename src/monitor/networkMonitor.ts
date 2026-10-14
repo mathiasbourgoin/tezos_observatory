@@ -117,7 +117,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
         this.headFallbackActive = false;
         this.clearHeadFallback();
         this.headStatus = { ...this.headStatus, mode: "stream", error: null };
-        this.acceptHead({...head, evidence: this.receipt(source, head)});
+        this.acceptHead({...head, evidence: this.receipt(source, head, true)});
       },
       onStatus: (source, error, metrics) => {
         if (error !== null) {
@@ -325,13 +325,16 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
           this.derivingGeneration = null;
       });
   }
-  private receipt(source: RpcSource, observed?: BlockHeader): ObservationEvidence {
-    const head = this.state.snapshot()?.head;
+  private receipt(source: RpcSource, observed?: BlockHeader, appliedHead = false): ObservationEvidence {
+    const current = this.state.snapshot()?.head;
+    // Streams request a chain-wide endpoint, never the currently rendered hash.
+    // Context may be captured only from a head actually observed at this endpoint.
+    const contextualHead = appliedHead ? observed : current?.evidence?.source.baseUrl === source.baseUrl ? current : undefined;
     return Object.freeze({
       source: Object.freeze({...source}),
       ...(observed?.chainId ? {chainId: observed.chainId} : {}),
-      ...(head ? {requestedHeadHash: head.hash} : {}),
-      ...(observed ? {observedHeadHash: observed.hash, predecessor: observed.predecessor, ...(observed.proto === undefined ? {} : {protocol: observed.proto})} : head?.evidence?.source.baseUrl === source.baseUrl ? {observedHeadHash: head.hash, predecessor: head.predecessor, ...(head.proto === undefined ? {} : {protocol: head.proto})} : {}),
+      ...(observed ? {observedBlockHash:observed.hash} : {}),
+      ...(contextualHead ? {observedHeadHash:contextualHead.hash,predecessor:contextualHead.predecessor,...(contextualHead.proto === undefined ? {} : {protocolLevel:contextualHead.proto})} : {}),
       receivedAt: Date.now(), receivedMonotonic: performance.now(),
     });
   }

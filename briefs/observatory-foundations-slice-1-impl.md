@@ -13,20 +13,20 @@ The production page now lets a reader select H1 or H2 at the same level/round wi
 
 `phaseEvidence.ts` is the production accounting function extracted from `main.ts`, then extended after behavioral regressions. It groups votes by source/context/level/round/payload, counts unique phase delegates, exposes conflicting payload signers and preserves unknown-rights slots. It rejects contradictory committees, incomplete totals, invalid thresholds and unsafe cumulative power. Percentage rendering remains separate from exact power, signer count and deficit.
 
-`guards.ts` rejects a whole operation when any relevant consensus member is malformed, validates safe nonnegative applied levels/protocol indices and legitimate explicit-timezone calendar timestamps. A proposal retains the supplied chain identity. `OperationStore` no longer replaces first evidence or refreshes receipt order on replay; its existing 10000-operation cap remains in use.
+`guards.ts` rejects a whole operation when any relevant consensus member is malformed, validates safe nonnegative applied levels/protocol indices and legitimate explicit-timezone calendar timestamps. A proposal retains the supplied chain identity. An operation retains its supplied raw RPC branch without interpreting it as immediate proposal ancestry. `OperationStore` no longer replaces first evidence or refreshes receipt order on replay; its existing 10000-operation cap remains in use.
 
-`NetworkData` wraps reads with the actual responding endpoint and immutable receipt/requested-head facts, including successful fallback responses. Committee and protocol numerical boundaries reject fractional/negative/unsafe values and invalid threshold authority. Exact coherent cache/chain authority is deliberately unfinished until slice 3.
+`NetworkData` wraps reads with the actual responding endpoint and immutable receipt facts, retaining requested-head hashes only for routes actually pinned by hash, including successful fallback responses. Committee and protocol numerical boundaries reject fractional/negative/unsafe values and invalid threshold authority. Exact coherent cache/chain authority is deliberately unfinished until slice 3.
 
 ## Actual verification
 
 All commands used the supplied Node 22 runtime. Baseline before production changes: clean npm ci, TypeScript check, 38 unit tests, 30 Playwright cases across Chromium/Firefox, and build.
 
-After slice changes: TypeScript check passed, 47 unit tests passed, build passed and 32 Playwright cases passed across Chromium/Firefox. The new real `/` scenario independently selects H1/H2 and competing payload Q, verifies shared qualification/unknown producer, source endpoint, unique replay signer and exact 19400 deficit. Both browsers also ran the baseline focus/scroll and header regressions. Focused screenshot execution passed after correcting its panel selector; captures are [Chromium](../roster/observatory-foundations/slice-1-chromium.png) and [Firefox](../roster/observatory-foundations/slice-1-firefox.png).
+After slice changes: TypeScript check passed, 50 unit tests passed, build passed and 32 Playwright cases passed across Chromium/Firefox. The new real `/` scenario independently selects H1/H2 and competing payload Q, verifies shared qualification/unknown producer, source endpoint, unique replay signer and exact 19400 deficit. Both browsers also ran the baseline focus/scroll and header regressions. Focused screenshot execution passed after correcting its panel selector; captures are [Chromium](../roster/observatory-foundations/slice-1-chromium.png) and [Firefox](../roster/observatory-foundations/slice-1-firefox.png).
 
 | Semantic command | Actual assertions | Result |
 |---|---:|---|
-| `rtk proxy node scripts/check-observatory-foundations.mjs AC-1` | 10 | exit 0 |
-| `rtk proxy node scripts/check-observatory-foundations.mjs AC-9` | 10 | exit 0 |
+| `rtk proxy node scripts/check-observatory-foundations.mjs AC-1` | 12 | exit 0 |
+| `rtk proxy node scripts/check-observatory-foundations.mjs AC-9` | 12 | exit 0 |
 | `rtk proxy node scripts/check-observatory-foundations.mjs AC-10` | 3 | exit 0 |
 | `rtk proxy node scripts/check-observatory-foundations.mjs AC-11` | 9 | exit 0 |
 | `rtk proxy node scripts/check-observatory-foundations.mjs AC-12` | 21 | exit 0 |
@@ -34,6 +34,8 @@ After slice changes: TypeScript check passed, 47 unit tests passed, build passed
 These checks load real production modules using the existing Vite transformation API; they do not duplicate accounting functions. Unsupported ACs are explicit incomplete-execution errors, not passing placeholders. AC-38 currently exits 2. The complete 38-command interface and browser-required cases remain owning-slice obligations.
 
 Meaningful TDD failures were observed before behavior changes: H2 was discarded, mixed malformed aggregates retained valid signers, rollover dates were accepted, replay replaced original contents and invalid fractional committee data retained authority. Conflict and invalid-committee tests followed a mechanical accounting extraction and failed at assertions before extensions. The first candidate test initially dereferenced an absent new field, which was an execution error, not a behavioral red; it was corrected to assert the existing `latestProposal.hash` H1-versus-H2 boundary before production changes. [Standalone AC-1 red evidence](../roster/observatory-foundations/slice-1-ac1-red.log) records assertion exit 1 against the original base monitor with current check support; current code exits 0. The temporary original monitor was restored immediately.
+
+Root caught a provenance-carrier defect before handoff: unpinned stream receipts borrowed the globally rendered head as a requested-head fact. Actual A/B regressions failed at assertions before correction. Unpinned streams and pending reads now leave requested-head unknown, and capture observed-head context only from the same observer. Pinned auxiliary routes retain their actual requested hash. The shell `proto` number is now explicitly a protocol-level counter, not a protocol hash. These fact corrections are included in the final interim checkpoint.
 
 Managed claims remain fresh at `113f75b401e86d28db76e2179c62d2a2323e83ab3f7d718f327edc60ccca8512`; no verification claims were written into the accepted contract.
 

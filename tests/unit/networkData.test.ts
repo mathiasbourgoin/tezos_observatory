@@ -33,3 +33,18 @@ it("rejects invalid committee values and invalid protocol quorum without losing 
  const data=new NetworkData("mainnet"),result=await data.derive(head(120),new AbortController().signal);
  expect(result.rights.size).toBe(0);expect(result.constants).toBeNull();
 });
+
+it("preserves raw pending branches and labels only actually pinned auxiliary requests",async()=>{
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{
+  const url=String(input),level=Number(new URL(url).searchParams.get("level"));
+  if(url.includes("pending_operations"))return Response.json({validated:[{hash:"pending",branch:"BRawAnchor",contents:[{kind:"preattestation",level:121,round:0,slot:0,block_payload_hash:"P"}]}]});
+  if(url.includes("attestation_rights"))return Response.json([{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData("mainnet"),signal=new AbortController().signal;
+ const pending=await data.pending(signal,head(120));expect(pending[0]?.branch).toBe("BRawAnchor");
+ expect(pending[0]?.evidence?.requestedHeadHash).toBeUndefined();expect(pending[0]?.evidence?.observedHeadHash).toBeUndefined();
+ const derived=await data.derive(head(120),signal);
+ expect(derived.rights.get(120)?.[0]?.evidence?.requestedHeadHash).toBe("B120");
+ expect(derived.rights.get(120)?.[0]?.evidence?.observedHeadHash).toBeUndefined();
+});

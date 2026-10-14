@@ -364,3 +364,23 @@ it("bounds accepted and unresolved candidate products independently by first rec
   expect(views.at(-1)?.candidates.some(candidate=>candidate.header.hash==="accepted-100")).toBe(true);
   monitor.stop();
 });
+
+it("keeps unpinned A/B stream requested-head facts unknown and never borrows A head context for B",()=>{
+ vi.useFakeTimers();
+ const {monitor,heads,operations,views}=setup({proposalSources:[source]});
+ heads.value(header(120));
+ const headEvidence=views.at(-1)?.snapshot?.head.evidence;
+ expect(headEvidence?.requestedHeadHash).toBeUndefined();
+ expect(headEvidence?.observedHeadHash).toBe("B120");
+ const other={...source,name:"observer B",baseUrl:"https://observer-b"};
+ operations.settings.onValue([{hash:"B-vote",contents:[{kind:"preattestation",level:121,round:0,slot:0,block_payload_hash:"P"}]}],other,0);
+ const voteEvidence=views.at(-1)?.snapshot?.operations[0]?.evidence;
+ expect(voteEvidence?.requestedHeadHash).toBeUndefined();expect(voteEvidence?.observedHeadHash).toBeUndefined();
+ expect(voteEvidence?.source.baseUrl).toBe(other.baseUrl);
+ const proposals=FakeTransport.instances[2] as FakeTransport<BlockHeader>;
+ proposals.settings.onValue({...header(121),hash:"B-proposal",chainId:"NetB",payload_hash:"P"},other,0);
+ const candidate=views.at(-1)?.candidates[0];
+ expect(candidate?.evidence.requestedHeadHash).toBeUndefined();expect(candidate?.evidence.observedHeadHash).toBeUndefined();
+ expect(candidate?.header.predecessor).toBe("B120");
+ monitor.stop();
+});

@@ -13,7 +13,9 @@ export interface ObservationEvidence {
   readonly requestedHeadHash?: string;
   readonly observedHeadHash?: string;
   readonly predecessor?: string;
-  readonly protocol?: number;
+  /** Shell header proto is a protocol-level counter, not a protocol hash. */
+  readonly protocolLevel?: number;
+  readonly observedBlockHash?: string;
   readonly receivedAt: number;
   readonly receivedMonotonic: number;
 }
@@ -45,6 +47,8 @@ export interface ConsensusContent {
 }
 
 export interface MonitoredOperation {
+  /** Original raw RPC branch; it does not prove immediate proposal ancestry. */
+  readonly branch?: string;
   readonly evidence?: ObservationEvidence;
   readonly hash: string;
   readonly contents: readonly ConsensusContent[];

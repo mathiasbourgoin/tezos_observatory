@@ -16,7 +16,7 @@ try {
   const {NetworkMonitor} = await server.ssrLoadModule('/monitor/networkMonitor.ts');
   const source = {network:'mainnet',name:'Observer A',baseUrl:'https://observer-a.invalid'};
   const rights = [{address:'D1',slot:0,power:3},{address:'D2',slot:1,power:2}];
-  const context = {source,chainId:'NetFixture',requestedHeadHash:'Parent',observedHeadHash:'Parent',predecessor:'Grandparent',protocol:4,receivedAt:Date.now(),receivedMonotonic:performance.now()};
+  const context = {source,chainId:'NetFixture',requestedHeadHash:'Parent',observedHeadHash:'Parent',predecessor:'Grandparent',protocolLevel:4,receivedAt:Date.now(),receivedMonotonic:performance.now()};
   const individual = (payload,slot) => ({hash:`individual-${payload}-${slot}`,contents:[{kind:'preattestation',level:120,round:2,slot,block_payload_hash:payload}]});
   const aggregate = (committee) => ({hash:`aggregate-${JSON.stringify(committee)}`,contents:[{kind:'preattestations_aggregate',consensus_content:{level:120,round:2,block_payload_hash:'P'},committee}]});
   const admit = raw => asOperationBatch(raw).map(operation => ({...operation,evidence:context}));
@@ -43,6 +43,8 @@ try {
     check([authority.threshold-signerPower(p.pre,rights),authority.threshold-signerPower(q.pre,rights)],[1,2],'Exact deficits');
     check(p.pre.size,1,'Shared payload counts one signer, not each candidate');
     check(view.candidates[0].evidence.source.baseUrl,source.baseUrl,'Immutable source attribution');
+    check(view.candidates[0].evidence.requestedHeadHash,undefined,'Unpinned stream has no requested-head hash');
+    check(view.candidates[0].evidence.observedHeadHash,'Parent','Only same-observer observed head context is captured');
   } else if (criterion === 'AC-10') {
     const groups=groupsFor(admit([individual('P',0),aggregate([0]),individual('Q',0),individual('Q',0)]),rights,120);
     check(groups.map(group=>signerPower(group.pre,rights)),[3,3],'Conflict delegate counts once independently');

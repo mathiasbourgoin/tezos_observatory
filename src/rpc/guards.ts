@@ -127,7 +127,7 @@ function asOperation(value: unknown): MonitoredOperation {
       ];
     },
   );
-  return { hash: value.hash, contents: invalid ? [] : contents };
+  return { hash: value.hash, contents: invalid ? [] : contents, ...(typeof value.branch === "string" ? {branch:value.branch} : {}) };
 }
 
 export function asOperationBatch(value: unknown): MonitorOperationBatch {

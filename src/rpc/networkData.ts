@@ -195,7 +195,13 @@ export class NetworkData {
           throw new Error(`${source.name}: HTTP ${response.status}`);
         const result: unknown = await response.json();
         this.source = source;
-        return {value:result,evidence:Object.freeze({source:Object.freeze({...source}),receivedAt:Date.now(),receivedMonotonic:performance.now(),...(head ? {requestedHeadHash:head.hash,observedHeadHash:head.hash,predecessor:head.predecessor,...(head.proto === undefined ? {} : {protocol:head.proto}),...(head.chainId ? {chainId:head.chainId} : {})} : {})})};
+        const pinnedHead = head && path.includes(`/blocks/${head.hash}/`) ? head : undefined;
+        const sameObserverHead = head?.evidence?.source.baseUrl === source.baseUrl ? head : undefined;
+        return {value:result,evidence:Object.freeze({
+          source:Object.freeze({...source}),receivedAt:Date.now(),receivedMonotonic:performance.now(),
+          ...(pinnedHead ? {requestedHeadHash:pinnedHead.hash} : {}),
+          ...(sameObserverHead ? {observedHeadHash:sameObserverHead.hash,predecessor:sameObserverHead.predecessor,...(sameObserverHead.proto === undefined ? {} : {protocolLevel:sameObserverHead.proto}),...(sameObserverHead.chainId ? {chainId:sameObserverHead.chainId} : {})} : {}),
+        })};
       } catch (failure) {
         error = failure;
       }
@@ -205,7 +211,8 @@ export class NetworkData {
 
   async head(signal: AbortSignal): Promise<BlockHeader> {
     const observed = await this.requestObserved("/chains/main/blocks/head/header",signal);
-    return {...asBlockHeader(observed.value),evidence:observed.evidence};
+    const header = asBlockHeader(observed.value);
+    return {...header,evidence:Object.freeze({...observed.evidence,observedHeadHash:header.hash,observedBlockHash:header.hash,predecessor:header.predecessor,...(header.proto === undefined ? {} : {protocolLevel:header.proto})})};
   }
 
   async pending(signal: AbortSignal, head?: BlockHeader): Promise<readonly MonitoredOperation[]> {
