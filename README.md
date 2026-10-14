@@ -102,3 +102,7 @@ The [comparative product review](docs/reviews/2026-10-14-explorus-teztale.md)
 records interface principles and proposed improvements inspired by Explorus and
 Teztale. Recommendations are not a promise that every feature is implemented.
 No server-side polling is introduced by this deployment.
+
+The [V3 design anti-checklist](docs/reviews/2026-10-14-v3-anti-generic-design.md)
+sets task-based criteria for an original, usable interface and distinguishes
+design critiques from evidence about how a website was produced.
