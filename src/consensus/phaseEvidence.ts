@@ -1,4 +1,4 @@
-import type {MonitoredOperation, ObservationEvidence} from "../rpc/models";
+import type {AdmissionEvidence, MonitoredOperation, ObservationEvidence} from "../rpc/models";
 import type {DelegateRight,TargetContext} from "../rpc/networkData";
 import {nonnegativeInteger} from "../rpc/guards";
 
@@ -8,6 +8,7 @@ export interface Group {
   readonly payload: string;
   readonly contextKey: string;
   readonly evidence?: ObservationEvidence;
+  readonly admission?:AdmissionEvidence;
   readonly pre: Set<string>;
   readonly att: Set<string>;
   readonly unknownSlots: readonly number[];
@@ -15,8 +16,12 @@ export interface Group {
 }
 export type CommitteeAuthority = {readonly usable:true;readonly total:number;readonly threshold:number} | {readonly usable:false;readonly reason:string};
 
+const contextFacts=(context:TargetContext):string=>JSON.stringify([context.key,context.level,context.protocolHash,context.observer.source.network,context.observer.source.baseUrl,context.observer.chainId,context.observer.header.hash,context.observer.header.predecessor,context.observer.protocolHash,context.observer.nextProtocolHash,context.anchor.header.hash,context.anchor.chainId,context.anchor.nextProtocolHash]);
+
 /** The single numerical boundary used by the production inspector. */
 export function committeeAuthority(rights: readonly DelegateRight[], expectedTotal?: number, threshold?: number): CommitteeAuthority {
+  const contextual=rights.find(right=>right.context)?.context;
+  if(contextual && rights.some(right=>!right.context || contextFacts(right.context)!==contextFacts(contextual)))return {usable:false,reason:"Mixed or incomplete committee context"};
   const addresses = new Set<string>(), slots = new Set<number>();
   let total = 0;
   for (const right of rights) {
@@ -40,16 +45,19 @@ export function signerPower(signers: ReadonlySet<string>, rights: readonly Deleg
   return power;
 }
 
-export function evidenceContext(evidence?: ObservationEvidence): string {
+export function evidenceContext(evidence?: ObservationEvidence,admission?:AdmissionEvidence): string {
+  if(admission)return admission.contextKey;
   return JSON.stringify([evidence?.source.network ?? "unknown", evidence?.source.baseUrl ?? "unknown", evidence?.chainId ?? "unknown", evidence?.requestedHeadHash ?? "unknown", evidence?.observedHeadHash ?? "unknown", evidence?.predecessor ?? "unknown", evidence?.protocolLevel ?? "unknown"]);
 }
 
-export function observationContextCompatible(evidence:ObservationEvidence|undefined,context:TargetContext):boolean {
-  return evidence?.source.baseUrl===context.observer.source.baseUrl && evidence.observedHeadHash===context.observer.header.hash && (evidence.chainId===undefined || evidence.chainId===context.observer.chainId);
+export function observationContextCompatible(evidence:ObservationEvidence|undefined,context:TargetContext,admission?:AdmissionEvidence):boolean {
+  const sidecar=admission!==undefined && admission.source.baseUrl===context.observer.source.baseUrl && admission.chainId===context.observer.chainId && admission.headHash===context.observer.header.hash && admission.predecessor===context.observer.header.predecessor && admission.anchorHash===context.anchor.header.hash && admission.protocolHash===context.protocolHash && admission.targetLevel===context.level && admission.contextKey===context.key;
+  return evidence?.source.baseUrl===context.observer.source.baseUrl && (admission?sidecar:evidence.observedHeadHash===context.observer.header.hash) && (evidence.chainId===undefined || evidence.chainId===context.observer.chainId);
 }
 
 export function groupsFor(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number): Group[] {
-  const bySlot = committeeAuthority(rights).usable ? new Map(rights.map(right => [right.slot,right.address])) : new Map<number,string>();
+  const authorityContext=rights[0]?.context;
+  const bySlot = committeeAuthority(rights).usable && authorityContext!==undefined ? new Map(rights.map(right => [right.slot,right.address])) : new Map<number,string>();
   type AccumulatedGroup = Omit<Group,"unknownSlots"|"conflicts"> & {unknownSlots:Set<number>;conflicts:Set<string>};
   const groups = new Map<string,AccumulatedGroup>();
   // Each unique signer/phase/group enters one membership. Conflict marking visits
@@ -57,15 +65,15 @@ export function groupsFor(operations: readonly MonitoredOperation[], rights: rea
   const memberships = new Map<string,{address:string;groups:Set<AccumulatedGroup>}>();
   for (const operation of operations) for (const content of operation.contents) {
     if (content.level !== level || !content.block_payload_hash) continue;
-    const contextKey = evidenceContext(operation.evidence);
+    const admission=operation.admissions?.find(proof=>proof.contextKey===authorityContext?.key && proof.targetLevel===content.level)??operation.admissions?.find(proof=>proof.targetLevel===content.level)??(operation.admission?.targetLevel===content.level?operation.admission:undefined);
+    const contextKey = evidenceContext(operation.evidence,admission);
     const key = JSON.stringify([contextKey,content.round,content.block_payload_hash]);
     let group = groups.get(key);
     if (!group) {
-      group = {level,round:content.round,payload:content.block_payload_hash,contextKey,pre:new Set(),att:new Set(),unknownSlots:new Set(),conflicts:new Set(),...(operation.evidence ? {evidence:operation.evidence} : {})};
+      group = {level,round:content.round,payload:content.block_payload_hash,contextKey,pre:new Set(),att:new Set(),unknownSlots:new Set(),conflicts:new Set(),...(operation.evidence ? {evidence:operation.evidence} : {}),...(admission?{admission}:{})};
       groups.set(key,group);
     }
-    const authorityContext=rights[0]?.context;
-    const compatible=!authorityContext || (authorityContext.level===content.level && observationContextCompatible(operation.evidence,authorityContext));
+    const compatible=authorityContext!==undefined && (authorityContext.level===content.level && observationContextCompatible(operation.evidence,authorityContext,admission));
     const address = compatible ? bySlot.get(content.slot) : undefined;
     if (!address) {group.unknownSlots.add(content.slot);continue;}
     const phase = content.kind === "preattestation" ? "pre" : "att";

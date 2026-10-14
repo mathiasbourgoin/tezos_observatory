@@ -5,6 +5,11 @@ interface StoredOperation {
   readonly seenAt: number;
 }
 
+export function operationIdentity(operation:MonitoredOperation):string {
+  const evidence=operation.evidence;
+  return JSON.stringify([evidence?.source.baseUrl??"unknown",evidence?.chainId??"unknown",evidence?.requestedHeadHash??"unknown",evidence?.observedHeadHash??"unknown",operation.hash]);
+}
+
 export class OperationStore {
   private readonly operations = new Map<string, StoredOperation>();
 
@@ -17,7 +22,7 @@ export class OperationStore {
     this.expire(now);
     let added = 0;
     for (const operation of batch) {
-      const key = `${operation.evidence?.source.baseUrl ?? "unknown"}:${operation.evidence?.requestedHeadHash ?? "unknown"}:${operation.hash}`;
+      const key = operationIdentity(operation);
       if (this.operations.has(key)) continue;
       added += 1;
       this.operations.set(key, { operation, seenAt: now });
@@ -33,6 +38,14 @@ export class OperationStore {
   values(now = performance.now()): readonly MonitoredOperation[] {
     this.expire(now);
     return [...this.operations.values()].map((item) => item.operation);
+  }
+
+  getByIdentity(identity:string):MonitoredOperation|undefined {
+    return this.operations.get(identity)?.operation;
+  }
+
+  get(operation:MonitoredOperation):MonitoredOperation|undefined {
+    return this.operations.get(operationIdentity(operation))?.operation;
   }
 
   clear(): void {

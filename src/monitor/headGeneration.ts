@@ -72,6 +72,12 @@ export class HeadGeneration<T> {
     return this.operations.add(relevant);
   }
 
+  syncOperations(generation:number,operations:readonly MonitoredOperation[]):void {
+    this.assertCurrent(generation);
+    this.operations.clear();
+    this.addOperations(generation,operations);
+  }
+
   commitDerived(generation: number, value: T): void {
     this.assertCurrent(generation);
     this.derived = value;

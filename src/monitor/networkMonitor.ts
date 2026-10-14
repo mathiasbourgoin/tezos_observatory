@@ -14,6 +14,7 @@ import type {
   StreamStatus,
   TransportMetrics,
 } from "../rpc/models";
+import {OperationStore} from "../rpc/operationStore";
 import { StreamTransport } from "../rpc/streamTransport";
 import {
   HeadGeneration,
@@ -28,6 +29,7 @@ export interface NetworkDerivedState {
 export interface NetworkMonitorView<T extends NetworkDerivedState> {
   readonly network: NetworkName;
   readonly snapshot: HeadSnapshot<T> | null;
+  readonly rawOperations: MonitorOperationBatch;
   readonly headStream: StreamStatus;
   readonly operationStream: StreamStatus;
   readonly operationMode: "stream" | "fallback" | "paused";
@@ -77,6 +79,7 @@ const emptyStatus = (): StreamStatus => ({
 
 export class NetworkMonitor<T extends NetworkDerivedState> {
   private readonly state = new HeadGeneration<T>();
+  private readonly rawOperationStore=new OperationStore(10000,Infinity);
   private readonly headTransport: StreamTransport<BlockHeader>;
   private readonly operationTransport: StreamTransport<MonitorOperationBatch> | null;
   private readonly proposalTransport: StreamTransport<BlockHeader> | null;
@@ -335,7 +338,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       source: Object.freeze({...source}),
       ...(observed?.chainId ? {chainId: observed.chainId} : {}),
       ...(observed ? {observedBlockHash:observed.hash} : {}),
-      ...(contextualHead ? {observedHeadHash:contextualHead.hash,predecessor:contextualHead.predecessor,...(contextualHead.proto === undefined ? {} : {protocolLevel:contextualHead.proto})} : {}),
+      ...(contextualHead ? {observedHeadHash:contextualHead.hash,observedHeadLevel:contextualHead.level,predecessor:contextualHead.predecessor,...(contextualHead.proto === undefined ? {} : {protocolLevel:contextualHead.proto})} : {}),
       receivedAt: Date.now(), receivedMonotonic: performance.now(),
     });
   }
@@ -382,17 +385,16 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   }
   private acceptOperations(batch: MonitorOperationBatch): void {
     if (!this.running) return;
+    this.rawOperationStore.add(batch);
     this.lastOperationAt = Date.now();
     const generation = this.state.currentGeneration();
     if (generation === 0) {
-      this.initialOperations = [...this.initialOperations, ...batch].slice(
-        -10_000,
-      );
+      this.initialOperations = this.rawOperationStore.values();
       this.emit();
       return;
     }
     this.operationGeneration = generation;
-    this.state.addOperations(generation, batch);
+    this.state.syncOperations(generation, this.rawOperationStore.values());
     this.emit();
   }
   private clearOperationFallback(): void {
@@ -488,6 +490,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     this.options.onUpdate({
       network: this.options.network,
       snapshot: this.state.snapshot(),
+      rawOperations: this.rawOperationStore.values(),
       headStream: this.headStatus,
       operationStream: this.operationStatus,
       operationMode: this.operationMode,

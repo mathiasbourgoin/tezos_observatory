@@ -1,7 +1,13 @@
 import {expect,it} from "vitest";
 import {groupsFor} from "../../src/consensus/phaseEvidence";
-const operation=(payload:string,slot:number,kind:"preattestation"|"attestation"="preattestation")=>({hash:`${payload}:${slot}:${kind}`,contents:[{kind,level:120,round:2,slot,block_payload_hash:payload}]});
-const rights=[{address:"D1",slot:0,power:3},{address:"D2",slot:1,power:2}];
+const source={network:"mainnet" as const,name:"A",baseUrl:"A"};
+const contextFor=(baseUrl:string)=>{
+ const observerSource={...source,name:baseUrl,baseUrl},header={chainId:"NetFixture",level:119,hash:"H119",predecessor:"H118",timestamp:"2026-01-01T00:00:00Z",fitness:["02","00000077","","ffffffff","00000000"]};
+ const observer={header,source:observerSource,chainId:"NetFixture",protocolHash:"PFixture",nextProtocolHash:"PFixture",evidence:{source:observerSource,receivedAt:1,receivedMonotonic:1}};
+ return {observer,anchor:observer,level:120,protocolHash:"PFixture",key:JSON.stringify([baseUrl,"NetFixture","H119","H118","PFixture",120])};
+};
+const operation=(payload:string,slot:number,kind:"preattestation"|"attestation"="preattestation")=>({evidence:{source,chainId:"NetFixture",observedHeadHash:"H119",receivedAt:1,receivedMonotonic:1},hash:`${payload}:${slot}:${kind}`,contents:[{kind,level:120,round:2,slot,block_payload_hash:payload}]});
+const rights=[{address:"D1",slot:0,power:3,context:contextFor("A")},{address:"D2",slot:1,power:2,context:contextFor("A")}];
 it("keeps competing payload delegate power separate and exposes conflicting delegates",()=>{
  const groups=groupsFor([operation("P",0),operation("P",0),operation("Q",0),operation("Q",1)],rights,120);
  expect(groups.find(g=>g.payload==="P")?.pre.size).toBe(1);expect(groups.find(g=>g.payload==="Q")?.pre.size).toBe(2);
@@ -14,9 +20,10 @@ it("withdraws contradictory committee authority but preserves raw signer evidenc
 });
 
 it("separates identical payload evidence from different immutable observer contexts",()=>{
- const evidence=(source:string)=>({source:{network:"mainnet" as const,name:source,baseUrl:source},requestedHeadHash:"H",receivedAt:1,receivedMonotonic:1});
+ const evidence=(source:string)=>({source:{network:"mainnet" as const,name:source,baseUrl:source},observedHeadHash:"H119",receivedAt:1,receivedMonotonic:1});
  const groups=groupsFor([{...operation("P",0),evidence:evidence("A")},{...operation("P",1),evidence:evidence("B")}],rights,120);
- expect(groups).toHaveLength(2);expect(groups[0]?.pre.size).toBe(1);expect(groups[1]?.pre.size).toBe(1);
+ expect(groups).toHaveLength(2);expect(groups[0]?.pre.size).toBe(1);expect(groups[1]?.pre.size).toBe(0);
+ const other=groupsFor([{...operation("P",0),evidence:evidence("A")},{...operation("P",1),evidence:evidence("B")}],rights.map(right=>({...right,context:contextFor("B")})),120);expect(other.map(group=>group.pre.size)).toEqual([0,1]);
 });
 
 it("preserves exact independent conflict evidence for the permitted 10000-group flood",()=>{

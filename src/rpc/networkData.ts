@@ -5,9 +5,10 @@ import type {
   MonitoredOperation,
   ObservationEvidence,
 } from "./models";
-import {tenderbakeFitness} from "../consensus/roundSchedule";
+import {proposalRound,tenderbakeFitness} from "../consensus/roundSchedule";
 import {committeeAuthority} from "../consensus/phaseEvidence";
 import { asBlockHeader, asOperationBatch } from "./guards";
+import type {ReconciliationTarget} from "../monitor/observerReconciliation";
 import type { NetworkDerivedState } from "../monitor/networkMonitor";
 
 export const sources: Record<NetworkName, readonly RpcSource[]> = {
@@ -99,6 +100,15 @@ export interface Derived extends NetworkDerivedState {
   readonly constantsByLevel: ReadonlyMap<number,Constants>;
   errors: readonly string[];
 }
+export interface ReconciledContext {
+  readonly head:BlockHeader;
+  readonly derived:Derived;
+  readonly context:TargetContext;
+  readonly rights:readonly DelegateRight[];
+  readonly constants:Constants;
+  readonly observerGeneration?:number;
+  readonly collectionGeneration?:number;
+}
 export interface BakingRight {
   readonly evidence?:ObservationEvidence;
   readonly context?:TargetContext;
@@ -167,7 +177,7 @@ export class NetworkData {
     const key=JSON.stringify([source.baseUrl,hash]);
     const verify=(context:RpcContext):RpcContext=>{
       const header=context.header;
-      if(expected && (header.hash!==expected.hash || header.level!==expected.level || header.predecessor!==expected.predecessor || header.timestamp!==expected.timestamp || JSON.stringify(header.fitness)!==JSON.stringify(expected.fitness) || (expected.chainId!==undefined && expected.chainId!==context.chainId))) throw new Error("Observer context does not match observed header");
+      if(expected && (header.hash!==expected.hash || header.level!==expected.level || header.predecessor!==expected.predecessor || header.timestamp!==expected.timestamp || (expected.proto!==undefined && header.proto!==expected.proto) || (expected.payload_hash!==undefined && header.payload_hash!==expected.payload_hash) || JSON.stringify(header.fitness)!==JSON.stringify(expected.fitness) || (expected.chainId!==undefined && expected.chainId!==context.chainId))) throw new Error("Observer context does not match observed header");
       return context;
     };
     const cached=this.contextCache.get(key);if(cached)return verify(cached);
@@ -200,8 +210,8 @@ export class NetworkData {
     return Object.freeze({observer,anchor,level,protocolHash,key:JSON.stringify([observer.source.baseUrl,observer.chainId,head.hash,head.predecessor,protocolHash,level])});
   }
 
-  private async targetRequest(path:string,context:TargetContext,signal:AbortSignal):Promise<{value:unknown;evidence:ObservationEvidence}> {
-    const receipt=await this.requestObserved(path,signal,context.anchor.header);
+  private async targetRequest(path:string,context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<{value:unknown;evidence:ObservationEvidence}> {
+    const receipt=await this.requestObserved(path,signal,context.anchor.header,exactSource);
     const source=receipt.evidence.source;
     const observer=await this.context(context.observer.header.hash,source,signal,context.observer.header);
     const anchor=await this.context(context.anchor.header.hash,source,signal,context.anchor.header);
@@ -209,13 +219,13 @@ export class NetworkData {
     return {value:receipt.value,evidence:Object.freeze({...receipt.evidence,chainId:observer.chainId,protocolHash:context.protocolHash,targetLevel:context.level,contextHeadHash:observer.header.hash,predecessor:observer.header.predecessor})};
   }
 
-  private async committee(context:TargetContext,signal:AbortSignal):Promise<readonly DelegateRight[]> {
-    const key=context.key,level=context.level;
+  private async committee(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<readonly DelegateRight[]> {
+    const key=exactSource?JSON.stringify([context.key,exactSource.baseUrl]):context.key,level=context.level;
     const cached=this.committees.get(key);if(cached)return cached;
     const pending=this.committeesPending.get(key);if(pending)return pending;
     const task=(async()=>{
       const generation=this.collectionGeneration;
-      const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/helpers/attestation_rights?level=${level}`,context,signal);
+      const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/helpers/attestation_rights?level=${level}`,context,signal,exactSource);
       this.assertCollecting(generation,signal);
       const raw=observed.value;
       if(!Array.isArray(raw))throw new Error("Invalid rights response");
@@ -236,15 +246,16 @@ export class NetworkData {
     try{return await task;}finally{if(this.committeesPending.get(key)===task)this.committeesPending.delete(key);}
   }
 
-  private async protocolConstants(context:TargetContext,signal:AbortSignal):Promise<Constants> {
-    const cached=this.constantCache.get(context.key);if(cached)return cached;
+  private async protocolConstants(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<Constants> {
+    const key=exactSource?JSON.stringify([context.key,exactSource.baseUrl]):context.key;
+    const cached=this.constantCache.get(key);if(cached)return cached;
     const generation=this.collectionGeneration;
-    const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/context/constants`,context,signal);
+    const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/context/constants`,context,signal,exactSource);
     const raw=observed.value;
     if(!object(raw))throw new Error("Invalid constants");
     const value:Constants=Object.freeze({minimum:numeric(raw.minimal_block_delay),increment:numeric(raw.delay_increment_per_round),quorum:numeric(raw.consensus_threshold_size),committee:numeric(raw.consensus_committee_size),evidence:observed.evidence,context});
     if(value.minimum<=0 || value.committee<=0 || value.quorum<=0 || value.quorum>value.committee)throw new Error("Invalid committee total/threshold");
-    this.assertCollecting(generation,signal);this.constantCache.set(context.key,value);
+    this.assertCollecting(generation,signal);this.constantCache.set(key,value);
     while(this.constantCache.size>12)this.constantCache.delete(this.constantCache.keys().next().value!);
     return value;
   }
@@ -277,9 +288,9 @@ export class NetworkData {
         const pinnedHead = head && path.includes(`/blocks/${head.hash}/`) ? head : undefined;
         const sameObserverHead = head?.evidence?.source.baseUrl === source.baseUrl ? head : undefined;
         return {value:result,evidence:Object.freeze({
-          source:Object.freeze({...source}),receivedAt:Date.now(),receivedMonotonic:performance.now(),
+          source:Object.freeze({...source}),collectionGeneration:generation,receivedAt:Date.now(),receivedMonotonic:performance.now(),
           ...(pinnedHead ? {requestedHeadHash:pinnedHead.hash} : {}),
-          ...(sameObserverHead ? {observedHeadHash:sameObserverHead.hash,predecessor:sameObserverHead.predecessor,...(sameObserverHead.proto === undefined ? {} : {protocolLevel:sameObserverHead.proto}),...(sameObserverHead.chainId ? {chainId:sameObserverHead.chainId} : {})} : {}),
+          ...(sameObserverHead ? {observedHeadHash:sameObserverHead.hash,observedHeadLevel:sameObserverHead.level,predecessor:sameObserverHead.predecessor,...(sameObserverHead.proto === undefined ? {} : {protocolLevel:sameObserverHead.proto}),...(sameObserverHead.chainId ? {chainId:sameObserverHead.chainId} : {})} : {}),
         })};
       } catch (failure) {
         error = failure;
@@ -288,8 +299,8 @@ export class NetworkData {
     throw error;
   }
 
-  async head(signal: AbortSignal): Promise<BlockHeader> {
-    const observed = await this.requestObserved("/chains/main/blocks/head/header",signal);
+  async head(signal: AbortSignal,exactSource?:RpcSource): Promise<BlockHeader> {
+    const observed = await this.requestObserved("/chains/main/blocks/head/header",signal,undefined,exactSource);
     const header = asBlockHeader(observed.value);
     return {...header,evidence:Object.freeze({...observed.evidence,observedHeadHash:header.hash,observedBlockHash:header.hash,predecessor:header.predecessor,...(header.proto === undefined ? {} : {protocolLevel:header.proto})})};
   }
@@ -317,6 +328,25 @@ export class NetworkData {
       }catch(error){errors.push(`Target context ${level}: ${String(error)}`);}
     }));
     return {refreshedAt:Date.now(),rights,contexts,constantsByLevel,constants:constantsByLevel.get(head.level)??null,predecessor:contexts.get(head.level)?.anchor.header??null,errors};
+  }
+
+  async reconcile(target:ReconciliationTarget,signal:AbortSignal):Promise<ReconciledContext> {
+    if(![...sources[this.network],...streamSources[this.network]].some(source=>source.baseUrl===target.source.baseUrl && source.network===target.source.network))throw new Error("Unconfigured reconciliation observer");
+    if(target.candidate && target.candidate.evidence.source.baseUrl!==target.source.baseUrl)throw new Error("Candidate belongs to another observer");
+    if(target.candidate && (target.level!==target.candidate.header.level || target.round!==proposalRound(target.candidate.header.fitness,target.candidate.header.level) || target.payload!==target.candidate.header.payload_hash))throw new Error("Reconciliation target does not match candidate facts");
+    let head:BlockHeader;
+    if(target.candidate){
+      const candidate=await this.context(target.candidate.header.hash,target.source,signal,target.candidate.header);
+      const parent=await this.context(candidate.header.predecessor,target.source,signal);
+      if(parent.chainId!==candidate.chainId || parent.header.level!==candidate.header.level-1 || parent.nextProtocolHash!==candidate.protocolHash)throw new Error("Unproven validated candidate parent context");
+      if(parent.protocolHash===candidate.protocolHash && tenderbakeFitness(candidate.header.fitness,candidate.header.level)?.predecessorRound!==tenderbakeFitness(parent.header.fitness,parent.header.level)?.round)throw new Error("Contradictory validated predecessor round");
+      head={...parent.header,evidence:parent.evidence};
+    }else head=await this.head(signal,target.source);
+    const context=await this.targetContext(head,target.level,signal);
+    const [rights,constants]=await Promise.all([this.committee(context,signal,target.source),this.protocolConstants(context,signal,target.source)]);
+    if(!committeeAuthority(rights,constants.committee,constants.quorum).usable)throw new Error("Reconciliation committee contradicts constants");
+    const derived:Derived={refreshedAt:Date.now(),rights:new Map([[target.level,rights]]),contexts:new Map([[target.level,context]]),constantsByLevel:new Map([[target.level,constants]]),constants,predecessor:target.level===head.level?context.anchor.header:null,errors:[]};
+    return Object.freeze({head:Object.freeze(head),derived,context,rights,constants,...(target.observerGeneration===undefined?{}:{observerGeneration:target.observerGeneration}),...(target.collectionGeneration===undefined?{}:{collectionGeneration:target.collectionGeneration})});
   }
 
   alias(address: string): string | undefined {

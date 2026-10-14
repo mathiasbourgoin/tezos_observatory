@@ -41,8 +41,8 @@ class FakeTransport<T> {
   stop() {
     this.settings.onStatus(null, null, metrics);
   }
-  value(value: T) {
-    this.settings.onValue(value, source, 0);
+  value(value: T,observer:RpcSource=source) {
+    this.settings.onValue(value, observer, 0);
   }
 }
 const header = (level: number): BlockHeader => ({
@@ -382,5 +382,17 @@ it("keeps unpinned A/B stream requested-head facts unknown and never borrows A h
  const candidate=views.at(-1)?.candidates[0];
  expect(candidate?.evidence.requestedHeadHash).toBeUndefined();expect(candidate?.evidence.observedHeadHash).toBeUndefined();
  expect(candidate?.header.predecessor).toBe("B120");
+ monitor.stop();
+});
+
+it("retains ahead raw operations without letting another observer head count them",async()=>{
+ vi.useFakeTimers();vi.stubGlobal("window",globalThis);
+ const observerB={...source,name:"B",baseUrl:"https://B"};
+ const {monitor,heads,operations,views}=setup({operationSources:[source,observerB]});heads.value(header(120));
+ operations.value([{hash:"ahead-B",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"PB"}]}],observerB);
+ expect(views.at(-1)?.snapshot?.head.level).toBe(120);
+ expect(views.at(-1)?.snapshot?.operations).toHaveLength(0);
+ expect(views.at(-1)?.rawOperations).toHaveLength(1);
+ expect(views.at(-1)?.rawOperations[0]?.contents[0]?.level).toBe(123);
  monitor.stop();
 });

@@ -58,12 +58,17 @@ try {
   const {NetworkData}=await server.ssrLoadModule('/rpc/networkData.ts');
   const {HeadGeneration,commitIfCurrent}=await server.ssrLoadModule('/monitor/headGeneration.ts');
   const source = {network:'mainnet',name:'Observer A',baseUrl:'https://observer-a.invalid'};
-  const rights = [{address:'D1',slot:0,power:3},{address:'D2',slot:1,power:2}];
+  let rights;
   const context = {source,chainId:'NetFixture',requestedHeadHash:'Parent',observedHeadHash:'Parent',predecessor:'Grandparent',protocolLevel:4,receivedAt:Date.now(),receivedMonotonic:performance.now()};
   const individual = (payload,slot) => ({hash:`individual-${payload}-${slot}`,contents:[{kind:'preattestation',level:120,round:2,slot,block_payload_hash:payload}]});
   const aggregate = (committee) => ({hash:`aggregate-${JSON.stringify(committee)}`,contents:[{kind:'preattestations_aggregate',consensus_content:{level:120,round:2,block_payload_hash:'P'},committee}]});
   const admit = raw => asOperationBatch(raw).map(operation => ({...operation,evidence:context}));
   const header = {level:119,hash:'Parent',predecessor:'Grandparent',timestamp:'2026-10-14T12:00:00+02:00',fitness:['02','00000077','','ffffffff','00000000'],proto:4};
+  const authorityContextFor=observerSource=>{
+    const observer={header:{...header,chainId:'NetFixture'},source:observerSource,chainId:'NetFixture',protocolHash:'PFixture',nextProtocolHash:'PFixture',evidence:context};
+    return {observer,anchor:observer,level:120,protocolHash:'PFixture',key:JSON.stringify([observerSource.baseUrl,'NetFixture','Parent','Grandparent','PFixture',120])};
+  };
+  rights=[{address:'D1',slot:0,power:3,context:authorityContextFor(source)},{address:'D2',slot:1,power:2,context:authorityContextFor(source)}];
   if(criterion==='AC-4' || criterion==='AC-21') {
     const originalFetch=globalThis.fetch;
     try {
@@ -154,7 +159,9 @@ try {
     check(groups.map(group=>signerPower(group.pre,rights)),[3,3],'Conflict delegate counts once independently');
     check(groups.map(group=>group.conflicts),[['D1'],['D1']],'Expose conflicting payload signer');
     const other = {...individual('P',1),evidence:{...context,source:{...source,baseUrl:'https://observer-b.invalid'}}};
-    check(groupsFor([...admit([individual('P',0)]),other],rights,120).map(group=>signerPower(group.pre,rights)),[3,2],'Different sources never combine');
+    check(groupsFor([...admit([individual('P',0)]),other],rights,120).map(group=>signerPower(group.pre,rights)),[3,0],'Other source cannot consume A authority');
+    const otherRights=rights.map(right=>({...right,context:authorityContextFor(other.evidence.source)}));
+    check(groupsFor([...admit([individual('P',0)]),other],otherRights,120).map(group=>signerPower(group.pre,otherRights)),[0,2],'Each observer requires its own proven authority');
     const flood = Array.from({length:10000},(_,index)=>individual(`payload-${index}`,0));
     const floodGroups = groupsFor(admit(flood),rights,120);
     check(floodGroups.length,10000,'Permitted operation flood retains every distinct group');
