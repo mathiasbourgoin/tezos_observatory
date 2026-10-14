@@ -16,7 +16,7 @@ export interface Group {
 }
 export type CommitteeAuthority = {readonly usable:true;readonly total:number;readonly threshold:number} | {readonly usable:false;readonly reason:string};
 
-const contextFacts=(context:TargetContext):string=>JSON.stringify([context.key,context.level,context.protocolHash,context.observer.source.network,context.observer.source.baseUrl,context.observer.chainId,context.observer.header.hash,context.observer.header.predecessor,context.observer.protocolHash,context.observer.nextProtocolHash,context.anchor.header.hash,context.anchor.chainId,context.anchor.nextProtocolHash]);
+export const contextFacts=(context:TargetContext):string=>JSON.stringify([context.key,context.level,context.protocolHash,context.observer.source.network,context.observer.source.baseUrl,context.observer.chainId,context.observer.header.hash,context.observer.header.predecessor,context.observer.protocolHash,context.observer.nextProtocolHash,context.anchor.header.hash,context.anchor.chainId,context.anchor.nextProtocolHash]);
 
 /** The single numerical boundary used by the production inspector. */
 export function committeeAuthority(rights: readonly DelegateRight[], expectedTotal?: number, threshold?: number): CommitteeAuthority {

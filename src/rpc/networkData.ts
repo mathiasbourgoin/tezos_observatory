@@ -343,6 +343,7 @@ export class NetworkData {
       head={...parent.header,evidence:parent.evidence};
     }else head=await this.head(signal,target.source);
     const context=await this.targetContext(head,target.level,signal);
+    if(target.protocolHash!==undefined && target.protocolHash!==context.protocolHash)throw new Error("Contradictory target execution protocol");
     const [rights,constants]=await Promise.all([this.committee(context,signal,target.source),this.protocolConstants(context,signal,target.source)]);
     if(!committeeAuthority(rights,constants.committee,constants.quorum).usable)throw new Error("Reconciliation committee contradicts constants");
     const derived:Derived={refreshedAt:Date.now(),rights:new Map([[target.level,rights]]),contexts:new Map([[target.level,context]]),constantsByLevel:new Map([[target.level,constants]]),constants,predecessor:target.level===head.level?context.anchor.header:null,errors:[]};

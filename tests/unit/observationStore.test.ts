@@ -104,3 +104,18 @@ it("records an actually read B head independently of the displayed A head",async
  store.accept(await new NetworkData("mainnet").reconcile(target,new AbortController().signal));
  expect(store.observerHead(b)?.hash).toBe("H122");expect(store.observerHead(a)?.hash).toBe("H120");
 });
+
+
+it("rejects supplied contradictory execution protocol in source-local reconciliation",async()=>{
+ installRpc();await expect(new NetworkData("mainnet").reconcile({source:b,level:123,round:0,payload:"P",protocolHash:"WrongExecutionProtocol"},new AbortController().signal)).rejects.toThrow("protocol");
+});
+it("does not let omitted lifecycle epochs restore authority after pause",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),target=store.addOperations([operation()])[0]?.target;if(!target)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(target,new AbortController().signal),{observerGeneration:ignoredObserver,collectionGeneration:ignoredCollection,...untagged}=proof;store.stop();store.start();
+ expect(()=>store.accept(untagged)).toThrow("generation");
+});
+it("rejects contradictory constants context despite an equal opaque key",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),target=store.addOperations([operation()])[0]?.target;if(!target)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(target,new AbortController().signal);
+ expect(()=>store.accept({...proof,constants:{...proof.constants,context:{...proof.context,protocolHash:"WrongProtocol"}}})).toThrow("context");
+});

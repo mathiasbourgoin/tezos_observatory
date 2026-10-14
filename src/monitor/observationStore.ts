@@ -1,6 +1,6 @@
 import type {AdmissionEvidence,BlockHeader,CandidateObservation,MonitoredOperation,NetworkName,ObservationEvidence,RpcSource} from "../rpc/models";
 import {OperationStore,operationIdentity} from "../rpc/operationStore";
-import {committeeAuthority} from "../consensus/phaseEvidence";
+import {committeeAuthority,contextFacts} from "../consensus/phaseEvidence";
 import {proposalRound} from "../consensus/roundSchedule";
 import type {Constants,DelegateRight,TargetContext} from "../rpc/networkData";
 import type {ReconciliationTarget} from "./observerReconciliation";
@@ -103,9 +103,9 @@ export class ObservationStore<T> {
   accept(admission:ContextAdmission<T>):void {
     const context=admission.context,source=context.observer.source;
     const current=this.generation(source),latest=this.heads.get(source.baseUrl);
-    if(!this.enabled || (admission.collectionGeneration!==undefined && admission.collectionGeneration!==current.collectionGeneration) || (admission.observerGeneration!==undefined && admission.observerGeneration!==current.observerGeneration) || (admission.observerGeneration===undefined && latest!==undefined && this.headerKey(latest)!==this.headerKey(admission.head)))throw new Error("Admission belongs to an obsolete observer generation");
+    if(!this.enabled || (admission.collectionGeneration===undefined && current.collectionGeneration!==0) || (admission.observerGeneration===undefined && current.observerGeneration!==0) || (admission.collectionGeneration!==undefined && admission.collectionGeneration!==current.collectionGeneration) || (admission.observerGeneration!==undefined && admission.observerGeneration!==current.observerGeneration) || (admission.observerGeneration===undefined && latest!==undefined && this.headerKey(latest)!==this.headerKey(admission.head)))throw new Error("Admission belongs to an obsolete observer generation");
     if(!this.allowed(source) || context.observer.header.hash!==admission.head.hash || !committeeAuthority(admission.rights,admission.constants.committee,admission.constants.quorum).usable || context.level!==context.observer.header.level && context.level!==context.observer.header.level+1)throw new Error("Incoherent observer admission");
-    if(admission.rights.some(right=>right.context?.key!==context.key)||admission.constants.context?.key!==context.key)throw new Error("Rights/constants do not prove the admission context");
+    if(admission.rights.some(right=>!right.context || contextFacts(right.context)!==contextFacts(context)) || !admission.constants.context || contextFacts(admission.constants.context)!==contextFacts(context))throw new Error("Rights/constants do not prove the admission context");
     if(admission.head.evidence?.source.baseUrl===source.baseUrl && admission.head.evidence.observedHeadHash===admission.head.hash)this.observeHead(admission.head);
     let contexts=this.contexts.get(source.baseUrl);if(!contexts){contexts=new Map();this.contexts.set(source.baseUrl,contexts);}
     for(const [level,old] of contexts)if(old.head.hash!==admission.head.hash)contexts.delete(level);
