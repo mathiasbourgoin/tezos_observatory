@@ -35,7 +35,14 @@ const vote = (slot: number, level = 101, round = 0) => ({
   contents: [{kind: 'preattestation', slot, level, round, block_payload_hash: `vhPayload${level}`}],
 });
 
+const headers=new WeakMap<Page,Map<string,ReturnType<typeof head>>>();
 async function send(page: Page, channel: Channel, value: unknown): Promise<void> {
+  if(channel.endsWith("-head")){
+    let observed=value as ReturnType<typeof head>;const records=headers.get(page),parent=records?.get(observed.predecessor);
+    if(parent){const parentRound=Number.parseInt(parent.fitness[4]??"0",16);observed={...observed,fitness:[...observed.fitness.slice(0,3),(0xffffffff-parentRound).toString(16).padStart(8,"0"),observed.fitness[4]??"00000000"]};value=observed;}
+    records?.set(observed.hash,observed);
+    if(!records?.has(observed.predecessor))records?.set(observed.predecessor,{...head(observed.level-1),hash:observed.predecessor});
+  }
   await page.evaluate(({channel, value}) => {
     const stream = window.mockStreams[channel];
     if (!stream) throw new Error(`Missing stream ${channel}`);
@@ -44,6 +51,7 @@ async function send(page: Page, channel: Channel, value: unknown): Promise<void>
 }
 
 async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false): Promise<void> {
+  headers.set(page,new Map([[initialHead.hash,initialHead],[initialHead.predecessor,{...head(initialHead.level-1),hash:initialHead.predecessor}]]));
   await page.addInitScript(({initialOperations, initialHead, initiallyHidden}) => {
     window.mockHidden=initiallyHidden;window.mockRequests=[];
     Object.defineProperty(document,"hidden",{configurable:true,get:()=>window.mockHidden});
@@ -80,7 +88,13 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
     };
     else if (url.pathname.includes('baking_rights')) result = [{level, round: Number(url.searchParams.get('max_round') ?? 0), delegate: 'tz1BakerAddress0000000000000000000000000'}];
     else if (url.pathname.endsWith('/is_forbidden')) result = false;
-    else if (url.pathname.endsWith('/header')) result = head(99);
+    else if (url.pathname.endsWith('/protocols')) result={protocol:'PFixture',next_protocol:'PFixture'};
+    else if (url.pathname.endsWith('/header')) {
+      const hash=url.pathname.split('/blocks/')[1]?.split('/')[0]??'';
+      const observed=headers.get(page)?.get(hash);
+      if(!observed){await route.fulfill({status:404,json:{error:'Unobserved fixture header'}});return;}
+      result={...observed,chain_id:'NetFixture'};
+    }
     else if (url.pathname.includes('/v1/delegates')) result = Array.from({length: 50}, (_, slot) => ({address: `tz1BakerAddress${String(slot).padStart(25, '0')}`, alias: `Baker ${slot}`}));
     else if (url.pathname.includes('pending_operations')) result = {validated: []};
     else {await route.abort(); return;}
@@ -289,6 +303,13 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await expect(panel.locator(".pre .gauge-counts")).toContainText("1 / 50 signers");
   await expect(panel.locator(".pre .quorum-caption")).toContainText("19,400 more power");
   await expect(panel.locator(".candidate-evidence")).toContainText("rpc.tzkt.io");
+  await panel.getByText("Sources & observation evidence",{exact:true}).click();
+  await expect(panel.locator(".authority-evidence")).toBeVisible();
+  await expect(panel.locator(".authority-evidence")).toContainText("Rights responder https://mainnet.smartpy.io");
+  await expect(panel.locator(".authority-evidence")).toContainText("authority observer https://rpc.tzkt.io/mainnet");
+  await expect(panel.locator(".authority-evidence")).toContainText("chain NetFixture · context head BBlock100 · requested anchor BBlock100 · target 101 · execution protocol PFixture");
+  await expect(panel.locator(".authority-evidence")).toContainText("rights received");
+  await panel.getByText("Sources & observation evidence",{exact:true}).click();
   await panel.screenshot({path:`roster/observatory-foundations/slice-1-${testInfo.project.name}.png`});
  });
 

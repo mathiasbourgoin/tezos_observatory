@@ -1,6 +1,6 @@
 export type Network = 'mainnet' | 'shadownet';
 export interface VoteView {count: number; expected: number; power: number; total: number}
-export interface DelegateView {address: string; alias?: string; power: number; forbidden?: boolean; eligibility?: 'eligible' | 'forbidden' | 'unavailable'}
+export interface DelegateView {address: string; alias?: string; power: number; forbidden?: boolean; eligibility?: 'eligible' | 'forbidden' | 'unavailable'; eligibilityState?:'stale'|'context-invalid'; eligibilityNote?:string}
 export interface SourceView {name: string; url: string; status: string; detail?: string}
 export interface RecentConsensusView {level: number; round: number; prePower: number; attPower: number; total: number; payload?: string}
 export interface NetworkViewModel {
@@ -11,6 +11,7 @@ export interface NetworkViewModel {
   candidates?: readonly {identity:string;hash?:string;payload?:string;level:number;round:number}[];
   selectedIdentity?: string;
   candidateEvidence?: string;
+  contextEvidence?: string;
   recentConsensus?: RecentConsensusView[];
   observedAt?: number; blockTimestamp?: number; lastOperationAt?: number;
   source?: string; connection?: string; error?: string; note?: string;
@@ -142,7 +143,7 @@ function delegateList(network: Network, phase: 'Pre' | 'Att') {
       address.title = delegate.address;
       set(cells[2] as HTMLElement, number(delegate.power)); set(cells[3] as HTMLElement, total ? `${(100 * delegate.power / total).toFixed(2)}%` : '—');
       const eligibility = delegate.forbidden ? 'forbidden' : delegate.eligibility ?? 'unavailable';
-      const badge = cells[4] as HTMLElement; set(badge, eligibility === 'unavailable' ? 'Unknown' : eligibility === 'forbidden' ? 'Forbidden' : 'Eligible'); badge.dataset.eligibility = eligibility;
+      const badge = cells[4] as HTMLElement; set(badge, delegate.eligibilityState==='context-invalid'?'Context invalid':delegate.eligibilityState==='stale'?'Stale':eligibility === 'unavailable' ? 'Unknown' : eligibility === 'forbidden' ? 'Forbidden' : 'Eligible'); badge.dataset.eligibility = eligibility;badge.title=delegate.eligibilityNote??'Eligibility evidence unavailable';
       if (tbody.children[index] !== row) tbody.insertBefore(row, tbody.children[index] ?? null);
     });
     empty.hidden = known && list.length > 0; viewport.hidden = !known || list.length === 0;
@@ -203,7 +204,8 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const metadata = el('dl', 'evidence-meta');
     const meta = new Map<string, HTMLElement>();
     for (const label of ['Primary source', 'Applied head', 'Block hash', 'Last successful head', 'Last operation', 'Block age', 'Snapshot age']) {metadata.append(el('dt', '', label)); const value = el('dd', '', 'Unavailable'); metadata.append(value); meta.set(label, value);}
-    const sourceRows = el('div', 'source-rows'), history = el('ol', 'event-history'); evidence.body.append(metadata, sourceRows, el('h4', '', 'Recent network events'), history);
+    const authorityEvidence=el('p','authority-evidence table-note');
+    const sourceRows = el('div', 'source-rows'), history = el('ol', 'event-history'); evidence.body.append(metadata, authorityEvidence, sourceRows, el('h4', '', 'Recent network events'), history);
     panel.append(panelHeader, headline, appliedContext, proposalContext, connection, notice, consensus, recent.root, opportunities, missing, evidence.details); grid.append(panel);
     const keyedBakers = new Map<string, HTMLElement>(), keyedSources = new Map<string, HTMLElement>();
     let current: NetworkViewModel | undefined, previousStatus: NetworkViewModel['status'] | undefined;
@@ -250,6 +252,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       }
       for (const [key,button] of candidateButtons) if (!candidateKeys.has(key)) {button.remove();candidateButtons.delete(key);}
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
+      set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
       pre.update(model.preattestations, model.quorum); att.update(model.attestations, model.quorum);
       missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);
       const bakers = model.nextBakers ?? [], bakerKeys = new Set<string>();

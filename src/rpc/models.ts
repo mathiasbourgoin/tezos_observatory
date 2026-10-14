@@ -15,6 +15,10 @@ export interface ObservationEvidence {
   readonly predecessor?: string;
   /** Shell header proto is a protocol-level counter, not a protocol hash. */
   readonly protocolLevel?: number;
+  readonly protocolHash?: string;
+  readonly nextProtocolHash?: string;
+  readonly targetLevel?: number;
+  readonly contextHeadHash?: string;
   readonly observedBlockHash?: string;
   readonly receivedAt: number;
   readonly receivedMonotonic: number;

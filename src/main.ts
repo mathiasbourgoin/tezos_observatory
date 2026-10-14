@@ -1,5 +1,5 @@
 import "./dashboard.css";
-import {groupsFor, committeeAuthority, signerPower} from "./consensus/phaseEvidence";
+import {groupsFor, committeeAuthority, signerPower, observationContextCompatible} from "./consensus/phaseEvidence";
 import {
   createDashboard,
   type NetworkViewModel,
@@ -103,7 +103,7 @@ function render(runtime: Runtime): void {
     dashboard.update(runtime.network,{status:"degraded",appliedLevel:head.level,hash:head.hash,blockTimestamp:Date.parse(head.timestamp),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
     return;
   }
-  const constants = derived?.constants;
+  let constants = derived?.constants;
   // An applied head can still be collecting votes. Move to its successor
   // once votes establish that level or its scheduled round-zero starts.
   const observedLevel = operations.reduce(
@@ -148,6 +148,8 @@ function render(runtime: Runtime): void {
     consensusLevel = selectedCandidate.header.level;
     observedInstance = {level: consensusLevel,round:selectedCandidateRound};
   }
+  if(derived?.constantsByLevel)constants=derived.constantsByLevel.get(consensusLevel)??null;
+  const targetContext=derived?.contexts?.get(consensusLevel);
   const receivedRights = derived?.rights.get(consensusLevel);
   const authority = committeeAuthority(receivedRights ?? [],constants?.committee,constants?.quorum);
   const rights = authority.usable && constants ? receivedRights : undefined;
@@ -184,7 +186,7 @@ function render(runtime: Runtime): void {
       a.payload.localeCompare(b.payload),
   );
   const groupIdentity = (group: typeof groups[number]): string => JSON.stringify([group.contextKey,group.level,group.round,group.payload]);
-  const matchingCandidates = view.candidates.filter(candidate => candidate.header.level === consensusLevel && proposalRound(candidate.header.fitness) === currentRound);
+  const matchingCandidates = view.candidates.filter(candidate => candidate.header.level === consensusLevel && proposalRound(candidate.header.fitness,candidate.header.level) === currentRound);
   const selected = selectedCandidate
     ? currentGroups.find(group => group.payload === selectedCandidate.header.payload_hash && (!group.evidence || group.evidence.source.baseUrl === selectedCandidate.evidence.source.baseUrl))
     : currentGroups.find(group => groupIdentity(group) === runtime.selectedIdentity) ?? currentGroups[0];
@@ -197,8 +199,9 @@ function render(runtime: Runtime): void {
   const selectedEvidence = activeCandidate?.evidence ?? selected?.evidence;
   const sharedPayload = activeCandidate && matchingCandidates.filter(candidate => candidate.header.payload_hash === activeCandidate.header.payload_hash && candidate.evidence.source.baseUrl === activeCandidate.evidence.source.baseUrl).length > 1;
   const candidateEvidence = `${activeCandidate ? `Observed block hash ${activeCandidate.header.hash}` : 'Candidate hash unavailable'} · Producer unknown${sharedPayload ? ' · Shared payload evidence; signatures are not candidate-specific' : ''}${selected?.conflicts.length ? ` · Conflicting payload signer(s): ${selected.conflicts.join(', ')}` : ''}${selected?.unknownSlots.length ? ` · Unknown-rights signer slots: ${selected.unknownSlots.join(', ')}` : ''}${selectedEvidence ? ` · Source ${selectedEvidence.source.baseUrl} · requested head ${selectedEvidence.requestedHeadHash ?? 'unknown'} · observed head ${selectedEvidence.observedHeadHash ?? 'unknown'} · parent ${selectedEvidence.predecessor ?? 'unknown'} · chain ${selectedEvidence.chainId ?? 'unknown'} · protocol-level counter ${selectedEvidence.protocolLevel ?? 'unknown'} · received ${new Date(selectedEvidence.receivedAt).toISOString()} · age ${Math.max(0,Math.floor((performance.now()-selectedEvidence.receivedMonotonic)/1000))}s` : ' · Source/context unavailable'}${authority.usable ? '' : ` · Numerical authority unavailable: ${authority.reason}`}`;
+  const contextEvidence=rights&&targetContext?`Rights responder ${rights[0]?.evidence?.source.baseUrl??"unknown"} · authority observer ${targetContext.observer.source.baseUrl} · chain ${targetContext.observer.chainId} · context head ${targetContext.observer.header.hash} · requested anchor ${targetContext.anchor.header.hash} · target ${targetContext.level} · execution protocol ${targetContext.protocolHash} · rights received ${rights[0]?.evidence?new Date(rights[0].evidence.receivedAt).toISOString():"unknown"}`:"Rights context unavailable";
   const activityRound = currentRound;
-  const hasCoverage = selected!==undefined && observedInstance!==undefined &&
+  const hasCoverage = selected!==undefined && targetContext!==undefined && observationContextCompatible(selected.evidence,targetContext) && observedInstance!==undefined &&
     view.lastOperationAt !== null &&
     ((!collectionAllowed()) || (view.operationMode === "stream" &&
       view.operationStream.mode === "stream") ||
@@ -210,10 +213,13 @@ function render(runtime: Runtime): void {
     att = selected?.att ?? new Set<string>();
   const delegateView = (right: DelegateRight): DelegateView => {
     const alias = runtime.data.alias(right.address),
-      forbidden = runtime.data.forbidden(right.address);
+      eligibilityEvidence=runtime.data.eligibilityStatus(right.address),
+      forbidden = eligibilityEvidence.value;
     return {
       address: right.address,
       power: right.power,
+      ...(eligibilityEvidence.contextInvalid?{eligibilityState:"context-invalid" as const}:eligibilityEvidence.stale?{eligibilityState:"stale" as const}:{}),
+      ...(eligibilityEvidence.evidence?{eligibilityNote:`Source ${eligibilityEvidence.evidence.source.baseUrl} · requested head ${eligibilityEvidence.evidence.requestedHeadHash??"unknown"} · context head ${eligibilityEvidence.evidence.contextHeadHash??"unknown"} · chain ${eligibilityEvidence.evidence.chainId??"unknown"} · protocol ${eligibilityEvidence.evidence.protocolHash??"unknown"} · received ${new Date(eligibilityEvidence.evidence.receivedAt).toISOString()} · age ${Math.floor((eligibilityEvidence.ageMs??0)/1000)}s · retained fact ${eligibilityEvidence.rawValue?"forbidden":"eligible"}`} : {}),
       ...(alias ? { alias: `${alias} · TzKT` } : {}),
       eligibility:
         forbidden === undefined
@@ -233,6 +239,7 @@ function render(runtime: Runtime): void {
     candidates: selectable,
     ...(chosenIdentity ? {selectedIdentity:chosenIdentity} : {}),
     candidateEvidence,
+    contextEvidence,
     level: consensusLevel,
     consensusLevel,
     ...(currentRound === undefined ? {} : { round: currentRound }),
@@ -299,7 +306,7 @@ function render(runtime: Runtime): void {
         status: `${runtime.data.requests} requests`,
         detail:
           derived?.errors.join("; ") ||
-          "Committee rights cached per protocol/level; RPC requests pinned by block hash",
+          "Committee authority requires exact source, chain, head, parent, target level and protocol context",
       },
     ],
   };
@@ -424,7 +431,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
   let runtime: Runtime;
   const monitor = new NetworkMonitor<Derived>({
     network,
-    headSources: sources[network],
+    headSources: streamSources[network],
     operationSources: streamSources[network],
     proposalSources:network==="mainnet"?streamSources.mainnet.slice(0,1):sources.shadownet,
     derive: (head, signal) => data.derive(head, signal),

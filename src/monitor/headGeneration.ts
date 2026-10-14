@@ -24,7 +24,7 @@ export class HeadGeneration<T> {
   private workController = new AbortController();
 
   transition(head: BlockHeader): number {
-    if (this.head?.hash === head.hash) return this.generation;
+    if (this.head?.hash === head.hash && this.head.predecessor===head.predecessor && this.head.chainId===head.chainId && this.head.evidence?.source.baseUrl===head.evidence?.source.baseUrl) return this.generation;
     this.generation += 1;
     this.workController.abort();
     this.workController = new AbortController();

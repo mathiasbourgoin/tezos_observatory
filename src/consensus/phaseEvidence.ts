@@ -1,5 +1,5 @@
 import type {MonitoredOperation, ObservationEvidence} from "../rpc/models";
-import type {DelegateRight} from "../rpc/networkData";
+import type {DelegateRight,TargetContext} from "../rpc/networkData";
 import {nonnegativeInteger} from "../rpc/guards";
 
 export interface Group {
@@ -44,6 +44,10 @@ export function evidenceContext(evidence?: ObservationEvidence): string {
   return JSON.stringify([evidence?.source.network ?? "unknown", evidence?.source.baseUrl ?? "unknown", evidence?.chainId ?? "unknown", evidence?.requestedHeadHash ?? "unknown", evidence?.observedHeadHash ?? "unknown", evidence?.predecessor ?? "unknown", evidence?.protocolLevel ?? "unknown"]);
 }
 
+export function observationContextCompatible(evidence:ObservationEvidence|undefined,context:TargetContext):boolean {
+  return evidence?.source.baseUrl===context.observer.source.baseUrl && evidence.observedHeadHash===context.observer.header.hash && (evidence.chainId===undefined || evidence.chainId===context.observer.chainId);
+}
+
 export function groupsFor(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number): Group[] {
   const bySlot = committeeAuthority(rights).usable ? new Map(rights.map(right => [right.slot,right.address])) : new Map<number,string>();
   type AccumulatedGroup = Omit<Group,"unknownSlots"|"conflicts"> & {unknownSlots:Set<number>;conflicts:Set<string>};
@@ -60,7 +64,9 @@ export function groupsFor(operations: readonly MonitoredOperation[], rights: rea
       group = {level,round:content.round,payload:content.block_payload_hash,contextKey,pre:new Set(),att:new Set(),unknownSlots:new Set(),conflicts:new Set(),...(operation.evidence ? {evidence:operation.evidence} : {})};
       groups.set(key,group);
     }
-    const address = bySlot.get(content.slot);
+    const authorityContext=rights[0]?.context;
+    const compatible=!authorityContext || (authorityContext.level===content.level && observationContextCompatible(operation.evidence,authorityContext));
+    const address = compatible ? bySlot.get(content.slot) : undefined;
     if (!address) {group.unknownSlots.add(content.slot);continue;}
     const phase = content.kind === "preattestation" ? "pre" : "att";
     if (group[phase].has(address)) continue;

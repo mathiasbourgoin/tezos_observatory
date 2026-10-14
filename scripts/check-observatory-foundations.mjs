@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
 const browserChecks=new Set(['AC-4','AC-20']);
-const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12',...browserChecks]);
+const implemented = new Set(['AC-1','AC-9','AC-10','AC-11','AC-12','AC-17',...browserChecks]);
 export function classifyBrowserReport(report,runnerStatus,criterion) {
   let completed=0;
   const behavioralFailures=[];
@@ -56,6 +56,7 @@ try {
   const {groupsFor,committeeAuthority,signerPower} = await server.ssrLoadModule('/consensus/phaseEvidence.ts');
   const {NetworkMonitor} = await server.ssrLoadModule('/monitor/networkMonitor.ts');
   const {NetworkData}=await server.ssrLoadModule('/rpc/networkData.ts');
+  const {HeadGeneration,commitIfCurrent}=await server.ssrLoadModule('/monitor/headGeneration.ts');
   const source = {network:'mainnet',name:'Observer A',baseUrl:'https://observer-a.invalid'};
   const rights = [{address:'D1',slot:0,power:3},{address:'D2',slot:1,power:2}];
   const context = {source,chainId:'NetFixture',requestedHeadHash:'Parent',observedHeadHash:'Parent',predecessor:'Grandparent',protocolLevel:4,receivedAt:Date.now(),receivedMonotonic:performance.now()};
@@ -70,7 +71,14 @@ try {
       globalThis.fetch=(_input,options)=>{reads++;capturedSignal=options?.signal;return new Promise(resolve=>{finish=resolve;});};
       const aliases=data.loadAliases();data.pause();check(capturedSignal.aborted,true,'Alias request joins collection cancellation');
       data.resume();finish(Response.json([{address:'D1',alias:'Cancelled alias'}]));await aliases;check(data.alias('D1'),undefined,'Cancelled alias cannot commit after same-context resume');
-      const eligibility=data.loadEligibility(header,[{address:'D1',slot:0,power:3}],new AbortController().signal);data.pause();data.resume();finish(Response.json(true));await eligibility;check(data.forbidden('D1'),undefined,'Cancelled eligibility cannot commit after resume');
+      let started;const eligibilityStarted=new Promise(resolve=>{started=resolve;});
+      globalThis.fetch=(input,options)=>{
+        reads++;const url=String(input);
+        if(url.endsWith('/header'))return Promise.resolve(Response.json({...header,chain_id:'NetFixture'}));
+        if(url.endsWith('/protocols'))return Promise.resolve(Response.json({protocol:'PFixture',next_protocol:'PFixture'}));
+        capturedSignal=options?.signal;return new Promise(resolve=>{finish=resolve;started();});
+      };
+      const eligibility=data.loadEligibility(header,[{address:'D1',slot:0,power:3}],new AbortController().signal);await eligibilityStarted;data.pause();check(capturedSignal.aborted,true,'Eligibility request joins collection cancellation');data.resume();finish(Response.json(true));await eligibility;check(data.forbidden('D1'),undefined,'Cancelled eligibility cannot commit after resume');
       data.pause();const before=reads;await data.loadAliases();check(reads,before,'Paused facade starts no auxiliary reads');
     }finally{globalThis.fetch=originalFetch;}
   } else if (criterion === 'AC-1' || criterion === 'AC-9') {
@@ -97,6 +105,49 @@ try {
     check(view.candidates[0].evidence.source.baseUrl,source.baseUrl,'Immutable source attribution');
     check(view.candidates[0].evidence.requestedHeadHash,undefined,'Unpinned stream has no requested-head hash');
     check(view.candidates[0].evidence.observedHeadHash,'Parent','Only same-observer observed head context is captured');
+  } else if(criterion==='AC-17') {
+    const originalFetch=globalThis.fetch;
+    try {
+      const fixture=(hash,level,parent)=>({...header,hash,level,predecessor:parent,chainId:'NetFixture',fitness:['02',level.toString(16).padStart(8,'0'),'','ffffffff','00000000']});
+      const h1=fixture('H1',120,'P1'),h2=fixture('H2',120,'P2');
+      const headers=new Map([['H1',h1],['H2',h2],['P1',fixture('P1',119,'G1')],['P2',fixture('P2',119,'G2')]]);
+      let delayed=false,started;const starts=new Promise(resolve=>{started=resolve;});const finishes=[];
+      globalThis.fetch=async input=>{
+        const url=new URL(String(input)),hash=url.pathname.split('/blocks/')[1]?.split('/')[0];
+        if(url.pathname.endsWith('/header'))return Response.json({...headers.get(hash),chain_id:'NetFixture'});
+        if(url.pathname.endsWith('/protocols'))return Response.json({protocol:'PFixture',next_protocol:'PFixture'});
+        const level=Number(url.searchParams.get('level'));
+        if(url.pathname.includes('attestation_rights')){
+          const body=[{level,delegates:[{delegate:hash==='H1'||hash==='P1'?'Old':'New',first_slot:0,attesting_power:5}]}];
+          if(delayed&&(hash==='H1'||hash==='P1'))return new Promise(resolve=>{finishes.push(()=>resolve(Response.json(body)));if(finishes.length===2)started();});
+          return Response.json(body);
+        }
+        return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+      };
+      const historicalData=new NetworkData('mainnet'),historical=await historicalData.derive(h1,new AbortController().signal);
+      check(historical.rights.get(120)[0].evidence.requestedHeadHash,'P1','Current rights anchored to exact predecessor');
+      check(historical.rights.get(121)[0].evidence.requestedHeadHash,'H1','Successor rights anchored to observed head');
+      const oldEvidence=historical.rights.get(120)[0].evidence;
+      const data=new NetworkData('mainnet'),state=new HeadGeneration();
+      const first=state.transition(h1);delayed=true;
+      const oldWork=commitIfCurrent(state,first,signal=>data.derive(h1,signal));await starts;
+      const second=state.transition(h2);check(state.snapshot().derived,null,'H1 authority withdrawn immediately on same-height H2');
+      const newWork=await commitIfCurrent(state,second,signal=>data.derive(h2,signal));check(newWork,true,'H2 commits its own coherent context');
+      for(const finish of finishes)finish();check(await oldWork,false,'Late H1 responses cannot authorize H2');
+      check(state.snapshot().derived.rights.get(120)[0].address,'New','H2 never receives old fork committee');
+      check(oldEvidence.requestedHeadHash,'P1','Historical requested context remains immutable');
+      check(oldEvidence.contextHeadHash,'H1','Historical observed context remains immutable');
+      check(historical.rights.get(120)[0].context.observer.header.predecessor,'P1','Historical raw predecessor remains attributable');
+      const observerSource=state.snapshot().derived.contexts.get(120).observer.source;
+      const staleOperation={...individual('OldPayload',0),contents:[{kind:'preattestation',level:120,round:0,slot:0,block_payload_hash:'OldPayload'}],evidence:{source:observerSource,observedHeadHash:'H1',receivedAt:1,receivedMonotonic:1}};
+      const uncounted=groupsFor([staleOperation],state.snapshot().derived.rights.get(120),120)[0];
+      check(uncounted.pre.size,0,'Old-head raw evidence cannot authorize current numerical power');check(uncounted.unknownSlots,[0],'Old context raw signer remains inspectable');
+      globalThis.fetch=async input=>String(input).endsWith('/protocols')?Response.json({proto:4}):Response.json({...h2,chain_id:'NetFixture'});
+      const unknown=await new NetworkData('mainnet').derive(h2,new AbortController().signal);
+      check(unknown.rights.size,0,'Shell protocol counter cannot replace proven protocol identity');check(unknown.constants,null,'Unknown context has no protocol authority');
+      check(unknown.predecessor,null,'No inferred predecessor from level arithmetic');
+      check(unknown.errors.some(error=>error.includes('context')),true,'Unknown context is explicit');
+    }finally{globalThis.fetch=originalFetch;}
   } else if (criterion === 'AC-10') {
     const groups=groupsFor(admit([individual('P',0),aggregate([0]),individual('Q',0),individual('Q',0)]),rights,120);
     check(groups.map(group=>signerPower(group.pre,rights)),[3,3],'Conflict delegate counts once independently');
