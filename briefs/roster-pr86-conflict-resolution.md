@@ -46,7 +46,7 @@ Focused command: `node --test scripts/review-bundle.test.js scripts/review-bundl
 
 ## Remaining limits
 
-Fresh independent review is owned by the root coordinator. Publication is not authorized. Repository PR merging is rebase-only; this local nonrewriting integration commit preserves evidence for review and is not itself a request to change repository merge policy. Advisory unused enum warnings remain in the upstream full suite.
+Fresh independent review is owned by the root coordinator. Publication is not authorized. Repository PR merging is rebase-only; a separate linear candidate below preserves the reviewed tree and complies with that policy. Advisory unused enum warnings remain in the upstream full suite.
 
 ## Final changed paths versus upstream main
 
@@ -97,3 +97,18 @@ skills/workflow/chamallaw-shadow.md
 templates/chamallaw-roster/roster-intake-post.md
 templates/chamallaw-roster/roster-ship-post.md
 ```
+
+## Policy-compatible linear candidate
+
+Read-only `gh api repos/mathiasbourgoin/roster` returned `allow_merge_commit=false`, `allow_squash_merge=false`, `allow_rebase_merge=true`. A fresh fetch confirmed upstream main remained `254e36b2ef2c0ca5ed65a9606e8689189a26b329`.
+
+- Worktree `/tmp/roster-pr86-linear`, branch `fix/pr86-linear`.
+- Candidate `64f5e278b2e04e6d10d3a77e2ac98dbf0ffeb0e8`, single parent `254e36b2ef2c0ca5ed65a9606e8689189a26b329`.
+- Exactly one commit and zero merge commits above current main.
+- Both candidate and independently approved integration `d3d449fc5900c71b34eb8443fefa3b4fab076f0f` have identical Git tree `d301ad376cb8c002c7b7bdb13bd620bddc409dec`. `git diff --exit-code d3d449fc HEAD` exited 0.
+- Created by applying the complete approved binary-safe diff versus main into a new isolated worktree and committing once; existing commits and worktrees were preserved. Commit body records both traceability refs.
+- Clean `npm ci` exited 0. Actual Node22.23.3 full `npm test` on this exact candidate exited 0; log `/tmp/roster-pr86-linear-node22-test.log`.
+
+Final linear-candidate focused suite on Node22 also passed 100/100, exit 0; log `/tmp/roster-pr86-linear-focused-node22.log`. The linear worktree is clean after removal of test-generated Python bytecode. The prior reviewed integration and original PR worktrees remain clean.
+
+Eventual publication should use the separate linear branch and repository rebase merge, subject to root governance and maintainer publication approval. No push, force push, PR creation or remote merge was performed.
