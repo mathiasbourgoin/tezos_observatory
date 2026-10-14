@@ -45,3 +45,13 @@ Root explicitly chose to continue on 2026-10-14 under project-authority: the ful
 ## Planning-context refresh
 
 Root-approved narrow retention/crossing/comparison clarifications now map94 requirements,38 acceptance criteria and38 planned checks. Planner rechecked default claims freshness at113f75b401e86d28db76e2179c62d2a2323e83ab3f7d718f327edc60ccca8512 with matching170-claim manifest. Original audit digest above remains historical evidence. No implementation verification is claimed; glossary closure remains required.
+
+## V3 planning combined-context audit — 2026-10-14
+
+The planner read all KB Markdown files for this audit, separately from intake-only decomposition. Current actual default check is fresh at `ceb740eb6e894bacaa792db0bb79070c521775172cb2391a01c5f3bb1bed51fc`; task manifest contains323 mandatory claims and combined model `5c03c7a62d889f67edfaa3ade81eca950351071ecd7a1ac2da7ecb0f2ebca532`. Earlier digest/entity-count statements above remain historical.
+
+C1 remains: the abbreviated glossary omits precise source/context and retained-enrichment definitions plus additional navigator/camera/captured-opportunity/rendered-evidence terms. Accepted contracts define these inline; glossary completion is not claimed. W1/W2 remain managed-navigation risks. W3's formerly unquantified production acceptance now has accepted numeric/state/viewport criteria and independent reasoned visual judgment; visual judgment is still a future release gate, not a PASS. No new contradictory normative direction was found. All dated doctrine is current and historical evidence is labelled. Relative Markdown link scan reported no broken destination. Source references are historical baseline references or intake-named integration files; no code behavior was mined for planning.
+
+Both managed specs were inspected only for the required entity-consistency gate. Their ten shared entity definitions are byte-identical; no cross-spec entity conflict was found. V3's additional named entities are explicitly defined. No additional feature was extracted from these gate reads.
+
+Root explicitly continued planning with C1/index risk on 2026-10-14 and assigned glossary closure to foundations slice10 before final independent review/QA. This disposition does not waive obligations, declare documentation complete or permit V3 implementation before full foundation GO.
