@@ -51,6 +51,12 @@ try {
     check(groups.map(group=>group.conflicts),[['D1'],['D1']],'Expose conflicting payload signer');
     const other = {...individual('P',1),evidence:{...context,source:{...source,baseUrl:'https://observer-b.invalid'}}};
     check(groupsFor([...admit([individual('P',0)]),other],rights,120).map(group=>signerPower(group.pre,rights)),[3,2],'Different sources never combine');
+    const flood = Array.from({length:10000},(_,index)=>individual(`payload-${index}`,0));
+    const floodGroups = groupsFor(admit(flood),rights,120);
+    check(floodGroups.length,10000,'Permitted operation flood retains every distinct group');
+    check(floodGroups.every(group=>group.pre.size===1 && group.pre.has('D1') && group.att.size===0 && group.conflicts.length===1 && group.conflicts[0]==='D1'),true,'Every flood payload keeps one exact conflicting signer');
+    const phases=groupsFor(admit([individual('P',0),{hash:'other-phase',contents:[{kind:'attestation',level:120,round:2,slot:0,block_payload_hash:'Q'}]}]),rights,120);
+    check(phases.every(group=>group.conflicts.length===0),true,'Different phases never fabricate a conflict');
   } else if (criterion === 'AC-11') {
     check(asOperationBatch([aggregate([0,-1,1])])[0].contents,[],'Whole malformed aggregate uncounted');
     check(asOperationBatch([{hash:'mixed',contents:[...individual('P',0).contents,{kind:'attestation',level:120,round:-1,slot:1}]}])[0].contents,[],'Whole mixed malformed operation uncounted');

@@ -46,29 +46,35 @@ export function evidenceContext(evidence?: ObservationEvidence): string {
 
 export function groupsFor(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number): Group[] {
   const bySlot = committeeAuthority(rights).usable ? new Map(rights.map(right => [right.slot,right.address])) : new Map<number,string>();
-  const groups = new Map<string, Group & {unknownSlots:number[];conflicts:string[]}>();
+  type AccumulatedGroup = Omit<Group,"unknownSlots"|"conflicts"> & {unknownSlots:Set<number>;conflicts:Set<string>};
+  const groups = new Map<string,AccumulatedGroup>();
+  // Each unique signer/phase/group enters one membership. Conflict marking visits
+  // those memberships once, rather than comparing every payload pair.
+  const memberships = new Map<string,{address:string;groups:Set<AccumulatedGroup>}>();
   for (const operation of operations) for (const content of operation.contents) {
     if (content.level !== level || !content.block_payload_hash) continue;
     const contextKey = evidenceContext(operation.evidence);
     const key = JSON.stringify([contextKey,content.round,content.block_payload_hash]);
     let group = groups.get(key);
     if (!group) {
-      group = {level,round:content.round,payload:content.block_payload_hash,contextKey,pre:new Set(),att:new Set(),unknownSlots:[],conflicts:[],...(operation.evidence ? {evidence:operation.evidence} : {})};
+      group = {level,round:content.round,payload:content.block_payload_hash,contextKey,pre:new Set(),att:new Set(),unknownSlots:new Set(),conflicts:new Set(),...(operation.evidence ? {evidence:operation.evidence} : {})};
       groups.set(key,group);
     }
     const address = bySlot.get(content.slot);
-    if (!address) {if (!group.unknownSlots.includes(content.slot)) group.unknownSlots.push(content.slot); continue;}
-    (content.kind === "preattestation" ? group.pre : group.att).add(address);
-  }
-  const values = [...groups.values()];
-  for (const group of values) {
-    const conflicts = new Set<string>();
-    for (const other of values) {
-      if (group.contextKey !== other.contextKey || group.round !== other.round || group.payload === other.payload) continue;
-      for (const address of group.pre) if (other.pre.has(address)) conflicts.add(address);
-      for (const address of group.att) if (other.att.has(address)) conflicts.add(address);
+    if (!address) {group.unknownSlots.add(content.slot);continue;}
+    const phase = content.kind === "preattestation" ? "pre" : "att";
+    if (group[phase].has(address)) continue;
+    group[phase].add(address);
+    const membershipKey = JSON.stringify([contextKey,content.round,phase,address]);
+    let membership = memberships.get(membershipKey);
+    if (!membership) {
+      membership = {address,groups:new Set()};memberships.set(membershipKey,membership);
     }
-    group.conflicts = [...conflicts].sort(); group.unknownSlots.sort((a,b) => a-b);
+    membership.groups.add(group);
   }
-  return values;
+  for (const membership of memberships.values()) {
+    if (membership.groups.size < 2) continue;
+    for (const group of membership.groups) group.conflicts.add(membership.address);
+  }
+  return [...groups.values()].map(group => ({...group,conflicts:[...group.conflicts].sort(),unknownSlots:[...group.unknownSlots].sort((a,b)=>a-b)}));
 }

@@ -18,3 +18,12 @@ it("separates identical payload evidence from different immutable observer conte
  const groups=groupsFor([{...operation("P",0),evidence:evidence("A")},{...operation("P",1),evidence:evidence("B")}],rights,120);
  expect(groups).toHaveLength(2);expect(groups[0]?.pre.size).toBe(1);expect(groups[1]?.pre.size).toBe(1);
 });
+
+it("preserves exact independent conflict evidence for the permitted 10000-group flood",()=>{
+ const operations=Array.from({length:10000},(_,index)=>operation(`payload-${index}`,0));
+ const groups=groupsFor(operations,rights,120);
+ expect(groups).toHaveLength(10000);
+ expect(groups.every(group=>group.pre.size===1 && group.pre.has("D1") && group.att.size===0 && group.conflicts.length===1 && group.conflicts[0]==="D1")).toBe(true);
+ const differentPhase=groupsFor([operation("P",0,"preattestation"),operation("Q",0,"attestation")],rights,120);
+ expect(differentPhase.every(group=>group.conflicts.length===0)).toBe(true);
+});
