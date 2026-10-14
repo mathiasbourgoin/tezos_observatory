@@ -1,6 +1,6 @@
 import {expect, test, type Page} from '@playwright/test';
 
-type Channel = 'mainnet-head' | 'mainnet-operations' | 'shadownet-head' | 'shadownet-operations';
+type Channel = 'mainnet-head' | 'mainnet-operations' | 'shadownet-head' | 'shadownet-operations' | 'mainnet-proposals' | 'shadownet-proposals';
 declare global {
   interface Window {
     mockStreams: Record<string, ReadableStreamDefaultController<Uint8Array>>;
@@ -33,15 +33,15 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, options) => {
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
-      const monitoring = url.pathname.includes('/monitor/heads/') || url.pathname.endsWith('/monitor_operations');
+      const monitoring = url.pathname.includes('/monitor/heads/') || url.pathname.endsWith('/monitor_operations') || url.pathname.includes('/monitor/validated_blocks');
       if (!monitoring) return originalFetch(input, options);
       const network = url.hostname.includes('shadownet') ? 'shadownet' : 'mainnet';
-      const kind = url.pathname.includes('/monitor/heads/') ? 'head' : 'operations';
+      const kind = url.pathname.includes('/monitor/heads/') ? 'head' : url.pathname.includes('/monitor/validated_blocks') ? 'proposals' : 'operations';
       const body = new ReadableStream<Uint8Array>({start(controller) {
         window.mockStreams[`${network}-${kind}`] = controller;
         options?.signal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')), {once: true});
         if (kind === 'head') controller.enqueue(new TextEncoder().encode(`${JSON.stringify(initialHead)}\n`));
-        else if (initialOperations) controller.enqueue(new TextEncoder().encode('[]\n'));
+        else if (kind === 'operations' && initialOperations) controller.enqueue(new TextEncoder().encode('[]\n'));
       }});
       return new Response(body, {headers: {'Content-Type': 'application/json'}});
     };
@@ -66,8 +66,8 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
     await route.fulfill({json: result, headers: {'Access-Control-Allow-Origin': '*'}});
   });
   await page.goto('/');
-  await expect(page.locator('.mainnet .headline')).toContainText(String(expectedLevel));
-  await expect(page.locator('.shadownet .headline')).toContainText(String(expectedLevel));
+  await expect(page.locator('.mainnet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
+  await expect(page.locator('.shadownet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
 }
 
 test('monitor operations update the production dashboard without losing list scroll or focus', async ({page}) => {
@@ -147,8 +147,8 @@ test('a stalled applied head and old votes cannot establish a current observed r
   await prepare(page,true,old,101);
   await send(page,'shadownet-operations',[vote(0,101,0)]);
   const panel=page.locator('.network-panel.shadownet');
-  await expect(panel.locator('.headline')).toContainText('Scheduled round');
-  await expect(panel).toContainText('Scheduled opportunity · proposal not observed');
+  await expect(panel.locator('.headline')).toContainText('Applied block round75');
+  await expect(panel).toContainText('Proposal observation unavailable');
   await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
   await expect(panel.locator('.pre .gauge-counts')).toContainText('Voting power unavailable');
 });
@@ -177,4 +177,40 @@ test('mobile network selection and disclosures persist, and pause stops stream u
   await page.getByRole('button', {name: 'Pause', exact: true}).click();
   await expect(page.getByRole('button', {name: 'Resume', exact: true})).toBeVisible();
   await expect(page.locator('.shadownet .connection-line')).toContainText('Paused');
+});
+
+
+test('production stalled successor shows scheduled 37 and visible applied round 101 with no measured zero', async ({page}, testInfo) => {
+  await page.clock.install({time: new Date('2026-10-14T18:54:31Z')});
+  const applied = {...head(5489251, 101), timestamp: '2026-10-14T18:12:09Z'};
+  await prepare(page, false, applied, 5489252);
+  await send(page, 'shadownet-operations', [vote(0, 5489251, 101), vote(1, 5489252, 0), vote(2, 5489252, 36)]);
+  const panel = page.locator('.network-panel.shadownet');
+  await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round101');
+  await expect(panel.locator('.timing-detail')).toContainText('Scheduled opportunity · level 5,489,252 · estimated round 37');
+  await expect(panel.locator('.applied-context')).toContainText('Last applied block · level 5,489,251 · round 101 · block timestamp');
+  await expect(panel.locator('.applied-context')).toBeVisible();
+  await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
+  await expect(panel.locator('.att .gauge-percent')).toHaveText('—');
+  await expect(panel.locator('.selection-label')).toContainText('payload Unavailable');
+  await panel.screenshot({path: testInfo.outputPath('stalled-successor-hotfix.png')});
+});
+
+test('a validated proposal without matching payload votes never measures zero', async ({page}) => {
+  await prepare(page, false);
+  await send(page, 'mainnet-proposals', {chain_id: 'NetFixture', hash: 'BProposal', header: {...head(101), payload_hash: 'vhProposalA'}});
+  const panel = page.locator('.mainnet');
+  await expect(panel.locator('.proposal-context')).toContainText('Observed proposal');
+  await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
+  const malformed = vote(0);
+  delete (malformed.contents[0] as {block_payload_hash?: string}).block_payload_hash;
+  await send(page, 'mainnet-operations', [malformed]);
+  await expect(panel.locator('.evidence-meta dd').nth(4)).not.toHaveText('Unavailable');
+  await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
+  await expect(panel.locator('.selection-label')).not.toContainText('unknown');
+  await send(page, 'mainnet-operations', [vote(1)]);
+  await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+  await expect(panel.locator('.proposal-context')).toContainText('Observed votes');
+  await expect(panel.locator('.proposal-context')).not.toContainText('Observed proposal');
+  await expect(panel.locator('.att .gauge-percent')).toHaveText('0.0%');
 });

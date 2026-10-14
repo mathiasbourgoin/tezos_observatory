@@ -7,12 +7,12 @@ export interface NetworkViewModel {
   status: 'loading' | 'healthy' | 'stalled' | 'degraded';
   level?: number; consensusLevel?: number; round?: number; activityRound?: number; hash?: string; payload?: string;
   appliedLevel?: number; appliedRound?: number;
-  observedProposal?: {level: number; round: number; at?: number}; roundSource?: 'observed' | 'schedule';
+  observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
   recentConsensus?: RecentConsensusView[];
   observedAt?: number; blockTimestamp?: number; lastOperationAt?: number;
   source?: string; connection?: string; error?: string; note?: string;
   preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;
-  timing?: {round: number; nextRound: number; endsAt: number; startedAt?: number};
+  timing?: {level?: number; round: number; nextRound: number; endsAt: number; startedAt?: number};
   nextBakers?: {label: string; alias?: string; address: string; round: number; level: number}[];
   missingPre?: DelegateView[]; missingAtt?: DelegateView[]; sources?: SourceView[];
 }
@@ -176,6 +176,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const panel = el('article', `network-panel ${network}`); panel.dataset.network = network; panel.dataset.status = 'loading';
     const panelHeader = el('div', 'panel-header'), heading = el('h2', '', name), status = el('span', 'status-chip', 'Connecting'); panelHeader.append(heading, status);
     const headline = el('div', 'headline'), level = field(headline, 'Consensus level'), round = field(headline, 'Current round');
+    const appliedContext = el('p', 'applied-context table-note', 'Last applied block unavailable');
     const proposalContext = el('p', 'proposal-context', 'Proposal observation unavailable');
     const connection = el('div', 'connection-line'), transport = el('span', '', 'Connecting to RPC streams…'), freshness = el('span', '', 'No observation yet'); connection.append(transport, freshness);
     const notice = el('div', 'network-notice', 'Waiting for the first successful observation.');
@@ -195,7 +196,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const meta = new Map<string, HTMLElement>();
     for (const label of ['Primary source', 'Applied head', 'Block hash', 'Last successful head', 'Last operation', 'Block age', 'Snapshot age']) {metadata.append(el('dt', '', label)); const value = el('dd', '', 'Unavailable'); metadata.append(value); meta.set(label, value);}
     const sourceRows = el('div', 'source-rows'), history = el('ol', 'event-history'); evidence.body.append(metadata, sourceRows, el('h4', '', 'Recent network events'), history);
-    panel.append(panelHeader, headline, proposalContext, connection, notice, consensus, recent.root, opportunities, missing, evidence.details); grid.append(panel);
+    panel.append(panelHeader, headline, appliedContext, proposalContext, connection, notice, consensus, recent.root, opportunities, missing, evidence.details); grid.append(panel);
     const keyedBakers = new Map<string, HTMLElement>(), keyedSources = new Map<string, HTMLElement>();
     let current: NetworkViewModel | undefined, previousStatus: NetworkViewModel['status'] | undefined;
     const tick = (now: number): void => {
@@ -208,16 +209,17 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       if (!t) {set(countdown, 'Timing unavailable'); set(timing, 'Calculated opportunity round unavailable'); return;}
       const remaining = Math.ceil((t.endsAt - now) / 1000);
       set(countdown, remaining > 0 ? `${Math.floor(remaining / 60)}m ${String(remaining % 60).padStart(2, '0')}s` : 'Awaiting next opportunity');
-      set(timing, `Calculated round ${t.round} → ${t.nextRound} · boundary ${clock(t.endsAt)}${remaining <= 0 ? ' · waiting for fresh timing' : ''}`);
+      set(timing, `Scheduled opportunity · level ${number(t.level ?? current.consensusLevel)} · estimated round ${t.round} → ${t.nextRound} · boundary ${clock(t.endsAt)}${remaining <= 0 ? ' · waiting for fresh timing' : ''}`);
     };
     states.set(network, {tick, update(model) {
       const previous = current; current = model; panel.dataset.status = model.status;
       const labels = {loading: 'Connecting', healthy: 'Progressing', stalled: 'Level stalled', degraded: 'RPC coverage degraded'};
-      set(status, labels[model.status]); set(tabStatus, labels[model.status]); tab.dataset.status = model.status; set(level, number(model.level)); set(round, number(model.round));
+      set(status, labels[model.status]); set(tabStatus, labels[model.status]); tab.dataset.status = model.status; set(level, number(model.appliedLevel ?? model.level)); set(round, number(model.appliedRound ?? model.round));
       const levelLabel=level.parentElement?.querySelector('.eyebrow'), roundLabel=round.parentElement?.querySelector('.eyebrow');
-      if(levelLabel)set(levelLabel as HTMLElement,model.roundSource==='schedule'?'Scheduled level':'Observed level');
-      if(roundLabel)set(roundLabel as HTMLElement,model.roundSource==='schedule'?'Scheduled round':'Observed round');
-      set(proposalContext, model.roundSource === 'schedule' ? 'Scheduled opportunity · proposal not observed' : model.roundSource === 'observed' ? model.observedProposal && model.observedProposal.level===model.level&&model.observedProposal.round===model.round ? `Observed proposal · level ${number(model.level)} · round ${model.round}` : `Observed votes · level ${number(model.level)} · round ${model.round}` : 'Proposal observation unavailable');
+      if(levelLabel)set(levelLabel as HTMLElement,'Applied block level');
+      if(roundLabel)set(roundLabel as HTMLElement,'Applied block round');
+      set(appliedContext, model.appliedLevel === undefined ? 'Last applied block unavailable' : `Last applied block · level ${number(model.appliedLevel)} · round ${number(model.appliedRound)}${model.blockTimestamp === undefined ? "" : ` · block timestamp ${clock(model.blockTimestamp)}`}`);
+      set(proposalContext, model.roundSource === 'schedule' ? 'Proposal observation unavailable' : model.roundSource === 'observed' ? model.observedProposal && model.observedProposal.level===model.level&&model.observedProposal.round===model.round && model.payload && model.observedProposal.payload===model.payload ? `Observed proposal · level ${number(model.level)} · round ${model.round}` : `Observed votes · level ${number(model.level)} · round ${model.round}` : 'Proposal observation unavailable');
       if (model.observedProposal) proposalContext.title = `Last observed proposal: level ${model.observedProposal.level}, round ${model.observedProposal.round}${model.observedProposal.at === undefined ? '' : ` at ${clock(model.observedProposal.at)}`}`;
       else proposalContext.removeAttribute('title');
       recent.update(model.recentConsensus);
@@ -249,8 +251,8 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       for (const source of sources) {let row = keyedSources.get(source.url); if (!row) {row = el('div', 'source-row'); sourceRows.append(row); keyedSources.set(source.url, row);} set(row, `${source.name} · ${source.status}${source.detail ? ` · ${source.detail}` : ''}`); row.title = source.url;}
       for (const [key, row] of keyedSources) if (!sourceKeys.has(key)) {row.remove(); keyedSources.delete(key);}
       const events: string[] = [];
-      if (previous && model.level !== undefined && previous.level !== model.level) events.push(`New proposal level ${number(model.level)} · round ${number(model.round)}`);
-      else if (previous && model.activityRound !== undefined && previous.activityRound !== model.activityRound) events.push(`Current round ${model.activityRound}`);
+      if (previous && model.level !== undefined && previous.level !== model.level) events.push(`${model.roundSource==='schedule'?'Scheduled opportunity':'Observed activity'} · level ${number(model.level)} · round ${number(model.round)}`);
+      else if (previous && model.activityRound !== undefined && previous.activityRound !== model.activityRound) events.push(`${model.roundSource==='schedule'?'Scheduled':'Observed'} round ${model.activityRound}`);
       for (const phase of ['preattestations', 'attestations'] as const) if (previous?.[phase] && model[phase] && model.quorum !== undefined && previous[phase].power < model.quorum && model[phase].power >= model.quorum) events.push(`${phase === 'preattestations' ? 'Preattestation' : 'Attestation'} quorum reached`);
       if (previousStatus !== model.status && model.status !== 'loading') {
         events.push(labels[model.status]);

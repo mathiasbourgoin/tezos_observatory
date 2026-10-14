@@ -76,10 +76,10 @@ function groupsFor(
   const groups = new Map<string, Group>();
   for (const operation of operations)
     for (const content of operation.contents) {
-      if (content.level !== level) continue;
+      if (content.level !== level || !content.block_payload_hash) continue;
       const address = bySlot.get(content.slot);
       if (!address) continue;
-      const payload = content.block_payload_hash ?? "unknown";
+      const payload = content.block_payload_hash;
       const key = `${content.round}:${payload}`;
       let group = groups.get(key);
       if (!group) {
@@ -138,7 +138,7 @@ function render(runtime: Runtime): void {
   let observedInstance:{level:number;round:number}|undefined;
   if(headFresh) {
     const candidates=operations.flatMap(operation=>operation.contents).filter(content=>{
-      if(content.level<head.level||content.level>head.level+1)return false;
+      if(!content.block_payload_hash || content.level<head.level||content.level>head.level+1)return false;
       const ceiling=content.level===head.level?headRound:constants&&successorAnchor!==undefined?
         roundSchedule(successorAnchor,constants.minimum,constants.increment,now).round+1:0;
       return content.round<=ceiling && (content.level!==head.level||content.round>=headRound);
@@ -146,11 +146,11 @@ function render(runtime: Runtime): void {
     const latest=candidates[0];if(latest)observedInstance={level:latest.level,round:latest.round};
   } else if(constants&&successorAnchor!==undefined) {
     const scheduled=roundSchedule(successorAnchor,constants.minimum,constants.increment,now).round;
-    if(operations.some(operation=>operation.contents.some(content=>content.level===head.level+1&&content.round===scheduled)))
+    if(operations.some(operation=>operation.contents.some(content=>content.block_payload_hash&&content.level===head.level+1&&content.round===scheduled)))
       observedInstance={level:head.level+1,round:scheduled};
   }
   const proposal=view.latestProposal;
-  if(proposal && constants && now-Date.parse(proposal.timestamp)<Math.max(15,constants.minimum+proposalRound(proposal.fitness)*constants.increment)*1500 &&
+  if(proposal && proposal.payload_hash && proposal.level>=head.level && proposal.level<=head.level+1 && constants && now-Date.parse(proposal.timestamp)<Math.max(15,constants.minimum+proposalRound(proposal.fitness)*constants.increment)*1500 &&
     (!observedInstance||proposal.level>observedInstance.level||(proposal.level===observedInstance.level&&proposalRound(proposal.fitness)>observedInstance.round))) {
     observedInstance={level:proposal.level,round:proposalRound(proposal.fitness)};
   }
@@ -193,7 +193,7 @@ function render(runtime: Runtime): void {
   );
   const selected = currentGroups[0];
   const activityRound = currentRound;
-  const hasCoverage = observedInstance!==undefined &&
+  const hasCoverage = selected!==undefined && observedInstance!==undefined &&
     view.lastOperationAt !== null &&
     ((view.operationMode === "stream" &&
       view.operationStream.mode === "stream") ||
@@ -240,10 +240,12 @@ function render(runtime: Runtime): void {
       : { lastOperationAt: view.lastOperationAt }),
     ...(activityRound === undefined ? {} : { activityRound }),
     roundSource: observedInstance ? "observed" : "schedule",
-    ...(view.latestProposal?{observedProposal:{level:view.latestProposal.level,round:proposalRound(view.latestProposal.fitness)}}:{}),
+    ...(view.latestProposal?{observedProposal:{level:view.latestProposal.level,round:proposalRound(view.latestProposal.fitness),...(view.latestProposal.payload_hash?{payload:view.latestProposal.payload_hash}:{})}}:{}),
     ...(selected
       ? { payload: selected.payload }
-      : consensusLevel === head.level &&
+      : observedInstance && proposal?.payload_hash && proposal.level===consensusLevel && proposalRound(proposal.fitness)===currentRound
+        ? { payload: proposal.payload_hash }
+        : consensusLevel === head.level &&
           currentRound === headRound &&
           head.payload_hash
         ? { payload: head.payload_hash }
@@ -341,6 +343,7 @@ function render(runtime: Runtime): void {
     if (schedule && currentRound !== undefined) {
       model.timing = {
         ...schedule,
+        level: consensusLevel,
         round: schedule.round,
         nextRound: schedule.round + 1,
       };
