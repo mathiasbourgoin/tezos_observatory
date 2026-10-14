@@ -4,7 +4,7 @@ export interface ReconciliationTarget {
   readonly source:RpcSource;
   readonly level:number;
   readonly round:number;
-  readonly payload:string;
+  readonly payload?:string;
   readonly candidate?:CandidateObservation;
   readonly observerHead?:BlockHeader;
   readonly protocolHash?:string;
@@ -17,7 +17,7 @@ export function reconciliationKey(target:ReconciliationTarget):string {
   return JSON.stringify([target.source.network,target.source.baseUrl,head?.chainId??null,head?.hash??null,head?.predecessor??null,target.protocolHash??null,target.level,target.round,target.payload,target.candidate?.identity??null,target.observerGeneration??null]);
 }
 
-interface QueuedTarget {readonly key:string;readonly target:ReconciliationTarget}
+interface QueuedTarget {key:string;target:ReconciliationTarget}
 interface ActiveTarget extends QueuedTarget {readonly controller:AbortController;readonly generation:number}
 
 /** One source-local on-demand workflow; a timer exists only for a newer queued context. */
@@ -63,6 +63,15 @@ export class ObserverReconciliation<T> {
 
   state():{readonly inFlight?:string;readonly queued?:string;readonly failed?:string;readonly lastStartedAt:number} {
     return {...(this.active?{inFlight:this.active.key}:{}),...(this.queued?{queued:this.queued.key}:{}),...(this.failedKey?{failed:this.failedKey}:{}),lastStartedAt:this.lastStartedAt};
+  }
+
+  observeOwnedContext(head:BlockHeader,observerGeneration:number,collectionGeneration:number):void {
+    const active=this.active;if(!active || !this.current(active))throw new Error("Obsolete reconciliation context");
+    const wasLatest=this.latestKey===active.key;
+    active.target={...active.target,observerHead:head,observerGeneration,collectionGeneration};active.key=reconciliationKey(active.target);
+    if(this.queued){this.queued.target={...this.queued.target,observerHead:head,observerGeneration,collectionGeneration};this.queued.key=reconciliationKey(this.queued.target);}
+    if(this.queued?.key===active.key)this.queued=undefined;
+    if(this.queued)this.latestKey=this.queued.key;else if(wasLatest)this.latestKey=active.key;
   }
 
   private drain():void {

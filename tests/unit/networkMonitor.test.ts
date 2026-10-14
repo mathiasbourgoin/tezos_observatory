@@ -1,3 +1,5 @@
+import {NetworkData,sources,type Derived} from "../../src/rpc/networkData";
+import {groupsFor,signerPower} from "../../src/consensus/phaseEvidence";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NetworkMonitor,
@@ -56,7 +58,7 @@ beforeEach(() => {
   vi.stubGlobal("window", globalThis);
 });
 
-it("tracks monotonically newer validated proposals independently of applied heads", () => {
+it("retains raw validated proposals independently of applied-head and round ceilings", () => {
   vi.useFakeTimers();
   const { monitor, heads, views } = setup({ proposalSources: [source] });
   const proposals = FakeTransport.instances[2] as FakeTransport<BlockHeader>;
@@ -78,19 +80,19 @@ it("tracks monotonically newer validated proposals independently of applied head
   expect(views.at(-1)?.snapshot?.head.level).toBe(10);
   proposals.value(proposal(11, 1));
   proposals.value(proposal(10, 4));
-  expect(views.at(-1)?.latestProposal?.hash).toBe("B11r2");
+  expect(views.at(-1)?.latestProposal?.hash).toBe("B10r4");
   proposals.value(proposal(11, 3));
   expect(views.at(-1)?.latestProposal?.hash).toBe("B11r3");
   heads.value(header(12));
   expect(views.at(-1)?.latestProposal).toBeNull();
   proposals.value(proposal(11, 100));
-  expect(views.at(-1)?.latestProposal).toBeNull();
+  expect(views.at(-1)?.latestProposal?.hash).toBe("B11r100");
   proposals.settings.onStatus(source, "HTTP 401", metrics);
   expect(views.at(-1)?.proposalStream.error).toBe("HTTP 401");
   expect(views.at(-1)?.headStream.mode).toBe("stream");
   monitor.stop();
   proposals.value(proposal(13, 0));
-  expect(views.at(-1)?.latestProposal).toBeNull();
+  expect(views.at(-1)?.latestProposal?.hash).toBe("B11r100");
   expect(views.at(-1)?.proposalStream.mode).toBe("paused");
 });
 
@@ -344,42 +346,42 @@ it("retains distinct same-round candidate hashes and immutable first receipts", 
   const first={...header(121),hash:"H1",payload_hash:"P"};
   proposals.value(first);vi.advanceTimersByTime(1);proposals.value({...first,hash:"H2"});
   expect(views.at(-1)?.latestProposal?.hash).toBe("H2");
-  const view=views.at(-1) as unknown as {candidates: readonly {header:BlockHeader;evidence:{receivedAt:number;source:RpcSource}}[]};
-  expect(view.candidates.map(c=>c.header.hash)).toEqual(["H1","H2"]);
-  const receipt=view.candidates[0]?.evidence.receivedAt;
+  const view=views.at(-1) as unknown as {unresolvedCandidates: readonly {header:BlockHeader;evidence:{receivedAt:number;source:RpcSource}}[]};
+  expect(view.unresolvedCandidates.map(c=>c.header.hash)).toEqual(["H1","H2"]);
+  const receipt=view.unresolvedCandidates[0]?.evidence.receivedAt;
   vi.advanceTimersByTime(1);proposals.value(first);
   const replay=views.at(-1) as unknown as typeof view;
-  expect(replay.candidates).toHaveLength(2);expect(replay.candidates[0]?.evidence.receivedAt).toBe(receipt);
-  expect(replay.candidates[0]?.evidence.source).toEqual(source);monitor.stop();
+  expect(replay.unresolvedCandidates).toHaveLength(2);expect(replay.unresolvedCandidates[0]?.evidence.receivedAt).toBe(receipt);
+  expect(replay.unresolvedCandidates[0]?.evidence.source).toEqual(source);monitor.stop();
 });
 
-it("bounds accepted and unresolved candidate products independently by first receipt", () => {
+it("bounds unresolved candidates by first receipt without fabricating admission from primary height", () => {
   vi.useFakeTimers();
   const {monitor,heads,views}=setup({proposalSources:[source]});heads.value(header(120));
   const proposals=FakeTransport.instances[2] as FakeTransport<BlockHeader>;
   for (let index=0;index<101;index++) {proposals.value({...header(121),hash:`accepted-${String(index).padStart(3,"0")}`});vi.advanceTimersByTime(1);}
   for (let index=0;index<101;index++) {proposals.value({...header(1_000_000+index),hash:`unknown-${String(index).padStart(3,"0")}`});vi.advanceTimersByTime(1);}
-  expect(views.at(-1)?.candidates).toHaveLength(100);expect(views.at(-1)?.unresolvedCandidates).toHaveLength(100);
-  expect(views.at(-1)?.candidates.some(candidate=>candidate.header.hash==="accepted-000")).toBe(false);
-  expect(views.at(-1)?.candidates.some(candidate=>candidate.header.hash==="accepted-100")).toBe(true);
+  expect(views.at(-1)?.candidates).toHaveLength(0);expect(views.at(-1)?.unresolvedCandidates).toHaveLength(100);
+  expect(views.at(-1)?.unresolvedCandidates.some(candidate=>candidate.header.hash==="unknown-000")).toBe(false);
+  expect(views.at(-1)?.unresolvedCandidates.some(candidate=>candidate.header.hash==="unknown-100")).toBe(true);
   monitor.stop();
 });
 
 it("keeps unpinned A/B stream requested-head facts unknown and never borrows A head context for B",()=>{
  vi.useFakeTimers();
- const {monitor,heads,operations,views}=setup({proposalSources:[source]});
+ const other={...source,name:"observer B",baseUrl:"https://observer-b"};
+ const {monitor,heads,operations,views}=setup({proposalSources:[source,other],operationSources:[source,other]});
  heads.value(header(120));
  const headEvidence=views.at(-1)?.snapshot?.head.evidence;
  expect(headEvidence?.requestedHeadHash).toBeUndefined();
  expect(headEvidence?.observedHeadHash).toBe("B120");
- const other={...source,name:"observer B",baseUrl:"https://observer-b"};
  operations.settings.onValue([{hash:"B-vote",contents:[{kind:"preattestation",level:121,round:0,slot:0,block_payload_hash:"P"}]}],other,0);
  const voteEvidence=views.at(-1)?.snapshot?.operations[0]?.evidence;
  expect(voteEvidence?.requestedHeadHash).toBeUndefined();expect(voteEvidence?.observedHeadHash).toBeUndefined();
  expect(voteEvidence?.source.baseUrl).toBe(other.baseUrl);
  const proposals=FakeTransport.instances[2] as FakeTransport<BlockHeader>;
  proposals.settings.onValue({...header(121),hash:"B-proposal",chainId:"NetB",payload_hash:"P"},other,0);
- const candidate=views.at(-1)?.candidates[0];
+ const candidate=views.at(-1)?.unresolvedCandidates[0];
  expect(candidate?.evidence.requestedHeadHash).toBeUndefined();expect(candidate?.evidence.observedHeadHash).toBeUndefined();
  expect(candidate?.header.predecessor).toBe("B120");
  monitor.stop();
@@ -395,4 +397,93 @@ it("retains ahead raw operations without letting another observer head count the
  expect(views.at(-1)?.rawOperations).toHaveLength(1);
  expect(views.at(-1)?.rawOperations[0]?.contents[0]?.level).toBe(123);
  monitor.stop();
+});
+
+
+it("starts source-local reconciliation for retained ahead votes without replacing applied A head", async()=>{
+ vi.useFakeTimers();FakeTransport.instances=[];
+ const b={...source,name:"B",baseUrl:"https://b"},views:NetworkMonitorView<NetworkDerivedState>[]=[];
+ const reconcile=vi.fn().mockRejectedValue(new Error("Unavailable B proof"));
+ const options={network:"mainnet" as const,headSources:[source],operationSources:[source,b],derive:async()=>({refreshedAt:1}),fallbackOperations:async()=>[],onUpdate:(view:NetworkMonitorView<NetworkDerivedState>)=>views.push(view),streamFactory:<T>(settings:ConstructorParameters<typeof import("../../src/rpc/streamTransport").StreamTransport<T>>[0])=>new FakeTransport(settings) as never,reconcile};
+ const monitor=new NetworkMonitor(options);monitor.start();
+ (FakeTransport.instances[0] as FakeTransport<BlockHeader>).value(header(120));
+ (FakeTransport.instances[1] as FakeTransport<import("../../src/rpc/models").MonitorOperationBatch>).value([{hash:"ahead",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"P"}]}],b);
+ await vi.advanceTimersByTimeAsync(0);
+ expect(reconcile).toHaveBeenCalledTimes(1);expect(reconcile.mock.calls[0]?.[0].source.baseUrl).toBe(b.baseUrl);
+ expect(views.at(-1)?.snapshot?.head.level).toBe(120);expect(views.at(-1)?.rawOperations).toHaveLength(1);
+ monitor.stop();
+});
+
+
+it.each([122,123])("promotes source B123 in the real monitor with B head %i while applied A120 stays independent",async(bLevel)=>{
+ vi.useFakeTimers();FakeTransport.instances=[];const a=sources.mainnet[0]!,b=sources.mainnet[1]!,reads:string[]=[];
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{const url=String(input);reads.push(url);const level=Number(new URL(url).searchParams.get("level"));
+ if(url.endsWith("/header")){const hash=url.split("/blocks/")[1]?.split("/")[0],n=hash==="head"?bLevel:Number(hash?.slice(1));return Response.json({...header(n),chain_id:"NetFixture"});}
+ if(url.endsWith("/protocols"))return Response.json({protocol:"Protocol",next_protocol:"Protocol"});
+ return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:3},{delegate:"D2",first_slot:1,attesting_power:2}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});});
+ const data=new NetworkData("mainnet"),views:NetworkMonitorView<Derived>[]=[];
+ const monitor=new NetworkMonitor<Derived>({network:"mainnet",headSources:[a],operationSources:[a,b],derive:async()=>({refreshedAt:1,rights:new Map(),contexts:new Map(),constantsByLevel:new Map(),constants:null,predecessor:null,errors:[]}),reconcile:(target,signal,onObservedHead)=>data.reconcile(target,signal,onObservedHead),fallbackOperations:async()=>[],onUpdate:view=>views.push(view),streamFactory:settings=>new FakeTransport(settings) as never});
+ monitor.start();(FakeTransport.instances[0] as FakeTransport<BlockHeader>).value(header(120),a);
+ (FakeTransport.instances[1] as FakeTransport<import("../../src/rpc/models").MonitorOperationBatch>).value([{hash:"B-vote",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"P"}]}],b);
+ expect(views.at(-1)?.unresolvedTargets).toHaveLength(1);await vi.advanceTimersByTimeAsync(0);
+ const view=views.at(-1),admission=view?.observationTargets[0]?.admission;expect(admission?.head.hash).toBe(`B${bLevel}`);
+ expect(view?.snapshot?.head.level).toBe(120);expect(view?.unresolvedTargets).toHaveLength(0);expect(view?.rawOperations).toHaveLength(1);
+ expect(view?.rawOperations[0]?.evidence?.observedHeadHash).toBeUndefined();expect(view?.rawOperations[0]?.admission?.headHash).toBe(`B${bLevel}`);
+ expect(reads.length).toBeGreaterThan(0);expect(reads.every(url=>url.startsWith(b.baseUrl))).toBe(true);
+ const rights=admission?.rights??[],group=groupsFor(view?.rawOperations??[],rights,123)[0];expect(signerPower(group?.pre??new Set(),rights)).toBe(3);
+ (FakeTransport.instances[1] as FakeTransport<import("../../src/rpc/models").MonitorOperationBatch>).value([{hash:"B-vote",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"P"}]}],b);
+ expect(views.at(-1)?.rawOperations).toHaveLength(1);expect(views.at(-1)?.rawOperations[0]?.evidence?.observedHeadHash).toBeUndefined();monitor.stop();
+});
+
+
+it("shares one unresolved bound between raw candidates and candidate-free targets",()=>{
+ vi.useFakeTimers();const {monitor,heads,operations,views}=setup({proposalSources:[source]});heads.value(header(120));
+ const proposals=FakeTransport.instances[2] as FakeTransport<BlockHeader>;
+ for(let index=0;index<60;index++){proposals.value({...header(123),hash:`candidate-${index}`,payload_hash:`candidate-P${index}`});vi.advanceTimersByTime(1);}
+ for(let index=0;index<60;index++){operations.value([{hash:`operation-${index}`,contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:`instance-P${index}`}]}]);vi.advanceTimersByTime(1);}
+ expect(views.at(-1)?.unresolvedTargets).toHaveLength(100);
+ expect(views.at(-1)?.unresolvedTargets.filter(value=>value.target.candidate)).toHaveLength(40);monitor.stop();
+});
+
+
+it("bounds actual canonical monitor raw storage at ten thousand operations",()=>{
+ vi.useFakeTimers();const {monitor,heads,operations,views}=setup();heads.value(header(120));
+ operations.value(Array.from({length:10001},(_,index)=>({hash:`raw-${String(index).padStart(5,"0")}`,contents:[{kind:"preattestation" as const,level:123,round:0,slot:0,block_payload_hash:"P"}]})));
+ expect(views.at(-1)?.rawOperations).toHaveLength(10000);expect(views.at(-1)?.rawOperations.some(operation=>operation.hash==="raw-00000")).toBe(false);expect(views.at(-1)?.unresolvedTargets).toHaveLength(1);monitor.stop();
+});
+
+
+it("withholds B numerical authority when its actual chain contradicts proven network identity",async()=>{
+ vi.useFakeTimers();FakeTransport.instances=[];const a={network:"mainnet" as const,name:"TzKT",baseUrl:"https://rpc.tzkt.io/mainnet"},b=sources.mainnet[0]!,views:NetworkMonitorView<Derived>[]=[];
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{const url=String(input),level=Number(new URL(url).searchParams.get("level"));
+ if(url.endsWith("/header")){const hash=url.split("/blocks/")[1]?.split("/")[0],n=hash==="head"?122:Number(hash?.slice(1));return Response.json({...header(n),chain_id:url.startsWith(b.baseUrl)?"WrongChain":"NetFixture"});}
+ if(url.endsWith("/protocols"))return Response.json({protocol:"Protocol",next_protocol:"Protocol"});
+ return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:3},{delegate:"D2",first_slot:1,attesting_power:2}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});});
+ const data=new NetworkData("mainnet"),monitor=new NetworkMonitor<Derived>({network:"mainnet",headSources:[a],operationSources:[a,b],derive:(head,signal)=>data.derive(head,signal),reconcile:(target,signal,onObservedHead)=>data.reconcile(target,signal,onObservedHead),fallbackOperations:async()=>[],onUpdate:view=>views.push(view),streamFactory:settings=>new FakeTransport(settings) as never});
+ monitor.start();(FakeTransport.instances[0] as FakeTransport<BlockHeader>).value(header(120),a);await vi.advanceTimersByTimeAsync(0);
+ (FakeTransport.instances[1] as FakeTransport<import("../../src/rpc/models").MonitorOperationBatch>).value([{hash:"wrong-network-B",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"P"}]}],b);await vi.advanceTimersByTimeAsync(0);
+ expect(views.at(-1)?.observationTargets).toHaveLength(0);expect(views.at(-1)?.unresolvedTargets).toHaveLength(1);expect(views.at(-1)?.rawOperations[0]?.admission).toBeUndefined();monitor.stop();
+});
+
+
+it.each(["protocol-counter","timestamp","fitness","payload"])("invalidates actual monitor derivation when same-hash %s facts change",async(kind)=>{
+ vi.useFakeTimers();const {monitor,heads,views}=setup();const old=header(120);heads.value(old);await vi.advanceTimersByTimeAsync(0);expect(views.at(-1)?.snapshot?.derived).not.toBeNull();
+ const changed=kind==="protocol-counter"?{...old,proto:2}:kind==="timestamp"?{...old,timestamp:"2026-10-14T00:00:01Z"}:kind==="fitness"?{...old,fitness:[...old.fitness.slice(0,4),"00000001"]}:{...old,payload_hash:"ChangedPayload"};
+ heads.value(changed);expect(views.at(-1)?.snapshot?.derived).toBeNull();expect(views.at(-1)?.snapshot?.head).toMatchObject(changed);monitor.stop();
+});
+
+
+it("withdraws B authority before replacement helpers finish after a newly observed B fork",async()=>{
+ vi.useFakeTimers();FakeTransport.instances=[];const a=sources.mainnet[0]!,b=sources.mainnet[1]!,views:NetworkMonitorView<Derived>[]=[];let current=header(122),release:(value:Response)=>void=()=>undefined;
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{const url=String(input),level=Number(new URL(url).searchParams.get("level"));
+ if(url.endsWith("/header")){const hash=url.split("/blocks/")[1]?.split("/")[0],observed=hash==="head"||hash===current.hash?current:hash===current.predecessor?{...header(121),hash:current.predecessor}:header(Number(hash?.slice(1)));return Response.json({...observed,chain_id:"NetFixture"});}
+ if(url.endsWith("/protocols"))return Response.json({protocol:"Protocol",next_protocol:"Protocol"});
+ if(current.hash==="Fork122"&&url.includes("attestation_rights"))return new Promise<Response>(resolve=>{release=resolve;});
+ return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:3},{delegate:"D2",first_slot:1,attesting_power:2}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});});
+ const data=new NetworkData("mainnet"),monitor=new NetworkMonitor<Derived>({network:"mainnet",headSources:[a],operationSources:[a,b],reconciliationClock:()=>performance.now(),derive:async()=>({refreshedAt:1,rights:new Map(),contexts:new Map(),constantsByLevel:new Map(),constants:null,predecessor:null,errors:[]}),reconcile:(target,signal,onHead)=>data.reconcile(target,signal,onHead),fallbackOperations:async()=>[],onUpdate:view=>views.push(view),streamFactory:settings=>new FakeTransport(settings) as never});
+ monitor.start();(FakeTransport.instances[0] as FakeTransport<BlockHeader>).value(header(120),a);(FakeTransport.instances[1] as FakeTransport<import("../../src/rpc/models").MonitorOperationBatch>).value([{hash:"B-vote",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"P"}]}],b);await vi.advanceTimersByTimeAsync(0);
+ const retained=views.at(-1)?.observationTargets[0],proof=retained?.admission,receipt=views.at(-1)?.rawOperations[0]?.evidence;if(!retained||!proof)throw new Error("Fixture missing");expect(monitor.contextAuthorized(proof.context)).toBe(true);
+ await vi.advanceTimersByTimeAsync(15000);current={...header(122),hash:"Fork122",predecessor:"Fork121"};expect(monitor.reconcileObservation(retained.identity)).toBe(true);await vi.advanceTimersByTimeAsync(0);
+ expect(monitor.observedHead(b)?.hash).toBe("Fork122");expect(monitor.contextAuthorized(proof.context)).toBe(false);expect(views.at(-1)?.observationTargets[0]?.contextInvalid).toBe(true);expect(views.at(-1)?.snapshot?.head.level).toBe(120);expect(views.at(-1)?.rawOperations[0]?.evidence).toBe(receipt);
+ release(Response.json({error:"Helpers unavailable"},{status:503}));await vi.advanceTimersByTimeAsync(0);expect(monitor.contextAuthorized(proof.context)).toBe(false);monitor.stop();
 });

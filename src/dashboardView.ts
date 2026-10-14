@@ -10,6 +10,8 @@ export interface NetworkViewModel {
   observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
   candidates?: readonly {identity:string;hash?:string;payload?:string;level:number;round:number}[];
   selectedIdentity?: string;
+  retryIdentity?:string;
+  canRetry?:boolean;
   candidateEvidence?: string;
   contextEvidence?: string;
   recentConsensus?: RecentConsensusView[];
@@ -153,7 +155,7 @@ function delegateList(network: Network, phase: 'Pre' | 'Att') {
   }};
 }
 
-export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
+export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
   root.classList.add('consensus-app');
   const header = el('header', 'masthead'), brand = el('div', 'header-brand');
   const mark = el('img', 'header-mark'); mark.src='./observatory-mark.svg'; mark.alt=''; mark.width=40; mark.height=40;
@@ -191,8 +193,10 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const selection = el('p', 'selection-label', 'Level — · payload unavailable');
     const candidateControls = el('div', 'candidate-controls'); candidateControls.setAttribute('aria-label','Observed candidates and payloads');
     const candidateEvidence = el('p','candidate-evidence table-note');
+    let retryIdentity:string|undefined;
+    const retry=el("button","","Retry selected observer context");retry.type="button";retry.hidden=true;retry.addEventListener("click",()=>{if(retryIdentity)options.onRetry?.(network,retryIdentity);});
     const candidateButtons = new Map<string,HTMLButtonElement>();
-    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection, candidateControls, candidateEvidence, gauges);
+    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection, candidateControls, candidateEvidence,retry, gauges);
     const opportunities = el('section', 'opportunities'), timingHeader = el('div', 'section-heading'); timingHeader.append(el('h3', '', 'Next baking opportunities'));
     const countdown = el('span', 'countdown', 'Timing unavailable'); timingHeader.append(countdown);
     const timing = el('p', 'timing-detail', 'Calculated opportunity round unavailable');
@@ -251,6 +255,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
         button.title = `Level ${candidate.level} · round ${candidate.round} · payload ${candidate.payload ?? 'unavailable'}`;
       }
       for (const [key,button] of candidateButtons) if (!candidateKeys.has(key)) {button.remove();candidateButtons.delete(key);}
+      retryIdentity=model.retryIdentity;retry.hidden=retryIdentity===undefined;retry.disabled=!model.canRetry;
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
       pre.update(model.preattestations, model.quorum); att.update(model.attestations, model.quorum);

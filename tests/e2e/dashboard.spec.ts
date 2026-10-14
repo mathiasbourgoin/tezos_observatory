@@ -50,9 +50,9 @@ async function send(page: Page, channel: Channel, value: unknown): Promise<void>
   }, {channel, value});
 }
 
-async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false): Promise<void> {
+async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false,sourceB=false): Promise<void> {
   headers.set(page,new Map([[initialHead.hash,initialHead],[initialHead.predecessor,{...head(initialHead.level-1),hash:initialHead.predecessor}]]));
-  await page.addInitScript(({initialOperations, initialHead, initiallyHidden}) => {
+  await page.addInitScript(({initialOperations, initialHead, initiallyHidden,sourceB}) => {
     window.mockHidden=initiallyHidden;window.mockRequests=[];
     Object.defineProperty(document,"hidden",{configurable:true,get:()=>window.mockHidden});
     window.mockStreams = {};
@@ -66,6 +66,7 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
       if (!monitoring) return originalFetch(input, options);
       const network = url.hostname.includes('shadownet') ? 'shadownet' : 'mainnet';
       const kind = url.pathname.includes('/monitor/heads/') ? 'head' : url.pathname.includes('/monitor/validated_blocks') ? 'proposals' : 'operations';
+      if(sourceB && network==="mainnet" && kind==="operations" && url.hostname==="rpc.tzkt.io")return new Response("Unavailable A operations",{status:503});
       const body = new ReadableStream<Uint8Array>({start(controller) {
         window.mockStreams[`${network}-${kind}`] = controller;
         options?.signal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')), {once: true});
@@ -74,7 +75,7 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
       }});
       return new Response(body, {headers: {'Content-Type': 'application/json'}});
     };
-  }, {initialOperations, initialHead,initiallyHidden});
+  }, {initialOperations, initialHead,initiallyHidden,sourceB});
 
   await page.route('https://**/*', async route => {
     const url = new URL(route.request().url());
@@ -255,7 +256,8 @@ test('a validated proposal without matching payload votes never measures zero', 
   await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
   await expect(panel.locator('.proposal-context')).toContainText('Observed votes');
   await expect(panel.locator('.proposal-context')).not.toContainText('Observed proposal');
-  await expect(panel.locator('.att .gauge-percent')).toHaveText('0.0%');
+  await expect(panel.locator('.att .gauge-percent')).toHaveText('—');
+  await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
   await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 101 · round 0 · validated mempool observations');
   await expect(panel.locator('.network-notice')).not.toContainText('Current round');
 });
@@ -351,3 +353,79 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   expect(await page.evaluate(()=>window.mockRequests.length)).toBe(count);
   testInfo.annotations.push({type:"foundation-verified",description:"AC-21"});
  });
+
+
+test("source B ahead votes promote under B proof while applied A remains independent",async({page},testInfo)=>{
+ await prepare(page,false,head(120),120,false,true);
+ const bHead=head(122),records=headers.get(page);records?.set("BBlock122",bHead);records?.set("BBlock121",head(121));
+ let release:()=>void=()=>undefined;const held=new Promise<void>(resolve=>{release=resolve;});
+ await page.route("https://mainnet.smartpy.io/chains/main/blocks/head/header",async route=>{await held;await route.fulfill({json:{...bHead,chain_id:"NetFixture"}});});
+ await expect.poll(()=>page.evaluate(()=>Boolean(window.mockStreams["mainnet-operations"]))).toBe(true);
+ await send(page,"mainnet-operations",[vote(0,123)]);
+ const panel=page.locator(".network-panel.mainnet");
+ await expect(panel.locator(".candidate-evidence")).toContainText("Unresolved");
+ await expect(panel.locator(".candidate-evidence")).toContainText("mainnet.smartpy.io");
+ await expect(panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true})).toBeVisible();
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");release();
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+ await expect(panel.locator(".headline")).toContainText("120");
+ await expect(panel).toContainText("context head BBlock122");
+ await expect(panel.locator(".att .gauge-percent")).toHaveText("—");
+ await panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true}).click();
+ const q1=vote(1,123),q2=vote(2,123);q1.contents[0]!.block_payload_hash="OtherPayload";q2.contents[0]!.block_payload_hash="OtherPayload";
+ await send(page,"mainnet-operations",[q1,q2]);
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+ await panel.getByRole("button",{name:"Inspect payload OtherPayload",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("1,200 / 30,000 power");
+ await panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+ await send(page,"mainnet-operations",[vote(0,123)]);await expect(panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true})).toHaveCount(1);
+ const requests=await page.evaluate(()=>window.mockRequests.map(value=>value.url).filter(url=>url.includes("/blocks/head/header")));
+ expect(requests).toContain("https://mainnet.smartpy.io/chains/main/blocks/head/header");
+ await panel.getByText("Sources & observation evidence",{exact:true}).click();await expect(panel.locator(".authority-evidence")).toBeVisible();
+ await panel.screenshot({path:`roster/observatory-foundations/slice-4-${testInfo.project.name}.png`});
+});
+
+
+test("failed B evidence retries only through a fresh permitted explicit action",async({page})=>{
+ await prepare(page,false,head(120),120,false,true);
+ let attempts=0;await page.route("https://mainnet.smartpy.io/chains/main/blocks/head/header",async route=>{attempts++;await route.fulfill({status:503,json:{error:"B unavailable"}});});
+ await expect.poll(()=>page.evaluate(()=>Boolean(window.mockStreams["mainnet-operations"]))).toBe(true);
+ await send(page,"mainnet-operations",[vote(0,123)]);const panel=page.locator(".network-panel.mainnet");
+ await expect(panel.locator(".candidate-evidence")).toContainText("Unresolved");
+ await expect.poll(()=>attempts).toBe(1);
+ const retry=panel.getByRole("button",{name:"Retry selected observer context",exact:true});await expect(retry).toBeVisible();
+ await retry.click();await page.waitForTimeout(100);expect(attempts).toBe(1);
+ await page.clock.install();await page.clock.runFor(20000);expect(attempts).toBe(1);
+ await send(page,"mainnet-operations",[vote(0,123)]);await page.clock.runFor(100);expect(attempts).toBe(1);
+ await retry.click();await expect.poll(()=>attempts).toBe(2);
+ await page.getByRole("button",{name:"Pause",exact:true}).click();await expect(retry).toBeDisabled();
+});
+
+
+test("late B response bodies cannot authorize after pause and resume",async({page})=>{
+ await prepare(page,false,head(120),120,false,true);const bHead=head(122);headers.get(page)?.set(bHead.hash,bHead);headers.get(page)?.set(bHead.predecessor,head(121));
+ await page.route("https://mainnet.smartpy.io/chains/main/blocks/head/header",route=>route.fulfill({json:{...bHead,chain_id:"NetFixture"}}));
+ await expect.poll(()=>page.evaluate(()=>Boolean(window.mockStreams["mainnet-operations"]))).toBe(true);
+ await page.evaluate(()=>{const original=window.fetch.bind(window);const state={waiting:false,release:()=>{}};Object.assign(window,{heldBBody:state});
+ window.fetch=async(input,options)=>{const response=await original(input,options),url=typeof input==="string"?input:input instanceof URL?input.href:input.url;
+ if(url==="https://mainnet.smartpy.io/chains/main/blocks/head/header"){const body=await response.json();response.json=()=>new Promise(resolve=>{state.waiting=true;state.release=()=>resolve(body);});}return response;};});
+ await send(page,"mainnet-operations",[vote(0,123)]);await expect.poll(()=>page.evaluate(()=>(window as unknown as {heldBBody:{waiting:boolean}}).heldBBody.waiting)).toBe(true);
+ await page.getByRole("button",{name:"Pause",exact:true}).click();
+ const count=await page.evaluate(()=>window.mockRequests.length);await page.getByRole("button",{name:"Resume",exact:true}).click();
+ await page.evaluate(()=>(window as unknown as {heldBBody:{release:()=>void}}).heldBBody.release());
+ const panel=page.locator(".network-panel.mainnet");await expect(panel.locator(".candidate-evidence")).toContainText("Unresolved");
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");await expect(panel.locator(".headline")).toContainText("120");
+ expect(await page.evaluate(()=>window.mockRequests.filter(request=>request.url==="https://mainnet.smartpy.io/chains/main/blocks/head/header").every(request=>request.aborted))).toBe(true);
+ expect(count).toBeGreaterThan(0);
+});
+
+
+test("reader selects retained A and B contexts without pooling their power",async({page})=>{
+ await prepare(page,false,head(120));await send(page,"mainnet-operations",[vote(0,121)]);const panel=page.locator(".network-panel.mainnet");await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
+ const bHead=head(122);headers.get(page)?.set(bHead.hash,bHead);headers.get(page)?.set(bHead.predecessor,head(121));await page.route("https://mainnet.smartpy.io/chains/main/blocks/head/header",route=>route.fulfill({json:{...bHead,chain_id:"NetFixture"}}));
+ await page.evaluate(()=>window.mockStreams["mainnet-operations"]!.error(new Error("A operations unavailable")));
+ await expect.poll(()=>page.evaluate(()=>window.mockRequests.some(request=>request.url.startsWith("https://mainnet.smartpy.io")&&request.url.includes("monitor_operations")))).toBe(true);
+ await send(page,"mainnet-operations",[vote(1,123),vote(2,123)]);await expect(panel.locator(".pre .gauge-counts")).toContainText("1,200 / 30,000 power");
+ await panel.getByRole("button",{name:"Inspect payload vhPayload121",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");await expect(panel).toContainText("context head BBlock120");
+ await panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("1,200 / 30,000 power");await expect(panel).toContainText("context head BBlock122");
+ await expect(panel.locator(".headline")).toContainText("120");
+});

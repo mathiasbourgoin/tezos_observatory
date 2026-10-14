@@ -6,7 +6,7 @@ afterEach(()=>vi.useRealTimers());
 
 it("coalesces one newest material target and separates starts by fifteen monotonic seconds",async()=>{
  vi.useFakeTimers();let now=0;const starts:{payload:string;at:number}[]=[],finishes:((value:string)=>void)[]=[],results:string[]=[];
- const scheduler=new ObserverReconciliation(source,{now:()=>now,run:request=>{starts.push({payload:request.payload,at:now});return new Promise<string>(resolve=>finishes.push(resolve));},onResult:(_request,value)=>results.push(value)});
+ const scheduler=new ObserverReconciliation(source,{now:()=>now,run:request=>{if(!request.payload)throw new Error("Fixture payload missing");starts.push({payload:request.payload,at:now});return new Promise<string>(resolve=>finishes.push(resolve));},onResult:(_request,value)=>results.push(value)});
  scheduler.start();scheduler.request(target("K0"));scheduler.request(target("K1"));scheduler.request(target("K2"));scheduler.request(target("K3"));
  expect(starts).toEqual([{payload:"K0",at:0}]);expect(scheduler.state().queued).toBe(reconciliationKey(target("K3")));
  finishes[0]?.("obsolete");await vi.advanceTimersByTimeAsync(0);expect(results).toEqual([]);

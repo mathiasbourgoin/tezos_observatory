@@ -40,6 +40,7 @@ const dashboard = createDashboard(root, {
     if (!runtime) return;
     runtime.selectedIdentity = identity; scheduleRender(runtime);
   },
+  onRetry(network,identity){if(collectionAllowed())runtimes.get(network)?.monitor.reconcileObservation(identity);},
   onReconnect() {
     if (collectionAllowed()) for (const runtime of runtimes.values()) {
       stopCollection(runtime);syncCollection(runtime);runtime.monitor.refreshDerived();
@@ -96,11 +97,16 @@ function render(runtime: Runtime): void {
     });
     return;
   }
-  const { head, derived, operations } = snapshot;
+  const appliedHead=snapshot.head,appliedRound=proposalRound(snapshot.head.fitness,snapshot.head.level);
+  const retainedTargets=[...view.observationTargets,...view.unresolvedTargets];
+  const sourceLocalTargets=retainedTargets.filter(target=>target.target.source.baseUrl!==appliedHead.evidence?.source.baseUrl || (target.admission!==undefined && target.admission.head.hash!==appliedHead.hash) || target.target.level>appliedHead.level+1).sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
+  const sourceTarget=retainedTargets.find(target=>target.identity===runtime.selectedIdentity)??sourceLocalTargets.find(target=>target.admission&&!target.contextInvalid)??sourceLocalTargets[0];
+  const admitted=sourceTarget && !sourceTarget.contextInvalid?sourceTarget.admission:undefined;
+  const head=admitted?.head??snapshot.head,derived=sourceTarget?admitted?.derived??null:snapshot.derived,operations=sourceTarget?view.rawOperations:snapshot.operations;
   const now = Date.now(),
     headRound = proposalRound(head.fitness,head.level);
   if(headRound===undefined) {
-    dashboard.update(runtime.network,{status:"degraded",appliedLevel:head.level,hash:head.hash,blockTimestamp:Date.parse(head.timestamp),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
+    dashboard.update(runtime.network,{status:"degraded",appliedLevel:appliedHead.level,hash:appliedHead.hash,blockTimestamp:Date.parse(appliedHead.timestamp),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
     return;
   }
   let constants = derived?.constants;
@@ -141,8 +147,10 @@ function render(runtime: Runtime): void {
     (!observedInstance||proposal.level>observedInstance.level||(proposal.level===observedInstance.level&&observedProposalRound>observedInstance.round))) {
     observedInstance={level:proposal.level,round:observedProposalRound};
   }
+  if(sourceTarget){observedInstance={level:sourceTarget.target.level,round:sourceTarget.target.round};}
   if(observedInstance)consensusLevel=observedInstance.level;
-  const selectedCandidate = view.candidates.find(candidate => candidate.identity === runtime.selectedIdentity && candidate.header.level >= head.level && candidate.header.level <= head.level + 1);
+  const retainedCandidates=[...view.candidates,...view.unresolvedCandidates];
+  const selectedCandidate = retainedCandidates.find(candidate => candidate.identity === runtime.selectedIdentity && candidate.header.level >= head.level && candidate.header.level <= head.level + 1);
   const selectedCandidateRound=selectedCandidate?proposalRound(selectedCandidate.header.fitness,selectedCandidate.header.level):undefined;
   if (selectedCandidate && selectedCandidateRound!==undefined) {
     consensusLevel = selectedCandidate.header.level;
@@ -150,7 +158,7 @@ function render(runtime: Runtime): void {
   }
   if(derived?.constantsByLevel)constants=derived.constantsByLevel.get(consensusLevel)??null;
   const targetContext=derived?.contexts?.get(consensusLevel);
-  const receivedRights = derived?.rights.get(consensusLevel);
+  const receivedRights = targetContext&&runtime.monitor.contextAuthorized(targetContext)?derived?.rights.get(consensusLevel):undefined;
   const authority = committeeAuthority(receivedRights ?? [],constants?.committee,constants?.quorum);
   const rights = authority.usable && constants ? receivedRights : undefined;
   const groups = groupsFor(operations,rights ?? [],consensusLevel);
@@ -186,22 +194,31 @@ function render(runtime: Runtime): void {
       a.payload.localeCompare(b.payload),
   );
   const groupIdentity = (group: typeof groups[number]): string => JSON.stringify([group.contextKey,group.level,group.round,group.payload]);
-  const matchingCandidates = view.candidates.filter(candidate => candidate.header.level === consensusLevel && proposalRound(candidate.header.fitness,candidate.header.level) === currentRound);
+  const matchingCandidates = retainedCandidates.filter(candidate => candidate.header.level === consensusLevel && proposalRound(candidate.header.fitness,candidate.header.level) === currentRound);
   const selected = selectedCandidate
     ? currentGroups.find(group => group.payload === selectedCandidate.header.payload_hash && (!group.evidence || group.evidence.source.baseUrl === selectedCandidate.evidence.source.baseUrl))
+    : sourceTarget?currentGroups.find(group=>group.payload===sourceTarget.target.payload && group.evidence?.source.baseUrl===sourceTarget.target.source.baseUrl)
     : currentGroups.find(group => groupIdentity(group) === runtime.selectedIdentity) ?? currentGroups[0];
-  const activeCandidate = selectedCandidate ?? matchingCandidates.find(candidate => candidate.header.payload_hash === selected?.payload && candidate.evidence.source.baseUrl === selected?.evidence?.source.baseUrl);
-  const selectable = [
+  const activeCandidate = sourceTarget?sourceTarget.target.candidate:selectedCandidate ?? matchingCandidates.find(candidate => candidate.header.payload_hash === selected?.payload && candidate.evidence.source.baseUrl === selected?.evidence?.source.baseUrl);
+  const selectable:{identity:string;hash?:string;payload?:string;level:number;round:number}[] = [
     ...matchingCandidates.flatMap(candidate => {const round=proposalRound(candidate.header.fitness,candidate.header.level);return round===undefined?[]:[{identity:candidate.identity,hash:candidate.header.hash,...(candidate.header.payload_hash ? {payload:candidate.header.payload_hash} : {}),level:candidate.header.level,round}];}),
     ...currentGroups.filter(group => !matchingCandidates.some(candidate => candidate.header.payload_hash === group.payload && candidate.evidence.source.baseUrl === group.evidence?.source.baseUrl)).map(group => ({identity:groupIdentity(group),payload:group.payload,level:group.level,round:group.round})),
   ];
-  const chosenIdentity = activeCandidate?.identity ?? (selected ? groupIdentity(selected) : undefined);
-  const selectedEvidence = activeCandidate?.evidence ?? selected?.evidence;
+  for(const target of retainedTargets){
+    const representedGroup=currentGroups.find(group=>group.payload===target.target.payload && group.level===target.target.level && group.round===target.target.round && group.evidence?.source.baseUrl===target.target.source.baseUrl);
+    const represented=representedGroup?selectable.findIndex(choice=>choice.identity===groupIdentity(representedGroup)):-1;
+    if(represented>=0)selectable.splice(represented,1);
+    if(!selectable.some(choice=>choice.identity===target.identity))selectable.push({identity:target.identity,...(target.target.payload?{payload:target.target.payload}:{}),level:target.target.level,round:target.target.round,...(target.target.candidate?{hash:target.target.candidate.header.hash}:{})});
+  }
+  const chosenIdentity = sourceTarget?.identity??activeCandidate?.identity ?? (selected ? groupIdentity(selected) : undefined);
+  const selectedEvidence = sourceTarget?.evidence??activeCandidate?.evidence??selected?.evidence;
   const sharedPayload = activeCandidate && matchingCandidates.filter(candidate => candidate.header.payload_hash === activeCandidate.header.payload_hash && candidate.evidence.source.baseUrl === activeCandidate.evidence.source.baseUrl).length > 1;
-  const candidateEvidence = `${activeCandidate ? `Observed block hash ${activeCandidate.header.hash}` : 'Candidate hash unavailable'} · Producer unknown${sharedPayload ? ' · Shared payload evidence; signatures are not candidate-specific' : ''}${selected?.conflicts.length ? ` · Conflicting payload signer(s): ${selected.conflicts.join(', ')}` : ''}${selected?.unknownSlots.length ? ` · Unknown-rights signer slots: ${selected.unknownSlots.join(', ')}` : ''}${selectedEvidence ? ` · Source ${selectedEvidence.source.baseUrl} · requested head ${selectedEvidence.requestedHeadHash ?? 'unknown'} · observed head ${selectedEvidence.observedHeadHash ?? 'unknown'} · parent ${selectedEvidence.predecessor ?? 'unknown'} · chain ${selectedEvidence.chainId ?? 'unknown'} · protocol-level counter ${selectedEvidence.protocolLevel ?? 'unknown'} · received ${new Date(selectedEvidence.receivedAt).toISOString()} · age ${Math.max(0,Math.floor((performance.now()-selectedEvidence.receivedMonotonic)/1000))}s` : ' · Source/context unavailable'}${authority.usable ? '' : ` · Numerical authority unavailable: ${authority.reason}`}`;
-  const contextEvidence=rights&&targetContext?`Rights responder ${rights[0]?.evidence?.source.baseUrl??"unknown"} · authority observer ${targetContext.observer.source.baseUrl} · chain ${targetContext.observer.chainId} · context head ${targetContext.observer.header.hash} · requested anchor ${targetContext.anchor.header.hash} · target ${targetContext.level} · execution protocol ${targetContext.protocolHash} · rights received ${rights[0]?.evidence?new Date(rights[0].evidence.receivedAt).toISOString():"unknown"}`:"Rights context unavailable";
+  const candidateEvidence = `${sourceTarget&&!admitted?`Unresolved${sourceTarget.contextInvalid?" · context invalid":""}${sourceTarget.error?` · ${sourceTarget.error}`:""} · level ${sourceTarget.target.level} · round ${sourceTarget.target.round} · payload ${sourceTarget.target.payload} · `:""}${activeCandidate ? `Observed block hash ${activeCandidate.header.hash}` : 'Candidate hash unavailable'} · Producer unknown${sharedPayload ? ' · Shared payload evidence; signatures are not candidate-specific' : ''}${selected?.conflicts.length ? ` · Conflicting payload signer(s): ${selected.conflicts.join(', ')}` : ''}${selected?.unknownSlots.length ? ` · Unknown-rights signer slots: ${selected.unknownSlots.join(', ')}` : ''}${selectedEvidence ? ` · Source ${selectedEvidence.source.baseUrl} · requested head ${selectedEvidence.requestedHeadHash ?? 'unknown'} · observed head ${selectedEvidence.observedHeadHash ?? 'unknown'} · parent ${selectedEvidence.predecessor ?? 'unknown'} · chain ${selectedEvidence.chainId ?? 'unknown'} · protocol-level counter ${selectedEvidence.protocolLevel ?? 'unknown'} · received ${new Date(selectedEvidence.receivedAt).toISOString()} · age ${Math.max(0,Math.floor((performance.now()-selectedEvidence.receivedMonotonic)/1000))}s` : ' · Source/context unavailable'}${authority.usable ? '' : ` · Numerical authority unavailable: ${authority.reason}`}`;
+  const sourceFacts=sourceTarget?.sourceContext?.context,sourceHead=sourceTarget?runtime.monitor.observedHead(sourceTarget.target.source):undefined;
+  const identityEvidence=view.networkIdentity?`Expected network chain ${view.networkIdentity.chainId} · identity source ${view.networkIdentity.source.baseUrl} · proven head ${view.networkIdentity.header.hash}`:"Expected network identity unavailable";
+  const contextEvidence=(rights&&targetContext?`Rights responder ${rights[0]?.evidence?.source.baseUrl??"unknown"} · authority observer ${targetContext.observer.source.baseUrl} · chain ${targetContext.observer.chainId} · context head ${targetContext.observer.header.hash} · requested anchor ${targetContext.anchor.header.hash} · target ${targetContext.level} · execution protocol ${targetContext.protocolHash} · rights received ${rights[0]?.evidence?new Date(rights[0].evidence.receivedAt).toISOString():"unknown"}`:sourceFacts?`Source-local proof · observer ${sourceFacts.observer.source.baseUrl} · chain ${sourceFacts.observer.chainId} · context head ${sourceFacts.observer.header.hash} · requested anchor ${sourceFacts.anchor.header.hash} · execution protocol ${sourceFacts.protocolHash} · numerical authority unavailable`:"Rights context unavailable")+` · ${identityEvidence}${sourceHead?` · Source-local observed head ${sourceHead.hash} · observed chain ${sourceHead.chainId??"unknown"}`:""}`;
   const activityRound = currentRound;
-  const hasCoverage = selected!==undefined && targetContext!==undefined && observationContextCompatible(selected.evidence,targetContext) && observedInstance!==undefined &&
+  const hasCoverage = selected!==undefined && targetContext!==undefined && observationContextCompatible(selected.evidence,targetContext,selected.admission) && observedInstance!==undefined &&
     view.lastOperationAt !== null &&
     ((!collectionAllowed()) || (view.operationMode === "stream" &&
       view.operationStream.mode === "stream") ||
@@ -239,14 +256,15 @@ function render(runtime: Runtime): void {
     candidates: selectable,
     ...(chosenIdentity ? {selectedIdentity:chosenIdentity} : {}),
     candidateEvidence,
+    ...(sourceTarget&&!admitted&&sourceTarget.error?{retryIdentity:sourceTarget.identity,canRetry:collectionAllowed()}:{}),
     contextEvidence,
     level: consensusLevel,
     consensusLevel,
     ...(currentRound === undefined ? {} : { round: currentRound }),
-    appliedLevel: head.level,
-    appliedRound: headRound,
-    hash: head.hash,
-    blockTimestamp: Date.parse(head.timestamp),
+    appliedLevel: appliedHead.level,
+    ...(appliedRound===undefined?{}:{appliedRound}),
+    hash: appliedHead.hash,
+    blockTimestamp: Date.parse(appliedHead.timestamp),
     ...(view.headObservedAt === null
       ? {}
       : { observedAt: view.headObservedAt }),
@@ -277,7 +295,7 @@ function render(runtime: Runtime): void {
             : "Reconnecting",
     note: paused
       ? "Monitoring paused. Values below are retained observations."
-      : `${hasCoverage ? `Observed votes · level ${consensusLevel.toLocaleString("en-US")} · round ${currentRound ?? "unavailable"} · validated mempool observations` : `Matching votes unavailable${schedule ? ` · scheduled level ${consensusLevel.toLocaleString("en-US")} · estimated round ${schedule.round}` : ""}`}${currentGroups.length > 1 ? ` · ${currentGroups.length} competing payloads; strongest shown` : ""}${groups.some((group) => group.round !== currentRound) ? " · older/future-round votes excluded" : ""}. ${stalled ? "Level progression is delayed." : ""}`,
+      : `${hasCoverage ? `Observed votes · level ${consensusLevel.toLocaleString("en-US")} · round ${currentRound ?? "unavailable"} · validated mempool observations` : `Matching votes unavailable${schedule ? ` · scheduled level ${consensusLevel.toLocaleString("en-US")} · estimated round ${schedule.round}` : ""}`}${currentGroups.length > 1 ? ` · ${currentGroups.length} competing payloads; selected payload shown` : ""}${groups.some((group) => group.round !== currentRound) ? " · older/future-round votes excluded" : ""}. ${hasCoverage?`Source ${selectedEvidence?.source.baseUrl??"unknown"} · partial positive observations; absent phase evidence is unproven. `:""}${stalled ? "Level progression is delayed." : ""}`,
     nextBakers: runtime.opportunities.filter(baker=>baker.label.startsWith("Next round") ?
       baker.level===consensusLevel && baker.round===(schedule?.round??currentRound??-2)+1 :
       baker.level===consensusLevel+1 && baker.round===0),
@@ -335,13 +353,13 @@ function render(runtime: Runtime): void {
     hasCoverage &&
     currentRound !== undefined
   ) {
-    if (!paused || pre.size > 0) model.preattestations = {
+    if (pre.size > 0) model.preattestations = {
       count: pre.size,
       expected: rights.length,
       power: power(pre),
       total,
     };
-    if (!paused || att.size > 0) model.attestations = {
+    if (att.size > 0) model.attestations = {
       count: att.size,
       expected: rights.length,
       power: power(att),
@@ -435,6 +453,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
     operationSources: streamSources[network],
     proposalSources:network==="mainnet"?streamSources.mainnet.slice(0,1):sources.shadownet,
     derive: (head, signal) => data.derive(head, signal),
+    reconcile:(target,signal,onObservedHead)=>data.reconcile(target,signal,onObservedHead),
     fallbackOperations: (head, signal) => data.pending(signal,head),
     fallbackHead: (signal) => data.head(signal),
     onUpdate(view) {

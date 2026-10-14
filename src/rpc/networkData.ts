@@ -330,7 +330,7 @@ export class NetworkData {
     return {refreshedAt:Date.now(),rights,contexts,constantsByLevel,constants:constantsByLevel.get(head.level)??null,predecessor:contexts.get(head.level)?.anchor.header??null,errors};
   }
 
-  async reconcile(target:ReconciliationTarget,signal:AbortSignal):Promise<ReconciledContext> {
+  async reconcile(target:ReconciliationTarget,signal:AbortSignal,onObservedHead?:(head:BlockHeader)=>void):Promise<ReconciledContext> {
     if(![...sources[this.network],...streamSources[this.network]].some(source=>source.baseUrl===target.source.baseUrl && source.network===target.source.network))throw new Error("Unconfigured reconciliation observer");
     if(target.candidate && target.candidate.evidence.source.baseUrl!==target.source.baseUrl)throw new Error("Candidate belongs to another observer");
     if(target.candidate && (target.level!==target.candidate.header.level || target.round!==proposalRound(target.candidate.header.fitness,target.candidate.header.level) || target.payload!==target.candidate.header.payload_hash))throw new Error("Reconciliation target does not match candidate facts");
@@ -341,7 +341,7 @@ export class NetworkData {
       if(parent.chainId!==candidate.chainId || parent.header.level!==candidate.header.level-1 || parent.nextProtocolHash!==candidate.protocolHash)throw new Error("Unproven validated candidate parent context");
       if(parent.protocolHash===candidate.protocolHash && tenderbakeFitness(candidate.header.fitness,candidate.header.level)?.predecessorRound!==tenderbakeFitness(parent.header.fitness,parent.header.level)?.round)throw new Error("Contradictory validated predecessor round");
       head={...parent.header,evidence:parent.evidence};
-    }else head=await this.head(signal,target.source);
+    }else {head=await this.head(signal,target.source);onObservedHead?.(head);}
     const context=await this.targetContext(head,target.level,signal);
     if(target.protocolHash!==undefined && target.protocolHash!==context.protocolHash)throw new Error("Contradictory target execution protocol");
     const [rights,constants]=await Promise.all([this.committee(context,signal,target.source),this.protocolConstants(context,signal,target.source)]);

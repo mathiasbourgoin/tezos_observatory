@@ -119,3 +119,33 @@ it("rejects contradictory constants context despite an equal opaque key",async()
  const proof=await new NetworkData("mainnet").reconcile(target,new AbortController().signal);
  expect(()=>store.accept({...proof,constants:{...proof.constants,context:{...proof.context,protocolHash:"WrongProtocol"}}})).toThrow("context");
 });
+
+
+it.each(["parent","protocol","anchor-source","anchor-header","observer-chain","anchor-chain"])("rejects internally contradictory %s facts even when all records share one key",async(kind)=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),target=store.addOperations([operation()])[0]?.target;if(!target)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(target,new AbortController().signal);
+ let context=kind==="parent"?{...proof.context,observer:{...proof.context.observer,header:{...proof.context.observer.header,predecessor:"WrongParent"}}}:kind==="protocol"?{...proof.context,protocolHash:"WrongExecutionProtocol"}:{...proof.context,anchor:{...proof.context.anchor,source:{...b,network:"shadownet" as const}}};
+ if(kind==="anchor-header")context={...proof.context,anchor:{...proof.context.anchor,header:{...proof.context.anchor.header,predecessor:"WrongParent"}}};
+ if(kind==="observer-chain")context={...proof.context,observer:{...proof.context.observer,header:{...proof.context.observer.header,chainId:"WrongChain"}}};
+ if(kind==="anchor-chain")context={...proof.context,anchor:{...proof.context.anchor,header:{...proof.context.anchor.header,chainId:"WrongChain"}}};
+ expect(()=>store.accept({...proof,context,rights:proof.rights.map(right=>({...right,context})),constants:{...proof.constants,context}})).toThrow("context");
+});
+
+
+it("keeps accepted candidates independent from the shared unresolved product",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),target=store.addOperations([operation()])[0]?.target;if(!target)throw new Error("Fixture missing");
+ store.accept(await new NetworkData("mainnet").reconcile(target,new AbortController().signal));
+ for(let index=0;index<101;index++){const hash=`Accepted${String(index).padStart(3,"0")}`;store.addCandidate({identity:hash,header:{...head(123),hash,payload_hash:"P"},evidence:evidence(b,1)});}
+ const accepted=store.acceptedTargets().filter(record=>record.target.candidate);expect(accepted).toHaveLength(100);expect(accepted.some(record=>record.identity==="Accepted000")).toBe(false);
+ for(let index=0;index<101;index++){const hash=`Unresolved${String(index).padStart(3,"0")}`;store.addCandidate({identity:hash,header:{...head(999999),hash,payload_hash:"Unknown"},evidence:evidence(b,2)});}
+ expect(store.unresolvedTargets()).toHaveLength(100);expect(store.acceptedTargets().filter(record=>record.target.candidate)).toHaveLength(100);
+ const original=accepted[0];if(!original?.target.candidate)throw new Error("Fixture missing");store.addCandidate({...original.target.candidate,evidence:evidence(b,999)});expect(store.target(original.identity)?.evidence.receivedMonotonic).toBe(1);
+});
+
+
+it("proves network identity from actual B context without requiring A availability",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),target=store.addOperations([operation()])[0]?.target;if(!target)throw new Error("Fixture missing");
+ expect(store.acceptedTargets()).toHaveLength(0);expect(store.rawOperations()[0]?.admission).toBeUndefined();
+ store.accept(await new NetworkData("mainnet").reconcile(target,new AbortController().signal));
+ expect(store.acceptedTargets()).toHaveLength(1);expect(store.networkIdentity()?.chainId).toBe("NetFixture");expect(store.networkIdentity()?.source.baseUrl).toBe(b.baseUrl);
+});

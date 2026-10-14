@@ -14,6 +14,8 @@ export class StaleHeadError extends Error {
   }
 }
 
+export const headFactsKey=(head:BlockHeader):string=>JSON.stringify([head.hash,head.level,head.predecessor,head.chainId??null,head.proto??null,head.timestamp,head.fitness,head.payload_hash??null]);
+
 export class HeadGeneration<T> {
   private generation = 0;
   private head: BlockHeader | null = null;
@@ -24,7 +26,7 @@ export class HeadGeneration<T> {
   private workController = new AbortController();
 
   transition(head: BlockHeader): number {
-    if (this.head?.hash === head.hash && this.head.predecessor===head.predecessor && this.head.chainId===head.chainId && this.head.evidence?.source.baseUrl===head.evidence?.source.baseUrl) return this.generation;
+    if (this.head && headFactsKey(this.head)===headFactsKey(head) && this.head.evidence?.source.baseUrl===head.evidence?.source.baseUrl) return this.generation;
     this.generation += 1;
     this.workController.abort();
     this.workController = new AbortController();
