@@ -262,7 +262,7 @@ function render(runtime: Runtime): void {
             : "Reconnecting",
     note: paused
       ? "Monitoring paused. Values below are retained observations."
-      : `${hasCoverage ? `Current round ${currentRound ?? "unavailable"} only · validated mempool observations` : "Waiting for current-round mempool observation"}${currentGroups.length > 1 ? ` · ${currentGroups.length} competing payloads; strongest shown` : ""}${groups.some((group) => group.round !== currentRound) ? " · older/future-round votes excluded" : ""}. ${stalled ? "Level progression is delayed." : ""}`,
+      : `${hasCoverage ? `Observed votes · level ${consensusLevel.toLocaleString("en-US")} · round ${currentRound ?? "unavailable"} · validated mempool observations` : `Matching votes unavailable${schedule ? ` · scheduled level ${consensusLevel.toLocaleString("en-US")} · estimated round ${schedule.round}` : ""}`}${currentGroups.length > 1 ? ` · ${currentGroups.length} competing payloads; strongest shown` : ""}${groups.some((group) => group.round !== currentRound) ? " · older/future-round votes excluded" : ""}. ${stalled ? "Level progression is delayed." : ""}`,
     nextBakers: runtime.opportunities.filter(baker=>baker.label.startsWith("Next round") ?
       baker.level===consensusLevel && baker.round===(schedule?.round??currentRound??-2)+1 :
       baker.level===consensusLevel+1 && baker.round===0),

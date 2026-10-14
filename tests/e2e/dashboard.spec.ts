@@ -193,6 +193,13 @@ test('production stalled successor shows scheduled 37 and visible applied round 
   await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
   await expect(panel.locator('.att .gauge-percent')).toHaveText('—');
   await expect(panel.locator('.selection-label')).toContainText('payload Unavailable');
+  await expect(panel.locator('.network-notice')).toContainText('Matching votes unavailable · scheduled level 5,489,252 · estimated round 37');
+  const opportunities = panel.locator('.baker-opportunity');
+  await expect(opportunities.nth(0)).toContainText('Next scheduled proposal');
+  await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 38');
+  await expect(opportunities.nth(1)).toContainText('Following level · conditional');
+  await expect(opportunities.nth(1)).toContainText('Level 5,489,253 · round 0');
+  await expect(panel.locator('.opportunities')).not.toContainText('same level');
   await panel.screenshot({path: testInfo.outputPath('stalled-successor-hotfix.png')});
 });
 
@@ -213,4 +220,25 @@ test('a validated proposal without matching payload votes never measures zero', 
   await expect(panel.locator('.proposal-context')).toContainText('Observed votes');
   await expect(panel.locator('.proposal-context')).not.toContainText('Observed proposal');
   await expect(panel.locator('.att .gauge-percent')).toHaveText('0.0%');
+  await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 101 · round 0 · validated mempool observations');
+  await expect(panel.locator('.network-notice')).not.toContainText('Current round');
+});
+
+
+test('observed votes and scheduled proposals name their own levels and rounds', async ({page}) => {
+  await page.clock.install({time: new Date('2026-10-14T18:54:31Z')});
+  const applied = {...head(5489251, 114), timestamp: '2026-10-14T18:47:21Z'};
+  await prepare(page, false, applied, 5489251);
+  await send(page, 'shadownet-operations', [vote(0, 5489252, 0)]);
+  const panel = page.locator('.network-panel.shadownet');
+  await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round114');
+  await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 5,489,252 · round 0 · validated mempool observations');
+  await expect(panel.locator('.network-notice')).not.toContainText('Current round');
+  await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+  await expect(panel.locator('.timing-detail')).toContainText('estimated round 6');
+  const opportunities = panel.locator('.baker-opportunity');
+  await expect(opportunities.nth(0)).toContainText('Next scheduled proposal');
+  await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 7');
+  await expect(opportunities.nth(1)).toContainText('Following level · conditional');
+  await expect(opportunities.nth(1)).toContainText('Level 5,489,253 · round 0');
 });

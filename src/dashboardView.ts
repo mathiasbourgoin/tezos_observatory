@@ -151,9 +151,11 @@ function delegateList(network: Network, phase: 'Pre' | 'Att') {
 
 export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
   root.classList.add('consensus-app');
-  const header = el('header', 'masthead'), brand = el('div');
-  const icon = el('img'); icon.src='./favicon.svg'; icon.alt=''; icon.width=40; icon.height=40; icon.style.cssText='float:left;margin:4px 12px 0 0'; brand.append(icon);
-  brand.append(el('div', 'eyebrow', 'TEZOS / NETWORK OBSERVATORY'), el('h1', '', 'Live consensus'));
+  const header = el('header', 'masthead'), brand = el('div', 'header-brand');
+  const mark = el('img', 'header-mark'); mark.src='./observatory-mark.svg'; mark.alt=''; mark.width=40; mark.height=40;
+  const brandText = el('div', 'header-brand-text');
+  brandText.append(el('div', 'eyebrow', 'TEZOS / NETWORK OBSERVATORY'), el('h1', '', 'Live consensus'));
+  brand.append(mark, brandText);
   const controls = el('div', 'header-controls');
   const live = el('div', 'live-label', `Browser monitoring · v2${options.revision ? ` / ${options.revision}` : ''}`); live.prepend(el('span', 'live-dot'));
   const pause = el('button', 'control-button', 'Pause'), reconnect = el('button', 'control-button', 'Reconnect'); pause.type = reconnect.type = 'button';
@@ -232,12 +234,12 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       for (const [index, baker] of bakers.entries()) {
         const key = `${baker.label}:${baker.level}:${baker.round}:${baker.address}`; bakerKeys.add(key);
         let row = keyedBakers.get(key);
-        if (!row) {row = el('div', 'baker-opportunity'); row.append(el('span', 'eyebrow', baker.label), el('strong', '', baker.alias ?? short(baker.address)), el('span', 'subtle', `Level ${number(baker.level)} · round ${baker.round}`)); row.title = baker.address; keyedBakers.set(key, row);}
+        if (!row) {row = el('div', 'baker-opportunity'); row.append(el('span', 'eyebrow', baker.label === 'Next round · same level' ? 'Next scheduled proposal' : baker.label === 'Following level · round 0' ? 'Following level · conditional' : baker.label), el('strong', '', baker.alias ?? short(baker.address)), el('span', 'subtle', `Level ${number(baker.level)} · round ${baker.round}`)); row.title = baker.address; keyedBakers.set(key, row);}
         if (bakerRows.children[index] !== row) bakerRows.insertBefore(row, bakerRows.children[index] ?? null);
       }
       for (const [key, row] of keyedBakers) if (!bakerKeys.has(key)) {row.remove(); keyedBakers.delete(key);}
       if (!bakers.length && !bakerRows.querySelector('.empty-state')) {
-        for (const label of ['Next round · same level', 'Following level · round 0']) {
+        for (const label of ['Next scheduled proposal', 'Following level · conditional']) {
           const placeholder = el('div', 'baker-opportunity empty-state');
           placeholder.append(el('span', 'eyebrow', label), el('strong', '', 'Baking rights unavailable'), el('span', 'subtle', 'Level — · round —'));
           bakerRows.append(placeholder);
