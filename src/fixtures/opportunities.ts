@@ -1,0 +1,4 @@
+import {renderNextOpportunities,type NextOpportunitiesModel} from "../view/nextOpportunities";
+const target=(id:string):HTMLElement=>{const value=document.querySelector<HTMLElement>(`#${id}`);if(value===null)throw new Error(`Missing ${id}`);return value;};
+const model=(network:"mainnet"|"shadownet"):NextOpportunitiesModel=>({network,state:"ready",observedRound:2,theoreticalRound:8,sameLevel:{level:101,round:9,bakers:[{delegate:"tz1same",alias:"Same level baker"}]},nextLevelRoundZero:{level:102,round:0,bakers:[{delegate:"tz1next",alias:"Next level baker"}]}});
+renderNextOpportunities(target("mainnet"),model("mainnet"));renderNextOpportunities(target("shadownet"),model("shadownet"));renderNextOpportunities(target("loading"),{network:"mainnet",state:"loading",observedRound:null,theoreticalRound:null,sameLevel:null,nextLevelRoundZero:null});
