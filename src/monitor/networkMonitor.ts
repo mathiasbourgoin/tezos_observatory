@@ -286,12 +286,13 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     if (!this.running) return;
     this.headObservedAt = Date.now();
     const generation = this.state.transition(head);
+    const headRound=proposalRound(head.fitness,head.level);
+    const previousProposalRound=this.latestProposal?proposalRound(this.latestProposal.fitness,this.latestProposal.level):undefined;
     if (
       this.latestProposal !== null &&
       (this.latestProposal.level < head.level ||
         (this.latestProposal.level === head.level &&
-          proposalRound(this.latestProposal.fitness) <
-            proposalRound(head.fitness)))
+          previousProposalRound!==undefined && headRound!==undefined && previousProposalRound<headRound))
     ) {
       this.latestProposal = null;
     }
@@ -353,7 +354,9 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     const evidence = this.receipt(source, proposal);
     const candidate: CandidateObservation = Object.freeze({identity, header: Object.freeze({...proposal,evidence}), evidence});
     const currentHead = this.state.snapshot()?.head;
-    const accepted = currentHead !== undefined && proposal.level >= currentHead.level && proposal.level <= currentHead.level + 1;
+    const round=proposalRound(proposal.fitness,proposal.level);
+    const headRound=currentHead?proposalRound(currentHead.fitness,currentHead.level):undefined;
+    const accepted = currentHead !== undefined && round!==undefined && headRound!==undefined && proposal.level >= currentHead.level && proposal.level <= currentHead.level + 1;
     const product = accepted ? this.candidates : this.unresolvedCandidates;
     product.set(identity,candidate); this.trimCandidates(product);
     if (!accepted) {this.emit(); return;}
@@ -362,15 +365,16 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       head !== undefined &&
       (proposal.level < head.level ||
         (proposal.level === head.level &&
-          proposalRound(proposal.fitness) < proposalRound(head.fitness)))
+          round!==undefined && headRound!==undefined && round<headRound))
     )
       return;
     const previous = this.latestProposal;
+    const previousRound=previous?proposalRound(previous.fitness,previous.level):undefined;
     if (
       previous !== null &&
       (proposal.level < previous.level ||
         (proposal.level === previous.level &&
-          proposalRound(proposal.fitness) < proposalRound(previous.fitness)))
+          round!==undefined && previousRound!==undefined && round<previousRound))
     )
       return;
     this.latestProposal = candidate.header;

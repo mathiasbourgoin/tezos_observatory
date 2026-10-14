@@ -32,8 +32,24 @@ export function roundSchedule(
   };
 }
 
-export function proposalRound(fitness: readonly string[]): number {
-  const value = fitness[4];
-  if (value === undefined || !/^[0-9a-fA-F]{8}$/.test(value)) return 0;
-  return Number.parseInt(value, 16);
+export interface TenderbakeFitness {
+  readonly level:number;
+  readonly round:number;
+  readonly predecessorRound:number;
+  readonly lockedRound?:number;
+}
+
+/** Full protocol fitness validation; absent/legacy evidence never fabricates r0. */
+export function tenderbakeFitness(fitness:readonly string[],expectedLevel?:number):TenderbakeFitness|undefined {
+  if(fitness.length!==5 || fitness[0]!=="02")return undefined;
+  const level=fitness[1],locked=fitness[2],predecessor=fitness[3],round=fitness[4];
+  if(level===undefined || locked===undefined || predecessor===undefined || round===undefined || ![level,predecessor,round].every(value=>/^[0-9a-fA-F]{8}$/.test(value)) || (locked!=="" && !/^[0-9a-fA-F]{8}$/.test(locked)))return undefined;
+  const parsedLevel=Number.parseInt(level,16),parsedRound=Number.parseInt(round,16),encodedPredecessor=Number.parseInt(predecessor,16);
+  const lockedRound=locked===""?undefined:Number.parseInt(locked,16);
+  if(parsedLevel>0x7fffffff || parsedRound>0x7fffffff || encodedPredecessor<=0x7fffffff || (lockedRound!==undefined && (lockedRound>0x7fffffff || lockedRound>=parsedRound)) || (expectedLevel!==undefined && parsedLevel!==expectedLevel))return undefined;
+  return {level:parsedLevel,round:parsedRound,predecessorRound:0xffffffff-encodedPredecessor,...(lockedRound===undefined?{}:{lockedRound})};
+}
+
+export function proposalRound(fitness: readonly string[],expectedLevel?:number): number|undefined {
+  return tenderbakeFitness(fitness,expectedLevel)?.round;
 }

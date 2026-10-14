@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roundSchedule } from "../../src/consensus/roundSchedule";
+import { roundSchedule, proposalRound, tenderbakeFitness } from "../../src/consensus/roundSchedule";
 
 describe("Tenderbake schedule", () => {
   it("advances on the exact boundary and uses cumulative durations", () => {
@@ -17,4 +17,17 @@ describe("Tenderbake schedule", () => {
     expect(roundSchedule(1000, 6, 0, 13000).round).toBe(2);
     expect(roundSchedule(1000, 6, 3, 0).startedAt).toBe(1000);
   });
+});
+
+it("keeps malformed legacy and negative encoded rounds unknown rather than inventing zero",()=>{
+ const fitness=["02","00000078","","ffffffff","00000000"];
+ expect(proposalRound(fitness)).toBe(0);expect(proposalRound([...fitness.slice(0,4),"7fffffff"])).toBe(2147483647);
+ for(const value of [[],["00","00000078","","ffffffff","00000000"],[...fitness.slice(0,4),"ffffffff"],[...fitness.slice(0,4),"80000000"],[...fitness.slice(0,4),"xyz"]])expect(proposalRound(value)).toBeUndefined();
+});
+
+it("validates complete Tenderbake level lock and predecessor encodings",()=>{
+ const valid=["02","00000078","00000001","fffffffe","00000002"];
+ expect(tenderbakeFitness(valid,120)).toEqual({level:120,lockedRound:1,predecessorRound:1,round:2});
+ expect(tenderbakeFitness(valid,121)).toBeUndefined();
+ for(const fitness of [["02","00000078","00000002","ffffffff","00000002"],["02","00000078","","00000000","00000000"],["02","00000078","","ffffffff","0000000"],["02","80000000","","ffffffff","00000000"]])expect(tenderbakeFitness(fitness)).toBeUndefined();
 });

@@ -98,7 +98,11 @@ function render(runtime: Runtime): void {
   }
   const { head, derived, operations } = snapshot;
   const now = Date.now(),
-    headRound = proposalRound(head.fitness);
+    headRound = proposalRound(head.fitness,head.level);
+  if(headRound===undefined) {
+    dashboard.update(runtime.network,{status:"degraded",appliedLevel:head.level,hash:head.hash,blockTimestamp:Date.parse(head.timestamp),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
+    return;
+  }
   const constants = derived?.constants;
   // An applied head can still be collecting votes. Move to its successor
   // once votes establish that level or its scheduled round-zero starts.
@@ -132,21 +136,24 @@ function render(runtime: Runtime): void {
       observedInstance={level:head.level+1,round:scheduled};
   }
   const proposal=view.latestProposal;
-  if(proposal && proposal.payload_hash && proposal.level>=head.level && proposal.level<=head.level+1 && constants && now-Date.parse(proposal.timestamp)<Math.max(15,constants.minimum+proposalRound(proposal.fitness)*constants.increment)*1500 &&
-    (!observedInstance||proposal.level>observedInstance.level||(proposal.level===observedInstance.level&&proposalRound(proposal.fitness)>observedInstance.round))) {
-    observedInstance={level:proposal.level,round:proposalRound(proposal.fitness)};
+  const observedProposalRound=proposal?proposalRound(proposal.fitness,proposal.level):undefined;
+  if(proposal && observedProposalRound!==undefined && proposal.payload_hash && proposal.level>=head.level && proposal.level<=head.level+1 && constants && now-Date.parse(proposal.timestamp)<Math.max(15,constants.minimum+observedProposalRound*constants.increment)*1500 &&
+    (!observedInstance||proposal.level>observedInstance.level||(proposal.level===observedInstance.level&&observedProposalRound>observedInstance.round))) {
+    observedInstance={level:proposal.level,round:observedProposalRound};
   }
   if(observedInstance)consensusLevel=observedInstance.level;
   const selectedCandidate = view.candidates.find(candidate => candidate.identity === runtime.selectedIdentity && candidate.header.level >= head.level && candidate.header.level <= head.level + 1);
-  if (selectedCandidate) {
+  const selectedCandidateRound=selectedCandidate?proposalRound(selectedCandidate.header.fitness,selectedCandidate.header.level):undefined;
+  if (selectedCandidate && selectedCandidateRound!==undefined) {
     consensusLevel = selectedCandidate.header.level;
-    observedInstance = {level: consensusLevel,round: proposalRound(selectedCandidate.header.fitness)};
+    observedInstance = {level: consensusLevel,round:selectedCandidateRound};
   }
   const receivedRights = derived?.rights.get(consensusLevel);
   const authority = committeeAuthority(receivedRights ?? [],constants?.committee,constants?.quorum);
   const rights = authority.usable && constants ? receivedRights : undefined;
   const groups = groupsFor(operations,rights ?? [],consensusLevel);
   const base = consensusLevel === head.level + 1 ? head : derived?.predecessor;
+  const baseRound=base?proposalRound(base.fitness,base.level):undefined;
   const schedule =
     consensusLevel === head.level && successorAnchor !== undefined
       ? {
@@ -154,11 +161,11 @@ function render(runtime: Runtime): void {
           startedAt: Date.parse(head.timestamp),
           endsAt: successorAnchor,
         }
-      : constants && base
+      : constants && base && baseRound!==undefined
         ? roundSchedule(
             Date.parse(base.timestamp) +
               (constants.minimum +
-                proposalRound(base.fitness) * constants.increment) *
+                baseRound * constants.increment) *
                 1000,
             constants.minimum,
             constants.increment,
@@ -183,7 +190,7 @@ function render(runtime: Runtime): void {
     : currentGroups.find(group => groupIdentity(group) === runtime.selectedIdentity) ?? currentGroups[0];
   const activeCandidate = selectedCandidate ?? matchingCandidates.find(candidate => candidate.header.payload_hash === selected?.payload && candidate.evidence.source.baseUrl === selected?.evidence?.source.baseUrl);
   const selectable = [
-    ...matchingCandidates.map(candidate => ({identity:candidate.identity,hash:candidate.header.hash,...(candidate.header.payload_hash ? {payload:candidate.header.payload_hash} : {}),level:candidate.header.level,round:proposalRound(candidate.header.fitness)})),
+    ...matchingCandidates.flatMap(candidate => {const round=proposalRound(candidate.header.fitness,candidate.header.level);return round===undefined?[]:[{identity:candidate.identity,hash:candidate.header.hash,...(candidate.header.payload_hash ? {payload:candidate.header.payload_hash} : {}),level:candidate.header.level,round}];}),
     ...currentGroups.filter(group => !matchingCandidates.some(candidate => candidate.header.payload_hash === group.payload && candidate.evidence.source.baseUrl === group.evidence?.source.baseUrl)).map(group => ({identity:groupIdentity(group),payload:group.payload,level:group.level,round:group.round})),
   ];
   const chosenIdentity = activeCandidate?.identity ?? (selected ? groupIdentity(selected) : undefined);
@@ -241,7 +248,7 @@ function render(runtime: Runtime): void {
       : { lastOperationAt: view.lastOperationAt }),
     ...(activityRound === undefined ? {} : { activityRound }),
     roundSource: observedInstance ? "observed" : "schedule",
-    ...(view.latestProposal?{observedProposal:{level:view.latestProposal.level,round:proposalRound(view.latestProposal.fitness),...(view.latestProposal.payload_hash?{payload:view.latestProposal.payload_hash}:{})}}:{}),
+    ...(proposal && observedProposalRound!==undefined?{observedProposal:{level:proposal.level,round:observedProposalRound,...(proposal.payload_hash?{payload:proposal.payload_hash}:{})}}:{}),
     ...(selected
       ? { payload: selected.payload }
       : observedInstance && proposal?.payload_hash && proposal.level===consensusLevel && proposalRound(proposal.fitness)===currentRound

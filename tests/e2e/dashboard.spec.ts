@@ -27,7 +27,7 @@ declare global {
 
 const head = (level = 100, round = 0) => ({
   level, hash: `BBlock${level}`, predecessor: `BBlock${level - 1}`,
-  timestamp: new Date().toISOString(), fitness: ['02', '00000064', '', 'ffffffff', round.toString(16).padStart(8, '0')],
+  timestamp: new Date().toISOString(), fitness: ['02', level.toString(16).padStart(8,'0'), '', 'ffffffff', round.toString(16).padStart(8, '0')],
   payload_hash: `vhPayload${level}`,
 });
 const vote = (slot: number, level = 101, round = 0) => ({

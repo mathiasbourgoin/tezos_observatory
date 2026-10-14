@@ -139,7 +139,7 @@ describe("consensus operation guards", () => {
    expect(asOperationBatch([{hash:"mixed",contents:[{kind:"preattestations_aggregate",consensus_content:consensus,committee:[0,-1,10]}]}])).toEqual([{hash:"mixed",contents:[]}]);
  });
  it("rejects invalid applied integers and calendar timestamps while accepting offsets", () => {
-   const h={level:120,hash:"H",predecessor:"Parent",timestamp:"2026-10-14T12:00:00+02:00",fitness:[]};
+   const h={level:120,hash:"H",predecessor:"Parent",timestamp:"2026-10-14T12:00:00+02:00",fitness:["02","00000078","","ffffffff","00000000"]};
    expect(asBlockHeader(h).timestamp).toBe(h.timestamp);
    for(const timestamp of ["2026-02-30T12:00:00Z","2026-10-14T12:00:00","2026-13-01T00:00:00Z"])
      expect(()=>asBlockHeader({...h,timestamp})).toThrow();
@@ -150,4 +150,10 @@ it("preserves the RPC operation branch as a raw anchor without fabricating one",
  const parsed=asOperationBatch([{hash:"anchored",branch:"BOriginalBranch",contents:[{kind:"preattestation",...consensus,slot:0}]}]);
  expect((parsed[0] as unknown as {branch?:string})?.branch).toBe("BOriginalBranch");
  expect((asOperationBatch([{hash:"unanchored",contents:[{kind:"preattestation",...consensus,slot:0}]}])[0] as unknown as {branch?:string})?.branch).toBeUndefined();
+});
+
+it("rejects missing malformed or negative-encoded Tenderbake applied rounds",()=>{
+ const h={level:120,hash:"H",predecessor:"Parent",timestamp:"2026-10-14T12:00:00Z",fitness:["02","00000078","","ffffffff","00000000"]};
+ for(const fitness of [[],["02","00000078","","ffffffff","notround"],["02","00000078","","ffffffff","ffffffff"],["02","00000078","","ffffffff","80000000"],["00","00000078","","ffffffff","00000000"]])expect(()=>asBlockHeader({...h,fitness})).toThrow();
+ expect(asBlockHeader(h).fitness[4]).toBe("00000000");
 });

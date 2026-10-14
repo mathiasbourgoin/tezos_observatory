@@ -126,6 +126,9 @@ try {
       const authority=committeeAuthority(rights,5,threshold);check(authority.usable,true,'Threshold boundary valid');check(Math.max(0,authority.threshold-signerPower(new Set(['D1']),rights)),Math.max(0,threshold-3),'Exact threshold minus observed power');
     }
     check(asBlockHeader(header).timestamp,header.timestamp,'Legitimate timezone offset accepted');
+    for(const fitness of [[],['00','00000077','','ffffffff','00000000'],['02','00000077','','ffffffff','ffffffff'],['02','00000077','','ffffffff','80000000'],['02','00000077','','00000000','00000000'],['02','00000078','','ffffffff','00000000']]) {assert.throws(()=>asBlockHeader({...header,fitness}));assertions++;}
+    check(asBlockHeader({...header,fitness:['02','00000077','00000001','ffffffff','00000002']}).fitness[4],'00000002','Legitimate locked round and observed round accepted');
+    check(asBlockHeader({...header,chain_id:'NetFixture'}).chainId,'NetFixture','Actual flattened RPC chain identity preserved');
     for (const timestamp of ['2026-02-30T12:00:00Z','2026-10-14T12:00:00','2026-13-01T12:00:00Z']) {assert.throws(()=>asBlockHeader({...header,timestamp}));assertions++;}
     for (const level of [-1,0.5,Infinity,Number.MAX_SAFE_INTEGER+1]) {assert.throws(()=>asBlockHeader({...header,level}));assertions++;}
   }

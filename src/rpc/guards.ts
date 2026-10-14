@@ -5,6 +5,8 @@ import type {
   MonitoredOperation,
 } from "./models";
 
+import {proposalRound} from "../consensus/roundSchedule";
+
 type JsonRecord = Record<string, unknown>;
 
 /** Validate local calendar fields before Date.parse can normalize rollover dates. */
@@ -34,7 +36,8 @@ export function asBlockHeader(value: unknown): BlockHeader {
     !validTimestamp(value.timestamp) ||
     (value.proto !== undefined && !nonnegativeInteger(value.proto)) ||
     !Array.isArray(value.fitness) ||
-    !value.fitness.every((item) => typeof item === "string")
+    !value.fitness.every((item) => typeof item === "string") ||
+    proposalRound(value.fitness,value.level)===undefined
   ) {
     throw new Error("Invalid block header from monitor/heads");
   }
@@ -42,6 +45,7 @@ export function asBlockHeader(value: unknown): BlockHeader {
     typeof value.payload_hash === "string" ? value.payload_hash : undefined;
   return {
     level: value.level,
+    ...(typeof value.chain_id==="string" ? {chainId:value.chain_id} : {}),
     ...(typeof value.proto === "number" ? {proto:value.proto} : {}),
     hash: value.hash,
     predecessor: value.predecessor,

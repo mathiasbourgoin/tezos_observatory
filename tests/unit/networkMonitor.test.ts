@@ -50,7 +50,7 @@ const header = (level: number): BlockHeader => ({
   hash: `B${level}`,
   predecessor: `B${level - 1}`,
   timestamp: "2026-10-14T00:00:00Z",
-  fitness: [],
+  fitness: ["02",level.toString(16).padStart(8,"0"),"","ffffffff","00000000"],
 });
 beforeEach(() => {
   vi.stubGlobal("window", globalThis);
@@ -65,7 +65,7 @@ it("tracks monotonically newer validated proposals independently of applied head
     hash: `B${level}r${round}`,
     fitness: [
       "02",
-      "00000000",
+      level.toString(16).padStart(8,"0"),
       "",
       "ffffffff",
       round.toString(16).padStart(8, "0"),
