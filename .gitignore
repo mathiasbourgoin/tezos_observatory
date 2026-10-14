@@ -10,3 +10,5 @@ briefs/*-state.json
 briefs/*.json.draft
 briefs/ACTIVE_TASK
 briefs/*-manifest.txt
+# Historical local projection scratch; canonical managed views live in kb/.
+roster/observatory-foundations/claims-projection/
