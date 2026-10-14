@@ -1,0 +1,2626 @@
+[
+  {
+    "width": 360,
+    "dark": false,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 418.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 817.140625,
+        "width": 336,
+        "height": 500.734375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1341.875,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 112,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "dark": false,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 529.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 928.140625,
+        "width": 336,
+        "height": 500.734375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1452.875,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 112,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 143.59375,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 143.59375,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "dark": false,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 418.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 817.140625,
+        "width": 336,
+        "height": 500.734375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1341.875,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 110,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 114.8125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 114.8125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "dark": false,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 418.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 817.140625,
+        "width": 336,
+        "height": 544.390625
+      },
+      "committee": {
+        "x": 12,
+        "y": 1385.53125,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 112,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "dark": true,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 418.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 817.140625,
+        "width": 336,
+        "height": 500.734375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1341.875,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 112,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "dark": true,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 529.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 928.140625,
+        "width": 336,
+        "height": 500.734375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1452.875,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 112,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 143.59375,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 143.59375,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "dark": true,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 418.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 817.140625,
+        "width": 336,
+        "height": 500.734375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1341.875,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 110,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 114.8125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 114.8125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "dark": true,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 336,
+        "height": 418.546875
+      },
+      "scene": {
+        "x": 12,
+        "y": 464.421875,
+        "width": 336,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 817.140625,
+        "width": 336,
+        "height": 544.390625
+      },
+      "committee": {
+        "x": 12,
+        "y": 1385.53125,
+        "width": 336,
+        "height": 464.21875
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 120,
+        "width": 102,
+        "height": 112.171875,
+        "scrollWidth": 99,
+        "clientWidth": 99
+      },
+      {
+        "node": "node now",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 112,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node up",
+        "left": 129,
+        "right": 231,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      },
+      {
+        "node": "node next",
+        "left": 240,
+        "right": 342,
+        "width": 102,
+        "height": 129.203125,
+        "scrollWidth": 100,
+        "clientWidth": 100
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": false,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 409.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 808.359375,
+        "width": 366,
+        "height": 478.984375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1311.34375,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 112,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": false,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 520.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 919.359375,
+        "width": 366,
+        "height": 478.984375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1422.34375,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 112,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": false,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 409.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 808.359375,
+        "width": 366,
+        "height": 478.984375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1311.34375,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 110,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 114.8125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 114.8125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": false,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 409.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 808.359375,
+        "width": 366,
+        "height": 522.640625
+      },
+      "committee": {
+        "x": 12,
+        "y": 1355,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 112,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": true,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 409.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 808.359375,
+        "width": 366,
+        "height": 478.984375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1311.34375,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 112,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": true,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 520.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 919.359375,
+        "width": 366,
+        "height": 478.984375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1422.34375,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 112,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": true,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 409.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 808.359375,
+        "width": 366,
+        "height": 478.984375
+      },
+      "committee": {
+        "x": 12,
+        "y": 1311.34375,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 110,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 114.8125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 114.8125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "dark": true,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 12,
+        "y": 380.59375,
+        "width": 366,
+        "height": 409.765625
+      },
+      "scene": {
+        "x": 12,
+        "y": 455.640625,
+        "width": 366,
+        "height": 260
+      },
+      "selected": {
+        "x": 12,
+        "y": 808.359375,
+        "width": 366,
+        "height": 522.640625
+      },
+      "committee": {
+        "x": 12,
+        "y": 1355,
+        "width": 366,
+        "height": 423.625
+      },
+      "history": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 18,
+        "right": 130,
+        "width": 112,
+        "height": 112.171875,
+        "scrollWidth": 109,
+        "clientWidth": 109
+      },
+      {
+        "node": "node now",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 112,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node up",
+        "left": 139,
+        "right": 251,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      },
+      {
+        "node": "node next",
+        "left": 260,
+        "right": 372,
+        "width": 112,
+        "height": 129.203125,
+        "scrollWidth": 110,
+        "clientWidth": 110
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": false,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 527.5625,
+        "width": 533.015625,
+        "height": 511.328125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 527.5625,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 527.5625,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 89.09375,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 74,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": false,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 296.140625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 573.3125,
+        "width": 533.015625,
+        "height": 511.328125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 573.3125,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 573.3125,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 89.09375,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 74,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": false,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 527.5625,
+        "width": 533.015625,
+        "height": 511.328125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 527.5625,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 527.5625,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": false,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 527.5625,
+        "width": 533.015625,
+        "height": 542.078125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 527.5625,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 527.5625,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 89.09375,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 74,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": true,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 527.5625,
+        "width": 533.015625,
+        "height": 511.328125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 527.5625,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 527.5625,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 89.09375,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 74,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": true,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 296.140625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 573.3125,
+        "width": 533.015625,
+        "height": 511.328125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 573.3125,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 573.3125,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 89.09375,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 74,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": true,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 527.5625,
+        "width": 533.015625,
+        "height": 511.328125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 527.5625,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 527.5625,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 92,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "dark": true,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 255.171875,
+        "width": 1384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 302.171875,
+        "width": 720,
+        "height": 172
+      },
+      "selected": {
+        "x": 242,
+        "y": 527.5625,
+        "width": 533.015625,
+        "height": 542.078125
+      },
+      "committee": {
+        "x": 799.015625,
+        "y": 527.5625,
+        "width": 612.984375,
+        "height": 462.53125
+      },
+      "history": {
+        "x": 28,
+        "y": 527.5625,
+        "width": 190,
+        "height": 358.25
+      },
+      "evidence": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 50,
+        "right": 255.328125,
+        "width": 205.328125,
+        "height": 89.09375,
+        "scrollWidth": 202,
+        "clientWidth": 202
+      },
+      {
+        "node": "node now",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 74,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node up",
+        "left": 285.328125,
+        "right": 490.65625,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      },
+      {
+        "node": "node next",
+        "left": 520.65625,
+        "right": 725.984375,
+        "width": 205.328125,
+        "height": 88.53125,
+        "scrollWidth": 203,
+        "clientWidth": 203
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": false,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 305.046875,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 530.4375,
+        "width": 949.671875,
+        "height": 540.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 530.4375,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 530.4375,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 530.4375,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 91.96875,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 74,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": false,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 297.578125
+      },
+      "scene": {
+        "x": 28,
+        "y": 305.046875,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 577.625,
+        "width": 949.671875,
+        "height": 540.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 577.625,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 577.625,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 577.625,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 91.96875,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 74,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": false,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 256.8125
+      },
+      "scene": {
+        "x": 28,
+        "y": 308.25,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 536.859375,
+        "width": 949.671875,
+        "height": 540.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 536.859375,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 536.859375,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 536.859375,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": false,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 305.046875,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 530.4375,
+        "width": 949.671875,
+        "height": 548.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 530.4375,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 530.4375,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 530.4375,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 91.96875,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 74,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": true,
+    "scenario": "normal",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 305.046875,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 530.4375,
+        "width": 949.671875,
+        "height": 540.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 530.4375,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 530.4375,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 530.4375,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 91.96875,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 74,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": true,
+    "scenario": "clock",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 297.578125
+      },
+      "scene": {
+        "x": 28,
+        "y": 305.046875,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 577.625,
+        "width": 949.671875,
+        "height": 540.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 577.625,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 577.625,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 577.625,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 91.96875,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 74,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": true,
+    "scenario": "missing",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 256.8125
+      },
+      "scene": {
+        "x": 28,
+        "y": 308.25,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 536.859375,
+        "width": 949.671875,
+        "height": 540.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 536.859375,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 536.859375,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 536.859375,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 92,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  },
+  {
+    "width": 3440,
+    "dark": true,
+    "scenario": "disagree",
+    "overflow": false,
+    "regions": {
+      "path": {
+        "x": 28,
+        "y": 258.046875,
+        "width": 3384,
+        "height": 250.390625
+      },
+      "scene": {
+        "x": 28,
+        "y": 305.046875,
+        "width": 1100,
+        "height": 172
+      },
+      "selected": {
+        "x": 388,
+        "y": 530.4375,
+        "width": 949.671875,
+        "height": 548.34375
+      },
+      "committee": {
+        "x": 1377.671875,
+        "y": 530.4375,
+        "width": 1234.578125,
+        "height": 469.28125
+      },
+      "history": {
+        "x": 28,
+        "y": 530.4375,
+        "width": 320,
+        "height": 293
+      },
+      "evidence": {
+        "x": 2652.25,
+        "y": 530.4375,
+        "width": 759.75,
+        "height": 379.5625
+      }
+    },
+    "nodes": [
+      {
+        "node": "node prev",
+        "left": 73,
+        "right": 293,
+        "width": 220,
+        "height": 91.96875,
+        "scrollWidth": 217,
+        "clientWidth": 217
+      },
+      {
+        "node": "node now",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 74,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node up",
+        "left": 419.65625,
+        "right": 639.65625,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      },
+      {
+        "node": "node next",
+        "left": 766.328125,
+        "right": 986.328125,
+        "width": 220,
+        "height": 89.96875,
+        "scrollWidth": 218,
+        "clientWidth": 218
+      }
+    ]
+  }
+]

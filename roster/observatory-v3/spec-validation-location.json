@@ -1,0 +1,11 @@
+{
+  "isolated_root": "/tmp/observatory-v3-spec-validation-53b1wfc5",
+  "cli": "/tmp/observatory-v3-spec-validation-53b1wfc5/.harness/bin/claims-reconcile.js",
+  "draft_spec": "/tmp/observatory-v3-spec-validation-53b1wfc5/specs/observatory-v3.md",
+  "root_spec_installed": false,
+  "root_kb_mutated": false,
+  "foundations_claims": 170,
+  "v3_claims_lifecycle": "draft",
+  "v3_claims_count": 153,
+  "shared_default_freshness_expected": "113f75b401e86d28db76e2179c62d2a2323e83ab3f7d718f327edc60ccca8512"
+}

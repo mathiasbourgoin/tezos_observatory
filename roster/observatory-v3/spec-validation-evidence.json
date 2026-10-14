@@ -1,0 +1,73 @@
+{
+  "isolated_root": "/tmp/observatory-v3-spec-validation-53b1wfc5",
+  "cli": "/tmp/observatory-v3-spec-validation-53b1wfc5/.harness/bin/claims-reconcile.js",
+  "draft_spec": "/tmp/observatory-v3-spec-validation-53b1wfc5/specs/observatory-v3.md",
+  "root_spec_installed": false,
+  "root_kb_mutated": false,
+  "foundations_claims": 170,
+  "v3_claims_lifecycle": "draft",
+  "v3_claims_count": 153,
+  "shared_default_freshness_expected": "113f75b401e86d28db76e2179c62d2a2323e83ab3f7d718f327edc60ccca8512",
+  "runtime_node": "26.11.1",
+  "production_node22_gates_executed": false,
+  "draft_sha256": "541468853ada77076f8b8b05d472a857ca157abfafbfa37f6b1b29e6c05c03f5",
+  "foundation_spec_sha256": "851b2b63b9d75554825a8429fcd6405882d9d28703350dc55113e2130907a7fa",
+  "canonical_cli_scope_copied": true,
+  "validation_initial_error": {
+    "exit_code": 2,
+    "reason": "unmatched-record",
+    "message": "metadata CHECK-1 has no normative source line",
+    "resolved": "Moved authentic-path annotations after colon to match installed canonical Markdown parser; no semantics changed; no projection before successful validation."
+  },
+  "validate": {
+    "exit_code": 0,
+    "claims": 323,
+    "managed_documents": 2,
+    "model_digest": "91512b5bc0fe2205f23aa4ab3e10169b63a19e8e0930531114eca63ce3d5f732",
+    "valid": true
+  },
+  "project": {
+    "exit_code": 0,
+    "files": [
+      "kb/index.md",
+      "kb/properties.md",
+      "kb/spec.md"
+    ],
+    "freshness_digest": "7a47a2103b9a1c80b0e2e3da07f8e0f9ec57d0c0dc20c5ef2de2196e092525f9",
+    "model_digest": "91512b5bc0fe2205f23aa4ab3e10169b63a19e8e0930531114eca63ce3d5f732"
+  },
+  "isolated_check": {
+    "exit_code": 0,
+    "fresh": true,
+    "expected_digest": "7a47a2103b9a1c80b0e2e3da07f8e0f9ec57d0c0dc20c5ef2de2196e092525f9",
+    "all_three_projections": "fresh"
+  },
+  "shared_root_check": {
+    "exit_code": 0,
+    "fresh": true,
+    "expected_digest": "113f75b401e86d28db76e2179c62d2a2323e83ab3f7d718f327edc60ccca8512",
+    "all_three_projections": "fresh"
+  },
+  "loader_missing_runner_probe": {
+    "exit_code": 2,
+    "code": "ERR_MODULE_NOT_FOUND",
+    "assertion_ran": false,
+    "classification": "ERROR, not behavioral red or acceptance pass"
+  },
+  "trace_audit": {
+    "requirements": 78,
+    "acceptance_criteria": 37,
+    "stories": 8,
+    "scenarios": 27,
+    "challenges": 28,
+    "checks": 38,
+    "orphan_requirements": 0,
+    "normative_markdown_matches_trace_json": true
+  },
+  "actual_viewed_study_images": [
+    "roster/observatory-v3/renders/path-1440-light.png",
+    "roster/observatory-v3/refined-renders/inspector-390-dark.png",
+    "roster/observatory-v3/refined-renders/inspector-3440-light.png"
+  ],
+  "publication_or_activation_authorized": false
+}
