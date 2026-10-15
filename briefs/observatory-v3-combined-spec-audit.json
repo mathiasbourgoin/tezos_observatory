@@ -1,0 +1,38 @@
+[
+  {
+    "severity": "HIGH",
+    "confidence": 0.99,
+    "path": "src/dashboardView.ts",
+    "line": 5,
+    "category": "spec",
+    "summary": "Phase totals omit their own receipt and monotonic age required by V3 FR-005",
+    "evidence": "VoteView has only counts/power/total/threshold, and gauge() at lines105-128 renders no phase provenance. main.ts selects one record receipt at337-340/390 and supplies phase totals at471-482 without selected.preEvidence/attEvidence. In fresh served-dist Chromium and Firefox, preattestation at12:00:30 and attestation five seconds later both show600/30000; all disclosures opened still expose only selected receipt12:00:30 and age5s, with no attestation receipt. Durable independent diagnostic: /var/tmp/observatory-spec-evidence/phase-diagnostic03.json; decoded phase-chromium.json and phase-firefox.json. Diagnostic assertions establish the absence, so its success is defect reproduction, not spec acceptance.",
+    "fix": "Project each accepted phase current evidence with its original source/context/wall receipt and monotonic age into both LIVE and retained/frozen readers; retain phase-specific coverage qualification and honest missing evidence. Add genuine staggered pre/att, duplicate/enrichment and retained/frozen assertions without substituting candidate or head receipt.",
+    "fingerprint": "spec-v3-fr005-missing-phase-receipt-age",
+    "specialist": "spec-compliance",
+    "acs": [
+      "observatory-v3/FR-005",
+      "observatory-v3/AC-01",
+      "observatory-v3/AC-10"
+    ]
+  },
+  {
+    "severity": "HIGH",
+    "confidence": 1.0,
+    "path": "tests/e2e/v3Evidence.ts",
+    "line": 11,
+    "category": "spec",
+    "summary": "Eager production binding prevents the mandatory clean unit-before-build gate",
+    "evidence": "Independent clean checkoutdc89: npmci0, check0, npmtest1 with352 passed/1failed. Discovery unit invokes Playwright--list before dist exists; v3Evidence.ts eagerly calls sourceBindings. Own log /var/tmp/observatory-spec-evidence/unit.log. After build0, standalone identical discovery0. Root independently identified and assigned the same issue; normalize as duplicate of primary clean-order discovery finding.",
+    "fix": "Defer dist-dependent source bindings until actual capture/consumer execution, preserving fail-closed release checks; add a meaningful build-absent discovery regression and rerun mandatory clean order on the next frozen revision.",
+    "fingerprint": "clean-unit-discovery-eager-dist-binding",
+    "specialist": "spec-compliance",
+    "acs": [
+      "observatory-v3/FR-070",
+      "observatory-v3/AC-08",
+      "observatory-v3/AC-24",
+      "observatory-block-intervals/FR-030",
+      "observatory-block-intervals/AC-15"
+    ]
+  }
+]

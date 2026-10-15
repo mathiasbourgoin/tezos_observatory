@@ -1,0 +1,49 @@
+[
+  {
+    "severity": "HIGH",
+    "confidence": 5,
+    "path": "tests/e2e/v3Evidence.ts",
+    "line": 11,
+    "category": "correctness",
+    "summary": "Clean documented unit gate depends on pre-existing dist assets",
+    "evidence": "Fresh detached dc89 checkout: npm ci and npm run check pass; npm test exits1 with352passed/1failed. tests/unit/v3EvidenceContract.test.ts:34 executes Playwright --list, which imports this top-level sourceBindings(); scripts/v3-evidence-contract.mjs:23 scans absent dist and throws ENOENT before any browser tests. Logs /var/tmp/observatory-primary-evidence-dc89/unit.log.",
+    "fix": "Make discovery independent of emitted assets, e.g. capture production source bindings lazily at actual capture execution; preserve clean ci\u2192check\u2192test\u2192e2e\u2192build order and verify fresh no-dist checkout.",
+    "fingerprint": "tests/e2e/v3Evidence.ts:11:correctness",
+    "specialist": "reviewer",
+    "bounded_correction": {
+      "revision": "f75cfe64c836a9e1efe620861184e75dc7bd2f2d",
+      "verified": true,
+      "evidence": "/var/tmp/observatory-primary-evidence-f75/commands.jsonl",
+      "results": "dist absent through ci/check/353 passing units; build then passes",
+      "whole_verdict": "OPEN"
+    }
+  },
+  {
+    "severity": "HIGH",
+    "confidence": 5,
+    "path": "scripts/v3-evidence-contract.mjs",
+    "line": 90,
+    "category": "correctness",
+    "summary": "Evidence loader accepts an omitted and mutated imported production asset",
+    "evidence": "Actual dc89 loadV3Evidence export, synthetic temporary loader-unit repository/bundle: full baseline accepted; remove assets/imported.js from manifest.production and recompute declared combined binding with mechanically consistent unit surface inputs: accepted; mutate that file although dist/index.html imports it: accepted. Loader checks only Object.entries(production), never compares keys with actual dist inventory. Diagnostic result: /var/tmp/observatory-primary-evidence-dc89/production-inventory-probe-result.json; script retained beside it. These are synthetic unit fixtures, not real UI evidence or independent receipts. Root actual13-asset dc89 binding remains separately verified.",
+    "fix": "Require exact complete emitted dist file set before checking hashes, including imported chunks/inspection/manifest/assets. Add negative omitted/extra/unbound consumed-asset tests using actual helper; preserve ERROR classification.",
+    "fingerprint": "scripts/v3-evidence-contract.mjs:90:correctness",
+    "specialist": "reviewer"
+  },
+  {
+    "severity": "HIGH",
+    "confidence": 5,
+    "path": "tests/e2e/dashboard.spec.ts",
+    "line": 1141,
+    "category": "spec",
+    "summary": "AC13 settlement assertion omits final acceptance-to-render delay",
+    "evidence": "The test measures settled.at-final[0].at where final[] contains only frames already rendering102/r0; domain accepted trace is collected at1127 but never used. Counterexample: final accepted0ms, first rendered80ms, settled240ms passes existing160\u2264200 while violating required240\u2264200. This is an assertion-coverage counterexample, not a claim production actually took240ms. /var/tmp/observatory-primary-evidence-dc89/acceptance-time-gap.json.",
+    "fix": "Bind final accepted coherent destination timestamp from actual domain admission to measured final camera settlement in both engines, retaining frame/source/generation identity and coalescing/cancellation assertions; fail missing acceptance/frame evidence as ERROR. Preserve historical225.5ms watchpoint.",
+    "fingerprint": "tests/e2e/dashboard.spec.ts:1141:spec",
+    "specialist": "reviewer",
+    "acs": [
+      "observatory-v3/AC-13",
+      "observatory-v3/FR-013"
+    ]
+  }
+]
