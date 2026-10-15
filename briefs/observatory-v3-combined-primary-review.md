@@ -21,7 +21,7 @@ Command ledger: `/var/tmp/observatory-primary-evidence-dc89/commands.jsonl`. Who
 
 ## Source inspection in progress
 
-Read full main assembly/lifecycle, dashboard DOM/camera and CSS, interval collector/controller, observation meaning, candidate-producer owner, inspection exports and build/browser configs. Monitor/store/networkData diff reviewed; full-file remainder and regression/test/evidence consumer inspection continue. This is an inventory of work, not proof all obligations pass.
+Read full main assembly/lifecycle, dashboard DOM/camera and CSS, interval collector/controller, observation meaning, candidate-producer owner, inspection exports and build/browser configs. Monitor/store/networkData full files and guards/assets also read. Full test-file and remaining changed documentation inspection is still incomplete and must resume with the next frozen batch; this report does not certify completion of the whole review. This is an inventory of work, not proof all obligations pass.
 
 The isolated prepare matrix `/var/tmp/observatory-v3-whole-review-prep/criterion-matrix.json` retains all95 criteria with pending source/execution/evidence fields and separate manual CHECK38 obligations. No missing bundle or planned command has been called PASS.
 
@@ -36,3 +36,13 @@ Exact `f75cfe64c836a9e1efe620861184e75dc7bd2f2d` moves only evidence binding acq
 ## AC13 proof gap
 
 HIGH specification/evidence finding at `tests/e2e/dashboard.spec.ts:1141`: settlement timing starts at the first frame already rendering the final destination, omitting acceptance-to-render delay. The collected domain trace at1127 is not used by that assertion. A static assertion counterexample (accepted0ms, first final rendered80ms, settled240ms) passes the existing160ms assertion while violating the required240ms acceptance interval. This is a proof-coverage counterexample, not observed240ms product timing; it is explicitly labeled in the retained JSON. Require actual final coherent admission→final settled camera timestamps, both engines, and ERROR for missing evidence. The historical225.5ms report remains qualified.
+
+## Handoff while author batches corrections
+
+Root requested this primary reviewer return to free a slot for the mandatory architect. This is a factual progress handoff, not overall clearance or a completed whole-product review. No manual CHECK38 judgment, independent visual receipt or official foundation/V3/metric interface result is issued. Source-bound full inspection of changed product modules and the stated evidence consumers was performed; full inspection of the large modified test files and remaining change artifacts is pending. The final frozen batch must renew affected evidence and complete every remaining obligation.
+
+Own dc89 supplementary claims check returned exit0/fresh true, digest050df4d86fc51e3551f09ecd2b698f505c70db869bb425f9d897e21fe1e1f2d8, all three projections fresh. Own production build reproduced exactly110source/4contract/13dist bindings supplied by root. The ordinary278PASS report is genuine dc89 behavior evidence, with no independent final visual interpretation attached.
+
+Current raw primary findings:3HIGH (clean discovery, production inventory completeness, AC13 acceptance-time proof). The first has separately verified bounded correction atf75; remaining two await author correction. Root's specification phase receipt/age HIGH is separately owned and not duplicated as an own finding. Canonical normalization, scope, trace, lifecycle, specialists and convergence remain root-owned. No product edit, publication or remote mutation was performed.
+
+Evidence retained: `/var/tmp/observatory-primary-evidence-dc89/`, `/var/tmp/observatory-primary-evidence-f75/`, own detached checkouts and the private95-criterion preparation matrix. The synthetic loader fixture and static timing counterexample are expressly diagnostics, never production renders/receipts or observed timing failures. All initial errors are preserved.
