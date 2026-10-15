@@ -420,13 +420,13 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       return {node:copy,scrolls:originals.map(original=>({top:original.scrollTop,left:original.scrollLeft}))};
     };
     // Only the inert departing visual may reuse this last coherent, context-bound card.
-    let observedCard:{key:string;presentation:ReturnType<typeof cardPresentation>}|undefined;
+    let observedCard:{key:string;presentation:ReturnType<typeof cardPresentation>}|undefined,navigatorHadOpportunities=false;
     const cancelCamera=():void=>{cameraAnimation?.cancel();cameraAnimation=undefined;departures?.remove();departures=undefined;previousNode.style.opacity='';};
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cancelCamera();set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
     const moveCamera=(model:NetworkViewModel,retained:boolean,reset:boolean):void=>{
       const before=reset?undefined:cameraAnchor,after=model.observation;
       if(reset){cameraAnchor=undefined;observedCard=undefined;}
-      if(retained&&before){cancelCamera();junction.dataset.direction='static';junction.dataset.awaitingProof='true';set(navigatorStatus,`Last coherent ${number(before.level)} · r${before.round} · as of ${new Date(before.receivedAt).toISOString()} · awaiting current proof. Dotted: context only · no current authority implied.`);return;}
+      if(retained&&before){if(!cameraAnimation)junction.dataset.direction='static';junction.dataset.awaitingProof='true';set(navigatorStatus,`Last coherent ${number(before.level)} · r${before.round} · as of ${new Date(before.receivedAt).toISOString()} · awaiting current proof. Dotted: context only · no current authority implied.`);return;}
       const wasAwaiting=junction.dataset.awaitingProof==='true';junction.dataset.awaitingProof='false';
       const sameMode=current?.session?.mode===model.session?.mode;
       const enriched=before&&after&&before.coherent&&after.coherent&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol&&before.level===after.level&&before.round===after.round&&before.contextParent===after.contextParent&&(!!before.hash&&before.hash===after.hash||!!before.payload&&before.payload===after.payload&&(!before.hash||!after.hash));
@@ -489,7 +489,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     states.set(network, {tick, update(model) {
       intervals.update(model.blockIntervals);
       const reset=model.navigatorDiscontinuity!==undefined&&model.navigatorDiscontinuity!==current?.navigatorDiscontinuity;
-      const retained=!reset&&retainNavigator(cameraAnchor,current,model);
+      const branchesPending=navigatorHadOpportunities&&model.opportunityFacts===undefined&&cameraAnchor!==undefined&&model.observation?.coherent===true&&anchorKey(cameraAnchor)===anchorKey(model.observation);
+      const retained=!reset&&retainNavigator(cameraAnchor,current,model,branchesPending);
       moveCamera(model,retained,reset);current = model; panel.dataset.status = model.status;
       const anchor=model.observation;
       set(contextFields.get('Observer')!,anchor?.source??'Unavailable');set(contextFields.get('Chain')!,anchor?.chain??'Unknown');set(contextFields.get('Context head')!,anchor?.contextHead??'Unknown');set(contextFields.get('Execution protocol')!,anchor?.protocol??'Unknown');set(contextFields.get('Received')!,anchor?new Date(anchor.receivedAt).toISOString():'Unavailable');
@@ -499,7 +500,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       observedHash=anchor?.hash;copyHash.disabled=!observedHash;
       set(currentHash,anchor?.hash?short(anchor.hash):'Proposal hash unavailable');currentHash.title=anchor?.hash??'No proposal hash observed';
       currentNode.dataset.identity=anchor?.identity??'';
-      if(anchor?.coherent)observedCard={key:anchorKey(anchor),presentation:cardPresentation(currentNode)};
+      if(anchor?.coherent){observedCard={key:anchorKey(anchor),presentation:cardPresentation(currentNode)};navigatorHadOpportunities=model.opportunityFacts!==undefined;}else navigatorHadOpportunities=false;
       const parent=anchor?.predecessor;
       set(previousTarget,parent?`${number(parent.level)} · r${parent.round}`:'Previous block unavailable');
       set(previousKind,parent?.hash?'Observed block':parent?'Votes only':'Live unavailable');
