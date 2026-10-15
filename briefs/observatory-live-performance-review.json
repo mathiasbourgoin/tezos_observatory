@@ -1,10 +1,10 @@
 {
   "task": "observatory-live-performance",
-  "date": "2026-10-15T13:34:16.691522+00:00",
+  "date": "2026-10-15T14:01:38.424103+00:00",
   "status": "GO",
   "mode": "fast",
-  "source_sha": "6a378bac66929b4d12aa733d73bdab3a63200cd0",
-  "scope": "Independent bounded source review after actual CI634195pass119fail; source Pin and epoch fixes plus causal test compatibility corrections; mandatory newCI before deployment.",
+  "source_sha": "09a6a17533a362864e9fb6268ea111cc19a2cdf9",
+  "scope": "Bounded source review of exact proven retained-history summary geometry cause and causal lifecycle fixture update after CI7f311pass3fail; nextCI mandatory.",
   "full_contract_go": false,
   "publication_ready": false,
   "findings": [
@@ -343,6 +343,27 @@
       "pre_fix_sha": "fc94e895e121c5ca35af1f8f6d91133867149e09",
       "check_blob": null,
       "fid": "src/main.ts:552:correctness#f2398374"
+    },
+    {
+      "severity": "MEDIUM",
+      "confidence": 5,
+      "path": "src/dashboard.css",
+      "line": 191,
+      "category": "correctness",
+      "summary": "Retained-history native summary changes height when a long selected label becomes Unavailable",
+      "evidence": "Actual CI7f rawframes: only sessionrail747.1875\u2192729.1875px; SourcesY\u221218px, committee982.390625px and viewport560px unchanged. Realistic51charpayload deterministicRED\u221239px. Sourcef11aded reserves62pxsummaryslot withoverflow; author4browsercases all0deltas plusNode22check/build; independentcompatpeerreviewAPPROVE/no findings. Prior uncertainty superseded by exactCIframecause.",
+      "fix": "Reserve only retained-history summary block-size calc(3em+20px) at line-height1.5; keep full scrollable text, native details/radios and focus outline.",
+      "fingerprint": "src/dashboard.css:191:correctness",
+      "specialist": "reviewer",
+      "status": "RESOLVED",
+      "first_seen_round": 3,
+      "resolved_round": 3,
+      "check": null,
+      "check_encodable": true,
+      "red_verified": null,
+      "pre_fix_sha": "7f86325e38b5f9222ab3a14ed8c385cd1492732d",
+      "check_blob": null,
+      "fid": "src/dashboard.css:191:correctness#0cdc75b4"
     }
   ],
   "summary": {
@@ -358,7 +379,7 @@
     "failed_acs": []
   },
   "no_go_round": 0,
-  "round": 2,
+  "round": 3,
   "cycle": 1,
   "rounds_audit": [
     {
@@ -386,6 +407,19 @@
       ],
       "strike": false,
       "trace_schema_version": "1.0"
+    },
+    {
+      "round": 3,
+      "reviewed_sha": "09a6a17533a362864e9fb6268ea111cc19a2cdf9",
+      "fix_sha": "09a6a17533a362864e9fb6268ea111cc19a2cdf9",
+      "specialists_run": [
+        {
+          "name": "reviewer",
+          "selection_reason": "Actual root frozenCSS review/check/build and classicSol native accessibility peer approval; author4browserframecases0deltas"
+        }
+      ],
+      "strike": false,
+      "trace_schema_version": "1.0"
     }
   ],
   "cross_runtime": {},
@@ -398,6 +432,7 @@
     "No full specialist fanout or alternate runtime claimed; actual independent classic Sol review performed.",
     "Request budget not universally solved: final live69requests/25.132s; no exact reduction claim.",
     "Publication remains pending actual CI and artifact verification.",
-    "One prior mobile committee geometry failure remains causal-unknown; focused baseline/proof/indexed orderings pass. New CI is mandatory; raw frame file now persisted before assertions."
+    "One prior mobile committee geometry failure remains causal-unknown; focused baseline/proof/indexed orderings pass. New CI is mandatory; raw frame file now persisted before assertions.",
+    "Prior committee causal-unknown is superseded: actualCIonlysessionrail shrank18px; deterministic longpayload reproduced39px. Source f11aded fixes the summary slot; nextCI is mandatory."
   ]
 }
