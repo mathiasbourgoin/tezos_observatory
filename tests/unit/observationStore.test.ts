@@ -406,3 +406,11 @@ it("does not reconstruct observed-quorum beside a retained crossing event for th
  const latest=store.history()[0]!;expect(latest.record.target.payload).toBe("Stress9999");expect(latest.evidence).toBe(packets[9999]!.evidence);expect(latest.record.phases?.pre?.power).toBe(3);expect(latest.record.phases?.pre?.maximumPower).toBe(3);expect(latest.currentPre).toEqual(["D1"]);expect(latest.record.admission?.context.observer.header.hash).toBe("H122");
  const original=store.rawOperations().at(-1)!;expect(original.evidence).toBe(packets[9999]!.evidence);expect(original.admission?.source.baseUrl).toBe(b.baseUrl);expect(original.evidence?.requestedHeadHash).toBeUndefined();
  });
+
+it("does not count first candidate promotion of a pre-baseline pinned candidate-free unit as newer",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0]!;store.accept(await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal));expect(store.pin(record.identity)).toBe(true);
+ store.addCandidate({identity:"first-pinned-candidate",header:{...head(123),hash:"FirstPinnedCandidate",payload_hash:"P"},evidence:evidence(b,2)});
+ expect(store.history()).toHaveLength(1);expect(store.inspection().newer).toBe(0);
+ store.addCandidate({identity:"second-pinned-candidate",header:{...head(123),hash:"SecondPinnedCandidate",payload_hash:"P"},evidence:evidence(b,3)});expect(store.inspection().newer).toBe(1);
+ store.addCandidate({identity:"first-pinned-candidate",header:{...head(123),hash:"FirstPinnedCandidate",payload_hash:"P"},evidence:evidence(b,4)});expect(store.inspection().newer).toBe(1);
+});

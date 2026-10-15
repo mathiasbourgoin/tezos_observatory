@@ -367,8 +367,8 @@ export class ObservationStore<T> {
     if(!this.selectableUnits.has(unit) && candidateIndex<0 && (candidate || candidates.length===0)){
       const represented=candidate?this.selectableUnits.get(identity):undefined;
       if(candidate)this.selectableUnits.delete(identity);
-      const sequence=++this.acceptedSequence;this.selectableUnits.set(unit,sequence);
-      if(this.selectedPin && !this.historyIdentityUncertain && !(represented!==undefined&&represented>this.selectedPin.baseline))this.selectedPin=Object.freeze({...this.selectedPin,newer:this.selectedPin.newer+1});
+      const sequence=represented??++this.acceptedSequence;this.selectableUnits.set(unit,sequence);
+      if(this.selectedPin && !this.historyIdentityUncertain && represented===undefined)this.selectedPin=Object.freeze({...this.selectedPin,newer:this.selectedPin.newer+1});
     }
     const union=<V>(before:readonly V[]|undefined,after:Iterable<V>|undefined):readonly V[]=>{const facts=[...new Set([...(before??[]),...(after??[])])];if(facts.length>10000)partial=true;return Object.freeze(facts.slice(0,10000));};
     const pre=union(old?.pre,group?.pre),att=union(old?.att,group?.att),unknownSlots=union(old?.unknownSlots,group?.unknownSlots),conflicts=union(old?.conflicts,group?.conflicts);
