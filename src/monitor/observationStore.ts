@@ -1,3 +1,4 @@
+import type {BlockProducerFact} from "../rpc/candidateProducer";
 import type {AdmissionEvidence,BlockHeader,CandidateObservation,MonitoredOperation,NetworkName,ObservationEvidence,RpcSource} from "../rpc/models";
 import {OperationStore,operationIdentity} from "../rpc/operationStore";
 import {committeeAuthority,contextFacts,groupsFor,signerPower} from "../consensus/phaseEvidence";
@@ -29,6 +30,7 @@ export interface ObservationTarget<T> {
   readonly coverage?:PendingCoverage;
   readonly coverageStale?:boolean;
   readonly phases?:{readonly pre?:AcceptedPhase;readonly att?:AcceptedPhase};
+  readonly producer?:BlockProducerFact;
   readonly opportunities?:readonly [OpportunityFact,OpportunityFact];
 }
 /** Raw body operations have one owner, the canonical bounded raw store. */
@@ -297,7 +299,9 @@ export class ObservationStore<T> {
     const compatibleSnapshot=snapshot && snapshot.evidence.source.network===record.target.source.network && snapshot.evidence.source.baseUrl===record.target.source.baseUrl && snapshot.evidence.requestedHeadHash===undefined && snapshot.evidence.receivedMonotonic>=record.evidence.receivedMonotonic && snapshot.evidence.receivedMonotonic>=snapshot.startedMonotonic && contextFacts(snapshot.contextBefore)===contextFacts(admission.context) && contextFacts(snapshot.contextAfter)===contextFacts(admission.context);
     const freshSnapshot=compatibleSnapshot && (!record.coverage || snapshot.evidence.receivedMonotonic>record.coverage.evidence.receivedMonotonic);
     const coverage=freshSnapshot?snapshot:record.coverage;
-    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
+    const opportunities=!record.contextInvalid && record.admission && contextFacts(record.admission.context)===contextFacts(admission.context)?record.opportunities:undefined;
+    const producer=!record.contextInvalid && record.admission && contextFacts(record.admission.context)===contextFacts(admission.context)?record.producer:undefined;
+    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(producer?{producer}:{}),...(opportunities?{opportunities}:{}),...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
     this.unresolved.delete(record.identity);
     const product=candidate?this.acceptedCandidates:this.instances;product.set(record.identity,updated);
     this.captureHistory(updated);
@@ -356,6 +360,22 @@ export class ObservationStore<T> {
     return true;
   }
 
+  captureProducer(identity:string,token:OpportunityCaptureToken,fact:BlockProducerFact):boolean {
+    const retained=[...this.sessionHistory.values()].flatMap(snapshot=>[snapshot.record,...snapshot.candidates]).find(record=>record.identity===identity);
+    const record=this.find(identity)??retained,context=record?.admission?.context,candidate=record?.target.candidate;
+    if(!this.enabled||!record||!context||!candidate||record.contextInvalid||!this.contextAuthorized(context))return false;
+    const generation=this.generation(record.target.source),proof=fact.evidence;
+    if(token.collectionGeneration!==generation.collectionGeneration||token.observerGeneration!==generation.observerGeneration||token.contextFacts!==contextFacts(context))return false;
+    if(fact.identity!==identity||fact.hash!==candidate.header.hash||fact.protocol!==context.protocolHash||proof.requestedHeadHash!==fact.hash||proof.source.baseUrl!==record.target.source.baseUrl||proof.source.network!==record.target.source.network||proof.chainId!==context.observer.chainId||proof.contextHeadHash!==context.observer.header.hash||proof.predecessor!==context.anchor.header.hash||proof.protocolHash!==context.protocolHash||!this.allowed(proof.source))return false;
+    const captured:BlockProducerFact=Object.freeze({...fact,evidence:Object.freeze({...proof,source:Object.freeze({...proof.source})})});
+    const update=(value:ObservationTarget<T>):ObservationTarget<T>=>value.identity===identity?Object.freeze({...value,producer:captured}):value;
+    const active=this.acceptedCandidates.get(identity);if(active)this.acceptedCandidates.set(identity,update(active));
+    const snapshotUpdate=(snapshot:SessionSnapshot<T>):SessionSnapshot<T>=>Object.freeze({...snapshot,record:update(snapshot.record),candidates:Object.freeze(snapshot.candidates.map(update))});
+    for(const [key,snapshot] of this.sessionHistory)if(snapshot.record.identity===identity||snapshot.candidates.some(value=>value.identity===identity))this.sessionHistory.set(key,snapshotUpdate(snapshot));
+    if(this.lastLiveSnapshot&&(this.lastLiveSnapshot.record.identity===identity||this.lastLiveSnapshot.candidates.some(value=>value.identity===identity)))this.lastLiveSnapshot=snapshotUpdate(this.lastLiveSnapshot);
+    return true;
+  }
+
   pin(identity:string):boolean {
     const frozen=this.frozenPin;
     if(frozen && (frozen.identity===identity || frozen.record.identity===identity || frozen.candidates.some(candidate=>candidate.identity===identity))){
@@ -376,6 +396,10 @@ export class ObservationStore<T> {
     const pin=this.selectedPin;if(!pin){const live=this.liveSelection();return Object.freeze({mode:"follow",...(live?{snapshot:live.snapshot,selectedIdentity:live.record.identity}:{}),frozen:false,newer:0,newerPartial:false});}
     const snapshot=this.frozenPin??this.sessionHistory.get(pin.instance);
     return Object.freeze({mode:"pin",...(snapshot?{snapshot}:{}),selectedIdentity:pin.identity,frozen:this.frozenPin!==undefined||!this.sessionHistory.has(pin.instance),newer:pin.newer,newerPartial:pin.newerPartial});
+  }
+  /** Bounded navigation authority; promotion preserves its unit sequence, never its hash receipt. */
+  navigationUnits():readonly Readonly<{identity:string;sequence:number}>[] {
+    return Object.freeze([...this.selectableUnits].map(([identity,sequence])=>Object.freeze({identity,sequence})));
   }
   private pruneSelectableUnits():void {
     const retained=new Set([...this.sessionHistory.values()].flatMap(value=>value.candidates.length?value.candidates.map(candidate=>candidate.identity):[value.identity]));

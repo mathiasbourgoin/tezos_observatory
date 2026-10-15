@@ -293,3 +293,20 @@ it("returns independently attributed full validated coverage with before and aft
  expect(result.complete).toBe(true);expect(result.operations).toHaveLength(1);expect(result.evidence?.source.baseUrl).toBe(context.observer.source.baseUrl);expect(result.evidence?.requestedHeadHash).toBeUndefined();expect(result.contextBefore).toEqual(context);expect(result.contextAfter).toEqual(context);
  expect(reads.filter(url=>url.endsWith("/blocks/head/header"))).toHaveLength(2);
 });
+
+
+it.each(['deadline','pause','caller'] as const)('V3 metadata body is fenced by %s without a retry or fallback',async cause=>{
+ const source={network:'mainnet' as const,name:'TzKT',baseUrl:'https://rpc.tzkt.io/mainnet'},deadline=new AbortController(),caller=new AbortController();
+ const timeout=vi.spyOn(AbortSignal,'timeout').mockReturnValue(deadline.signal);
+ let resolveBody:(value:unknown)=>void=()=>undefined;const calls:{url:string;options:RequestInit|undefined}[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request,options?:RequestInit)=>{calls.push({url:String(input),options});return {ok:true,redirected:false,json:()=>new Promise(resolve=>{resolveBody=resolve;})} as Response;});
+ const data=new NetworkData('mainnet'),read=data.blockMetadata(head(123),source,caller.signal);const rejected=expect(read).rejects.toThrow(/cancelled|timed out/);
+ await Promise.resolve();await Promise.resolve();expect(timeout).toHaveBeenCalledWith(8000);expect(calls).toHaveLength(1);expect(calls[0]!.url).toBe('https://rpc.tzkt.io/mainnet/chains/main/blocks/B123/metadata');expect(calls[0]!.options?.redirect).toBe('error');
+ if(cause==='deadline')deadline.abort();else if(cause==='pause')data.pause();else caller.abort();
+ await rejected;expect(calls[0]!.options!.signal!.aborted).toBe(true);resolveBody({baker:'late'});await Promise.resolve();expect(calls).toHaveLength(1);
+});
+
+it('V3 metadata rejects redirected responses without following another provider',async()=>{
+ const fetchMock=vi.fn(async()=>({ok:true,redirected:true,json:async()=>({baker:'redirected'})} as Response));vi.stubGlobal('fetch',fetchMock);
+ const data=new NetworkData('mainnet');await expect(data.blockMetadata(head(123),{network:'mainnet',name:'TzKT',baseUrl:'https://rpc.tzkt.io/mainnet'},new AbortController().signal)).rejects.toThrow();expect(fetchMock).toHaveBeenCalledTimes(1);
+});

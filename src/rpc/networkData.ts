@@ -270,11 +270,20 @@ export class NetworkData {
     return value;
   }
 
+  /** One exact immutable-hash read; timeout includes a body even if a fetch shim ignores abort. */
+  async blockMetadata(head:BlockHeader,source:RpcSource,signal:AbortSignal):Promise<{value:unknown;evidence:ObservationEvidence}> {
+    const deadline=AbortSignal.any([signal,this.auxiliaryController.signal,AbortSignal.timeout(8000)]);
+    let rejectAbort:()=>void=()=>undefined;
+    const aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=()=>reject(new DOMException('Metadata read cancelled or timed out','AbortError'));if(deadline.aborted)rejectAbort();else deadline.addEventListener('abort',rejectAbort,{once:true});});
+    try{return await Promise.race([this.requestObserved(`/chains/main/blocks/${encodeURIComponent(head.hash)}/metadata`,deadline,head,source,true),aborted]);}
+    finally{deadline.removeEventListener('abort',rejectAbort);}
+  }
+
   async request(path: string, signal?: AbortSignal): Promise<unknown> {
     return (await this.requestObserved(path,signal)).value;
   }
 
-  private async requestObserved(path: string, signal?: AbortSignal, head?:BlockHeader, exactSource?:RpcSource): Promise<{value:unknown;evidence:ObservationEvidence}> {
+  private async requestObserved(path: string, signal?: AbortSignal, head?:BlockHeader, exactSource?:RpcSource, strictRedirect=false): Promise<{value:unknown;evidence:ObservationEvidence}> {
     const generation=this.collectionGeneration;
     this.assertCollecting(generation,signal);
     const pool = exactSource ? [exactSource] : [
@@ -288,9 +297,10 @@ export class NetworkData {
       try {
         const response = await fetch(source.baseUrl + path, {
           cache: "no-store",
+          ...(strictRedirect?{redirect:"error" as const}:{}),
           signal: AbortSignal.any([this.auxiliaryController.signal,...(signal ? [signal] : []),AbortSignal.timeout(8000)]),
         });
-        if (!response.ok)
+        if (!response.ok || strictRedirect&&response.redirected)
           throw new Error(`${source.name}: HTTP ${response.status}`);
         const result: unknown = await response.json();
         this.assertCollecting(generation,signal);

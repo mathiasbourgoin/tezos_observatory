@@ -1,3 +1,4 @@
+import {CandidateProducers,PRODUCER_PROTOCOL,metadataBaker} from '../../src/rpc/candidateProducer';
 import {afterEach,expect,it,vi} from "vitest";
 import {ObservationStore} from "../../src/monitor/observationStore";
 import {NetworkData,sources,type Derived} from "../../src/rpc/networkData";
@@ -453,6 +454,46 @@ it('captures both exact opportunity branches without refreshing selected receipt
  expect(store.target(record.identity)?.opportunities?.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined)).toEqual(facts.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined));
 });
 
+it('preserves captured opportunities across repeated exact-context admission and retained snapshot refresh',async()=>{
+ const {store,record,proof,facts,token}=await opportunityFixture();
+ expect(store.pin(record.identity)).toBe(true);expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ const before=store.inspection();
+ for(let index=0;index<3;index++){
+  store.accept(proof);
+  expect(store.target(record.identity)?.opportunities).toEqual(facts);
+  expect(store.inspection().snapshot?.record.opportunities).toEqual(facts);
+  expect(store.inspection().snapshot?.evidence).toBe(before.snapshot?.evidence);
+  expect(store.inspection().newer).toBe(before.newer);
+ }
+});
+
+it.each(['context-key','anchor-timestamp'] as const)('keeps old captured history separate when the same candidate is admitted under changed %s facts',async change=>{
+ const {store,record,proof,facts,token}=await opportunityFixture();
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ const historical=store.history().find(snapshot=>snapshot.record.identity===record.identity)!;
+ const context=change==='context-key'?{...proof.context,key:`${proof.context.key}-different`}:{...proof.context,anchor:{...proof.context.anchor,header:{...proof.context.anchor.header,timestamp:'2025-12-31T23:59:00Z'}}};
+ store.accept({...proof,context,rights:proof.rights.map(right=>({...right,context})),constants:{...proof.constants,context}});
+ expect(store.target(record.identity)?.contextInvalid).toBe(false);
+ expect(store.target(record.identity)?.admission?.context.key).toBe(context.key);
+ expect(store.target(record.identity)?.opportunities).toBeUndefined();
+ expect(store.history().find(snapshot=>snapshot.identity===historical.identity)?.record.opportunities).toEqual(facts);
+ expect(store.history().filter(snapshot=>snapshot.identity!==historical.identity).every(snapshot=>snapshot.record.opportunities===undefined)).toBe(true);
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(false);
+});
+
+it('never transfers captured opportunities to a sibling candidate or a reorg context',async()=>{
+ const {store,record,current,proof,facts,token}=await opportunityFixture();
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ const sibling=store.addCandidate({identity:'uncaptured-sibling',header:{...current,hash:'SiblingHash'},evidence:evidence(b,2)})!;
+ expect(store.target(sibling.identity)?.opportunities).toBeUndefined();
+ store.observeHead({...current,hash:'ReorgHead',evidence:evidence(b,3)});
+ expect(store.target(record.identity)?.contextInvalid).toBe(true);
+ expect(store.history().flatMap(snapshot=>snapshot.candidates).find(candidate=>candidate.identity===record.identity)?.opportunities).toEqual(facts);
+ expect(store.captureOpportunities(sibling.identity,token,facts)).toBe(false);
+ expect(()=>store.accept(proof)).toThrow('obsolete');
+ expect(store.target(sibling.identity)?.opportunities).toBeUndefined();
+});
+
 it('rejects unrenderable opportunity capture dates without publishing historical facts',async()=>{
  const {store,record,facts,token}=await opportunityFixture();
  const invalid=facts.map(fact=>({...fact,capturedAt:Number.MAX_SAFE_INTEGER,timing:fact.timing.state==='known'?{...fact.timing,remainingAtCapture:0}:fact.timing})) as [OpportunityFact,OpportunityFact];
@@ -507,4 +548,84 @@ it("independent whole review: retired observed quorum replay cannot append the s
  expect(phase?.evidence.source.baseUrl).toBe(b.baseUrl);
  expect(store.acceptedEvents().filter(event=>event.phaseIdentity===first!.phaseIdentity)).toHaveLength(0);
  expect(store.rawOperations().length).toBeLessThanOrEqual(10000);expect(store.history().length).toBeLessThanOrEqual(150);expect(store.crossingState().retained).toBeLessThanOrEqual(500);expect(store.acceptedEvents().length).toBeLessThanOrEqual(12);
+});
+
+it('V3 selectable ordering is immutable and preserves promotion after the first candidate is evicted',async()=>{
+ installRpc();const store=new ObservationStore<Derived>('mainnet',sources.mainnet),seed=store.addOperations([operation()])[0]!;
+ store.accept(await new NetworkData('mainnet').reconcile(seed.target,new AbortController().signal));
+ const original=store.navigationUnits();expect(original).toHaveLength(1);expect(Object.isFrozen(original)).toBe(true);expect(Object.isFrozen(original[0])).toBe(true);
+ const firstSequence=original[0]!.sequence;
+ store.addCandidate({identity:'promoted-first',header:{...head(123),hash:'PromotedFirst',payload_hash:'P'},evidence:evidence(b,30)});
+ expect(store.navigationUnits()).toContainEqual({identity:'promoted-first',sequence:firstSequence});
+ for(let index=0;index<101;index++)store.addCandidate({identity:`ordered-sibling-${index}`,header:{...head(123),hash:`OrderedSibling${index}`,payload_hash:'P'},evidence:evidence(b,index+31)});
+ const retained=store.navigationUnits();expect(retained).toHaveLength(100);expect(retained.some(unit=>unit.identity==='promoted-first')).toBe(false);expect(retained.every(unit=>unit.sequence>firstSequence)).toBe(true);
+ expect(original).toHaveLength(1);expect(original[0]!.sequence).toBe(firstSequence);expect(store.history()[0]!.evidence.receivedMonotonic).toBe(seed.evidence.receivedMonotonic);
+});
+
+it('V3 producer admission window survives over 100 level advances without reauthorizing old replays',async()=>{
+ const fixture=await opportunityFixture(),seed=fixture.store.target(fixture.record.identity)!;
+ const baker='tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',payloadProducer='tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6';
+ const make=(level:number,identity=`producer-${level}`)=>{
+  const context=seed.admission!.context,header={...seed.target.candidate!.header,level,hash:identity,chainId:context.observer.chainId};
+  return {...seed,identity,target:{...seed.target,level,candidate:{...seed.target.candidate!,identity,header}},admission:{...seed.admission!,context:{...context,level,protocolHash:PRODUCER_PROTOCOL,observer:{...context.observer,header:{...context.observer.header,level},protocolHash:PRODUCER_PROTOCOL}}}};
+ };
+ let reads=0;const producers=new CandidateProducers({sources:[b.baseUrl],epoch:()=> 'epoch',changed:()=>undefined,data:{blockMetadata:async header=>{reads++;return {value:{protocol:PRODUCER_PROTOCOL,baker,proposer:payloadProducer,level_info:{level:header.level}},evidence:{...evidence(b,reads),requestedHeadHash:header.hash}};}}});producers.start();
+ for(let level=123;level<253;level++){const record=make(level);producers.admitted([record]);await new Promise(resolve=>setTimeout(resolve,0));expect(producers.fact(record.identity)?.baker).toBe(baker);expect(producers.state.attempts).toBeLessThanOrEqual(1);expect(producers.state.cached).toBeLessThanOrEqual(100);}
+ expect(reads).toBe(130);producers.admitted([make(123)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toBe(130);
+ const current=make(252);producers.admitted([current,current]);expect(reads).toBe(130);
+ expect(metadataBaker({protocol:PRODUCER_PROTOCOL,baker,payloadProducer,level_info:{level:252}},current)).toBeUndefined();
+ expect(metadataBaker({protocol:PRODUCER_PROTOCOL,baker,proposer:payloadProducer,level_info:{level:999}},current)).toBeUndefined();
+ expect(metadataBaker({protocol:'Unsupported',baker,proposer:payloadProducer,level_info:{level:252}},current)).toBeUndefined();
+});
+
+it('V3 producer queue and attempts remain bounded through saturation cancellation and context advancement',async()=>{
+ const fixture=await opportunityFixture(),seed=fixture.store.target(fixture.record.identity)!;
+ const make=(identity:string,level=123)=>{const context=seed.admission!.context,header={...seed.target.candidate!.header,hash:identity,level,chainId:context.observer.chainId};return {...seed,identity,target:{...seed.target,level,candidate:{...seed.target.candidate!,identity,header}},admission:{...seed.admission!,context:{...context,level,protocolHash:PRODUCER_PROTOCOL,observer:{...context.observer,header:{...context.observer.header,level},protocolHash:PRODUCER_PROTOCOL}}}};};
+ const reads:string[]=[],signals:AbortSignal[]=[];let resolveBody:(value:{value:unknown;evidence:ObservationEvidence})=>void=()=>undefined;
+ const producers=new CandidateProducers({sources:[b.baseUrl],epoch:()=> 'epoch',changed:()=>undefined,data:{blockMetadata:async(header,_source,signal)=>{reads.push(header.hash);signals.push(signal);return new Promise(resolve=>{resolveBody=resolve;});}}});producers.start();
+ producers.admitted(Array.from({length:105},(_,index)=>make(`bounded-producer-${index}`)));expect(reads).toHaveLength(1);expect(producers.state).toEqual({attempts:100,cached:0,inFlight:1,queued:1,saturated:true});
+ producers.stop();expect(signals[0]!.aborted).toBe(true);resolveBody({value:{},evidence:evidence(b,100)});await new Promise(resolve=>setTimeout(resolve,0));expect(producers.state.inFlight).toBe(0);expect(producers.state.queued).toBe(0);
+ producers.start();producers.admitted([make('bounded-producer-0')]);expect(reads).toHaveLength(1);
+ producers.admitted([make('after-proven-advance',124)]);expect(reads).toHaveLength(2);expect(producers.state.attempts).toBe(1);
+ producers.admitted([make('old-unseen-after-rollback',123)]);expect(reads).toHaveLength(2);expect(producers.state.queued).toBe(0);producers.stop();resolveBody({value:{},evidence:evidence(b,101)});
+});
+
+
+it('V3 producer receipt enriches retained pin, survives exact readmission, and cannot mutate frozen history',async()=>{
+ const {store,record,proof,token,current}=await opportunityFixture(),context=proof.context;
+ const fact={identity:record.identity,hash:current.hash,baker:'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',protocol:context.protocolHash,evidence:{...evidence(b,50),requestedHeadHash:current.hash,chainId:context.observer.chainId,contextHeadHash:context.observer.header.hash,predecessor:context.anchor.header.hash,protocolHash:context.protocolHash}};
+ expect(store.pin(record.identity)).toBe(true);const receipt=store.inspection().snapshot!.evidence;
+ expect(store.captureProducer(record.identity,token,{...fact,hash:'OtherHash'})).toBe(false);
+ expect(store.captureProducer(record.identity,token,fact)).toBe(true);
+ const captured=store.target(record.identity)!.producer!;expect(Object.isFrozen(captured.evidence.source)).toBe(true);expect(captured.evidence.receivedMonotonic).toBe(50);
+ for(let index=0;index<3;index++)store.accept(proof);
+ expect(store.target(record.identity)?.producer).toEqual(fact);expect(store.inspection().snapshot!.evidence).toBe(receipt);
+ for(let index=0;index<101;index++)store.addCandidate({identity:`producer-active-${index}`,header:{...current,hash:`ProducerActive${index}`},evidence:evidence(b,index+100)});
+ expect(store.acceptedTargets().some(value=>value.identity===record.identity)).toBe(false);expect(store.inspection().frozen).toBe(false);
+ expect(store.captureProducer(record.identity,token,fact)).toBe(true);
+ for(let index=0;index<151;index++)store.addCandidate({identity:`producer-history-${index}`,header:{...current,hash:`ProducerHistory${index}`,payload_hash:`ProducerPayload${index}`},evidence:evidence(b,index+300)});
+ const frozen=store.inspection();expect(frozen.frozen).toBe(true);expect(frozen.snapshot!.candidates.find(value=>value.identity===record.identity)?.producer??frozen.snapshot!.record.producer).toEqual(fact);
+ expect(store.captureProducer(record.identity,token,{...fact,baker:'tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6'})).toBe(false);expect(store.inspection().snapshot).toBe(frozen.snapshot);
+ expect(store.history().every(snapshot=>snapshot.candidates.every(value=>value.producer===undefined))).toBe(true);
+});
+
+it.each(['pause','reorg'] as const)('V3 producer capture rejects a late receipt after %s',async change=>{
+ const {store,record,proof,token,current}=await opportunityFixture(),context=proof.context;
+ const fact={identity:record.identity,hash:current.hash,baker:'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',protocol:context.protocolHash,evidence:{...evidence(b,50),requestedHeadHash:current.hash,chainId:context.observer.chainId,contextHeadHash:context.observer.header.hash,predecessor:context.anchor.header.hash,protocolHash:context.protocolHash}};
+ if(change==='pause'){store.stop();store.start();}else store.observeHead({...current,hash:'ProducerFork',evidence:evidence(b,100)});
+ expect(store.captureProducer(record.identity,token,fact)).toBe(false);expect(store.target(record.identity)?.producer).toBeUndefined();
+});
+
+
+it('V3 producer successor attempt survives promotion and wrong-source or chain facts cannot advance its window',async()=>{
+ const {store,record}=await opportunityFixture(),seed=store.target(record.identity)!,context=seed.admission!.context;
+ const make=(identity:string,level:number,observerLevel:number)=>({...seed,identity,target:{...seed.target,level,candidate:{...seed.target.candidate!,identity,header:{...seed.target.candidate!.header,hash:identity,level,chainId:context.observer.chainId}}},admission:{...seed.admission!,context:{...context,level,protocolHash:PRODUCER_PROTOCOL,observer:{...context.observer,header:{...context.observer.header,level:observerLevel},protocolHash:PRODUCER_PROTOCOL}}}});
+ const reads:string[]=[];const producers=new CandidateProducers({sources:[b.baseUrl],epoch:()=> 'epoch',changed:()=>undefined,data:{blockMetadata:async header=>{reads.push(header.hash);return {value:{},evidence:{...evidence(b,1),requestedHeadHash:header.hash}};}}});producers.start();
+ producers.admitted([make('successor',124,123)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toEqual(['successor']);
+ producers.admitted([make('successor',124,124)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toEqual(['successor']);expect(producers.state.attempts).toBe(1);
+ const wrongSource=make('wrong-source',999,999);wrongSource.evidence={...wrongSource.evidence,source:{...b,baseUrl:'https://unconfigured.invalid'}};
+ const wrongChain=make('wrong-chain',999,999);wrongChain.evidence={...wrongChain.evidence,chainId:'OtherChain'};
+ producers.admitted([wrongSource,wrongChain]);producers.admitted([make('current-still-eligible',124,124)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toEqual(['successor','current-still-eligible']);
+ producers.admitted([make('retire-old-window',125,125)]);await new Promise(resolve=>setTimeout(resolve,0));expect(producers.state.attempts).toBe(1);
+ producers.admitted([make('unseen-retired',124,124)]);expect(reads).toEqual(['successor','current-still-eligible','retire-old-window']);
 });

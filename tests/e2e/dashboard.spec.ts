@@ -1,4 +1,4 @@
-import {expect, test, type Page} from '@playwright/test';
+import {expect, test, type Page, type Locator} from '@playwright/test';
 import type {ObservationStore} from '../../src/monitor/observationStore';
 import type {Derived} from '../../src/rpc/networkData';
 
@@ -17,25 +17,12 @@ test.afterEach(async({page})=>{
   if(errors.length)throw new Error(errors.join('\n'));
 });
 
-type Channel = 'mainnet-head' | 'mainnet-operations' | 'shadownet-head' | 'shadownet-operations' | 'mainnet-proposals' | 'shadownet-proposals';
-declare global {
-  interface Window {
-    mockStreams: Record<string, ReadableStreamDefaultController<Uint8Array>>;
-    mockInitialOperations: boolean;
-    mockHidden: boolean;
-    mockRequests: {url:string;aborted:boolean}[];
-  }
-}
+test.afterEach(async({},testInfo)=>{
+ const criterion=/^V3 (AC-\d\d) /.exec(testInfo.title)?.[1];
+ if(criterion&&testInfo.status==='passed')testInfo.annotations.push({type:'v3-verified',description:criterion});
+});
 
-const head = (level = 100, round = 0) => ({
-  level, hash: `BBlock${level}`, predecessor: `BBlock${level - 1}`,
-  timestamp: new Date().toISOString(), fitness: ['02', level.toString(16).padStart(8,'0'), '', 'ffffffff', round.toString(16).padStart(8, '0')],
-  payload_hash: `vhPayload${level}`,
-});
-const vote = (slot: number, level = 101, round = 0) => ({
-  hash: `operation-${slot}-${level}-${round}`,
-  contents: [{kind: 'preattestation', slot, level, round, block_payload_hash: `vhPayload${level}`}],
-});
+import {head,vote,headers,send,prepare,openDetails} from './productionFixture';
 
 test('foundations AC-33 selected-relative opportunities retain observed branches and require exact proposer rights',async({page},testInfo)=>{
  await page.clock.install();const observed=head(100,0);await prepare(page,false,observed);
@@ -52,78 +39,6 @@ test('foundations AC-33 selected-relative opportunities retain observed branches
  for(const mode of ['missing','conflicting'] as const){await page.route('**/helpers/baking_rights?*',async route=>{const url=new URL(route.request().url()),level=Number(url.searchParams.get('level')),round=Number(url.searchParams.get('max_round'));await route.fulfill({json:mode==='missing'?[]:[{level,round,delegate:'ConflictingBakerA'},{level,round,delegate:'ConflictingBakerB'}]});});const candidate={...selected,hash:`ObservedOpportunity-${mode}`};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:`Inspect candidate ${candidate.hash}`,exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText(`Observed block hash ${candidate.hash}`);await expect(panel.locator('.baker-opportunity').first()).toContainText('Baking rights unavailable');await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('Baking rights unavailable');await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 101 · round 3');await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('Level 102 · round 0');await expect(panel.locator('.headline')).toHaveText(applied!);}
  testInfo.annotations.push({type:'foundation-verified',description:'AC-33'});
 });
-
-const headers=new WeakMap<Page,Map<string,ReturnType<typeof head>>>();
-async function send(page: Page, channel: Channel, value: unknown): Promise<void> {
-  if(channel.endsWith("-head")){
-    let observed=value as ReturnType<typeof head>;const records=headers.get(page),parent=records?.get(observed.predecessor);
-    if(parent){const parentRound=Number.parseInt(parent.fitness[4]??"0",16);observed={...observed,fitness:[...observed.fitness.slice(0,3),(0xffffffff-parentRound).toString(16).padStart(8,"0"),observed.fitness[4]??"00000000"]};value=observed;}
-    records?.set(observed.hash,observed);
-    if(!records?.has(observed.predecessor))records?.set(observed.predecessor,{...head(observed.level-1),hash:observed.predecessor});
-  }
-  await page.evaluate(({channel, value}) => {
-    const stream = window.mockStreams[channel];
-    if (!stream) throw new Error(`Missing stream ${channel}`);
-    stream.enqueue(new TextEncoder().encode(`${JSON.stringify(value)}\n`));
-  }, {channel, value});
-}
-
-async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false,sourceB=false,rpcCommittee?:{total:number;quorum:number;powers:readonly number[]},aliases?:readonly {address:string;alias:string}[]): Promise<void> {
-  headers.set(page,new Map([[initialHead.hash,initialHead],[initialHead.predecessor,{...head(initialHead.level-1),hash:initialHead.predecessor}]]));
-  await page.addInitScript(({initialOperations, initialHead, initiallyHidden,sourceB}) => {
-    window.mockHidden=initiallyHidden;window.mockRequests=[];
-    Object.defineProperty(document,"hidden",{configurable:true,get:()=>window.mockHidden});
-    window.mockStreams = {};
-    window.mockInitialOperations = initialOperations;
-    const originalFetch = window.fetch.bind(window);
-    window.fetch = async (input, options) => {
-      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
-      const entry={url:url.href,aborted:options?.signal?.aborted??false};window.mockRequests.push(entry);
-      options?.signal?.addEventListener('abort',()=>{entry.aborted=true;},{once:true});
-      const monitoring = url.pathname.includes('/monitor/heads/') || url.pathname.endsWith('/monitor_operations') || url.pathname.includes('/monitor/validated_blocks');
-      if (!monitoring) return originalFetch(input, options);
-      const network = url.hostname.includes('shadownet') ? 'shadownet' : 'mainnet';
-      const kind = url.pathname.includes('/monitor/heads/') ? 'head' : url.pathname.includes('/monitor/validated_blocks') ? 'proposals' : 'operations';
-      if(sourceB && network==="mainnet" && kind==="operations" && url.hostname==="rpc.tzkt.io")return new Response("Unavailable A operations",{status:503});
-      const body = new ReadableStream<Uint8Array>({start(controller) {
-        window.mockStreams[`${network}-${kind}`] = controller;
-        options?.signal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')), {once: true});
-        if (kind === 'head') controller.enqueue(new TextEncoder().encode(`${JSON.stringify(initialHead)}\n`));
-        else if (kind === 'operations' && initialOperations) controller.enqueue(new TextEncoder().encode('[]\n'));
-      }});
-      return new Response(body, {headers: {'Content-Type': 'application/json'}});
-    };
-  }, {initialOperations, initialHead,initiallyHidden,sourceB});
-
-  await page.route('https://**/*', async route => {
-    const url = new URL(route.request().url());
-    const level = Number(url.searchParams.get('level') ?? 100);
-    let result: unknown;
-    if (url.pathname.includes('attestation_rights')) result = [{level, delegates: Array.from({length: rpcCommittee?.powers.length??50}, (_, slot) => ({
-      delegate: `tz1BakerAddress${String(slot).padStart(25, '0')}`, first_slot: slot, attesting_power: rpcCommittee?.powers[slot]??600,
-    }))}];
-    else if (url.pathname.endsWith('/context/constants')) result = {
-      minimal_block_delay: '6', delay_increment_per_round: '3', consensus_threshold_size: rpcCommittee?.quorum??20000, consensus_committee_size: rpcCommittee?.total??30000,
-    };
-    else if (url.pathname.includes('baking_rights')) result = [{level, round: Number(url.searchParams.get('max_round') ?? 0), delegate: 'tz1BakerAddress0000000000000000000000000'}];
-    else if (url.pathname.endsWith('/is_forbidden')) result = false;
-    else if (url.pathname.endsWith('/protocols')) result={protocol:'PFixture',next_protocol:'PFixture'};
-    else if (url.pathname.endsWith('/header')) {
-      const hash=url.pathname.split('/blocks/')[1]?.split('/')[0]??'';
-      const observed=headers.get(page)?.get(hash);
-      if(!observed){await route.fulfill({status:404,json:{error:'Unobserved fixture header'}});return;}
-      result={...observed,chain_id:'NetFixture'};
-    }
-    else if (url.pathname.includes('/v1/delegates')) result = aliases??Array.from({length: 50}, (_, slot) => ({address: `tz1BakerAddress${String(slot).padStart(25, '0')}`, alias: `Baker ${slot}`}));
-    else if (url.pathname.includes('pending_operations')) result = {}; // No full snapshot is claimed by ordinary stream fixtures.
-    else {await route.abort(); return;}
-    await route.fulfill({json: result, headers: {'Access-Control-Allow-Origin': '*'}});
-  });
-  await page.goto('/');
-  if(initiallyHidden)return;
-  await expect(page.locator('.mainnet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
-  await expect(page.locator('.shadownet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
-}
 
 test('monitor operations update the production dashboard without losing list scroll or focus', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
@@ -230,7 +145,8 @@ test('desktop and mobile layouts use the viewport without horizontal clipping', 
     await page.setViewportSize({width, height: 900});
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
     const panel = page.locator('.mainnet');
-    expect(await panel.locator('.gauges').evaluate(element => element.getBoundingClientRect().bottom)).toBeLessThan(900);
+    await panel.locator('.gauges').scrollIntoViewIfNeeded();
+    expect(await panel.locator('.gauges').evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(250);
     await expect(panel.locator('.pre .gauge-percent')).toBeVisible();
   }
 });
@@ -256,7 +172,7 @@ test('stalled applied head keeps estimated round 37 separate from selected obser
   const applied = {...head(5489251, 101), timestamp: '2026-10-14T18:12:09Z'};
   await prepare(page, false, applied, 5489252);
   await send(page, 'shadownet-operations', [vote(0, 5489251, 101), vote(1, 5489252, 0), vote(2, 5489252, 36)]);
-  const panel = page.locator('.network-panel.shadownet');
+  const panel = page.locator('.network-panel.shadownet'); await page.locator('.network-tab.shadownet').click();
   await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round101');
   await expect(panel.locator('.candidate-controls button[aria-pressed="true"]')).toHaveAttribute('title','Level 5489251 · round 101 · payload vhPayload5489251');
   await panel.locator('button[title="Level 5489252 · round 0 · payload vhPayload5489252"]').click();
@@ -268,9 +184,9 @@ test('stalled applied head keeps estimated round 37 separate from selected obser
   await expect(panel.locator('.selection-label')).toHaveAttribute('title','vhPayload5489252');
   await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 5,489,252 · round 0');await expect(panel.locator('.network-notice')).toContainText('partial positive observations');
   const opportunities = panel.locator('.baker-opportunity');
-  await expect(opportunities.nth(0)).toContainText('Next scheduled proposal');
+  await expect(opportunities.nth(0)).toContainText('↑ Next round');
   await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 1');
-  await expect(opportunities.nth(1)).toContainText('Following level · conditional');
+  await expect(opportunities.nth(1)).toContainText('→ Next level');
   await expect(opportunities.nth(1)).toContainText('Level 5,489,253 · round 0');
   await expect(opportunities.nth(0)).toContainText('Conditional on continued same-level production');await expect(opportunities.nth(1)).toContainText('Earliest protocol boundary conditional on hypothetical next-level production');
   await panel.screenshot({path: testInfo.outputPath('stalled-successor-hotfix.png')});
@@ -305,7 +221,7 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   const applied = {...head(5489251, 114), timestamp: '2026-10-14T18:47:21Z'};
   await prepare(page, false, applied, 5489251);
   await send(page, 'shadownet-operations', [vote(0, 5489252, 0)]);
-  const panel = page.locator('.network-panel.shadownet');
+  const panel = page.locator('.network-panel.shadownet'); await page.locator('.network-tab.shadownet').click();
   await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round114');
   await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 5,489,252 · round 0');
   await expect(panel.locator('.network-notice')).toContainText('partial positive observations');
@@ -313,9 +229,9 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
   await expect(panel.locator('.timing-detail')).toContainText('estimated round 6');
   const opportunities = panel.locator('.baker-opportunity');
-  await expect(opportunities.nth(0)).toContainText('Next scheduled proposal');
+  await expect(opportunities.nth(0)).toContainText('↑ Next round');
   await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 1');
-  await expect(opportunities.nth(1)).toContainText('Following level · conditional');
+  await expect(opportunities.nth(1)).toContainText('→ Next level');
   await expect(opportunities.nth(1)).toContainText('Level 5,489,253 · round 0');
 });
 
@@ -401,6 +317,7 @@ test("source B ahead votes promote under B proof while applied A remains indepen
  await expect.poll(()=>page.evaluate(()=>Boolean(window.mockStreams["mainnet-operations"]))).toBe(true);
  await send(page,"mainnet-operations",[vote(0,123)]);
  const panel=page.locator(".network-panel.mainnet");
+ await panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true}).click();
  await expect(panel.locator(".candidate-evidence")).toContainText("Unresolved");
  await expect(panel.locator(".candidate-evidence")).toContainText("mainnet.smartpy.io");
  await expect(panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true})).toBeVisible();
@@ -428,6 +345,7 @@ test("failed B evidence retries only through a fresh permitted explicit action",
  let attempts=0;await page.route("https://mainnet.smartpy.io/chains/main/blocks/head/header",async route=>{attempts++;await route.fulfill({status:503,json:{error:"B unavailable"}});});
  await expect.poll(()=>page.evaluate(()=>Boolean(window.mockStreams["mainnet-operations"]))).toBe(true);
  await send(page,"mainnet-operations",[vote(0,123)]);const panel=page.locator(".network-panel.mainnet");
+ await panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true}).click();
  await expect(panel.locator(".candidate-evidence")).toContainText("Unresolved");
  await expect.poll(()=>attempts).toBe(1);
  const retry=panel.getByRole("button",{name:"Retry selected observer context",exact:true});await expect(retry).toBeVisible();
@@ -450,7 +368,8 @@ test("late B response bodies cannot authorize after pause and resume",async({pag
  await page.getByRole("button",{name:"Pause",exact:true}).click();
  const count=await page.evaluate(()=>window.mockRequests.length);await page.getByRole("button",{name:"Resume",exact:true}).click();
  await page.evaluate(()=>(window as unknown as {heldBBody:{release:()=>void}}).heldBBody.release());
- const panel=page.locator(".network-panel.mainnet");await expect(panel.locator(".candidate-evidence")).toContainText("Unresolved");
+ const panel=page.locator(".network-panel.mainnet");await panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true}).click();
+ await expect(panel.locator(".candidate-evidence")).toContainText("Unresolved");
  await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");await expect(panel.locator(".headline")).toContainText("120");
  expect(await page.evaluate(()=>window.mockRequests.filter(request=>request.url==="https://mainnet.smartpy.io/chains/main/blocks/head/header").every(request=>request.aborted))).toBe(true);
  expect(count).toBeGreaterThan(0);
@@ -479,6 +398,7 @@ test("foundations AC-13 coherent source zero becomes stale while historical rece
  await panel.getByRole("button",{name:`Inspect candidate ${candidate.hash}`,exact:true}).click();await expect(panel.locator(".candidate-evidence")).toContainText(candidate.hash);
  await expect(panel.locator(".pre .gauge-counts")).toContainText("0 / 30,000 power");await expect(panel.locator(".att .gauge-counts")).toContainText("0 / 30,000 power");await expect(panel).toContainText("Source-snapshot measured zero");
  const asOf=(await panel.textContent())?.match(/snapshot received (\d{4}-[^ ]+)/)?.[1];expect(asOf).toBeTruthy();
+ await panel.getByRole('button',{name:'Follow live',exact:true}).click();
  await page.evaluate(()=>window.mockStreams["mainnet-operations"]!.error(new Error("Source coverage interrupted")));
  await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");await expect(panel).toContainText("Retained source snapshot stale");await expect(panel).toContainText(asOf!);await expect(panel.locator(".recent-phase.pre")).toContainText("Pre 0.0%");
  await page.getByRole("button",{name:"Pause",exact:true}).click();await page.clock.setSystemTime(new Date("2030-01-01T00:00:00Z"));await page.clock.runFor(1000);await expect(panel).toContainText(asOf!);await expect(panel.locator(".att .gauge-counts")).toContainText("Voting power unavailable");
@@ -555,6 +475,7 @@ test("supporting raw snapshot eviction withdraws measured coverage without fabri
  await page.route("https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*",route=>route.fulfill({json:{validated:[vote(0)],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}}));
  const candidate={...head(101),hash:"BSupportingCandidate",payload_hash:"vhPayload101"};headers.get(page)?.set(candidate.hash,candidate);await send(page,"mainnet-proposals",{chain_id:"NetFixture",hash:candidate.hash,header:candidate});const panel=page.locator(".network-panel.mainnet");await panel.getByRole("button",{name:`Inspect candidate ${candidate.hash}`,exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await expect(panel.locator(".att .gauge-counts")).toContainText("0 / 5 power");
  const receipt=(await panel.textContent())?.match(/snapshot received (\d{4}-[^ ]+)/)?.[1];expect(receipt).toBeTruthy();
+ await panel.getByRole('button',{name:'Follow live',exact:true}).click();
  await send(page,"mainnet-operations",Array.from({length:10000},(_,index)=>({hash:`raw-loss-${index}`,contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]})));
  await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");await expect(panel.locator(".att .gauge-counts")).toContainText("Voting power unavailable");await expect(panel).toContainText("Retained source snapshot stale");await expect(panel).toContainText(receipt!);await expect(panel.locator(".recent-phase.pre")).toContainText("Pre 60.0%");await expect(panel.locator(".event-history li")).toHaveCount(0);
 });
@@ -591,7 +512,7 @@ test("foundations AC-5 pinned full session evidence and reader controls survive 
  await expect(pre).toHaveAttribute("open","");await expect(att).toHaveAttribute("open","");await expect(copy).toBeFocused();expect(Math.abs(await viewport.evaluate(element=>element.scrollTop)-scroll)).toBeLessThan(1);
  await expect(pre.locator("summary")).toContainText("47 bakers · 28,200 power");await expect(att.locator("summary")).toContainText("49 bakers · 29,400 power");await expect(baker.locator("td").nth(2)).toHaveText("600");await expect(baker.locator("td").nth(3)).toHaveText("2.00%");
  const peak=panel.locator('.recent-consensus-row[title*="payload vhPayload101"]');await expect(peak.locator(".recent-phase.pre")).toContainText("Pre 6.0%");await expect(peak.locator(".recent-phase.att")).toContainText("Att 2.0%");
- const committee=panel.locator('.committee-evidence');await committee.locator('summary').click();const committeeQuery=committee.getByRole('searchbox',{name:'Search committee alias or address'}),committeeSort=committee.getByRole('combobox',{name:'Committee sort'});await committeeSort.selectOption('alias');await committeeQuery.fill('  bAkEr  ');await expect(committee.locator('tbody tr')).toHaveCount(50);
+ const committee=panel.locator('.committee-evidence');await openDetails(committee);const committeeQuery=committee.getByRole('searchbox',{name:'Search committee alias or address'}),committeeSort=committee.getByRole('combobox',{name:'Committee sort'});await committeeSort.selectOption('alias');await committeeQuery.fill('  bAkEr  ');await expect(committee.locator('tbody tr')).toHaveCount(50);
  const committeeViewport=committee.locator('.delegate-scroll');await committeeViewport.evaluate(element=>{element.scrollTop=200;});const committeeScroll=await committeeViewport.evaluate(element=>element.scrollTop),committeeOrder=await committee.locator('tbody tr').evaluateAll(rows=>rows.map(row=>row.children[1]?.getAttribute('title')));await committeeQuery.focus();
  await send(page,'mainnet-operations',[vote(4)]);await expect(panel.locator('.pre .gauge-counts')).toContainText('2,400 / 30,000 power');await expect(committeeQuery).toBeFocused();await expect(committeeQuery).toHaveValue('  bAkEr  ');await expect(committeeSort).toHaveValue('alias');await expect(committee).toHaveAttribute('open','');expect(await committee.locator('tbody tr').evaluateAll(rows=>rows.map(row=>row.children[1]?.getAttribute('title')))).toEqual(committeeOrder);expect(Math.abs(await committeeViewport.evaluate(element=>element.scrollTop)-committeeScroll)).toBeLessThan(1);await expect(panel.locator('.candidate-evidence')).toContainText('BSessionPinned');await expect(panel.locator('.candidate-evidence')).toContainText(originalReceipt!);await expect(panel.locator('.session-controls')).toContainText('2 newer items');await expect(peak.locator('.recent-phase.pre')).toContainText('Pre 8.0%');
  await page.getByRole("button",{name:"Pause",exact:true}).click();const reads=await page.evaluate(()=>window.mockRequests.length);await panel.getByRole("button",{name:"Follow live",exact:true}).click();await expect(panel.locator(".session-controls")).toContainText("Follow live");await expect(panel.locator(".candidate-evidence")).toContainText("BSessionNewer");await expect(page.getByRole("button",{name:"Resume",exact:true})).toBeVisible();expect(await page.evaluate(()=>window.mockRequests.length)).toBe(reads);
@@ -644,7 +565,7 @@ test("foundations AC-22 active eviction enriches retained pin and full history e
 test("foundations AC-23 source-distinct shared payload candidates and hash-unknown promotion retain separate identities",async({page},testInfo)=>{
  await page.clock.install();const current=head(100);await prepare(page,false,current);let observerB=current;
  await page.route("https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header",route=>route.fulfill({json:{...current,chain_id:"NetFixture"}}));await page.route("https://tezos-shadownet.octez.io/chains/main/blocks/head/header",route=>route.fulfill({json:{...observerB,chain_id:"NetFixture"}}));
- const a={...head(101),hash:"BObserverA",payload_hash:"vhPayload101"},b={...head(101),hash:"BObserverB",payload_hash:"vhPayload101"};for(const candidate of [a,b])headers.get(page)?.set(candidate.hash,candidate);await send(page,"shadownet-operations",[vote(0)]);await send(page,"shadownet-proposals",{chain_id:"NetFixture",hash:a.hash,header:a});const panel=page.locator(".network-panel.shadownet");await panel.getByRole("button",{name:`Inspect candidate ${a.hash}`,exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");await panel.getByText("Sources & observation evidence",{exact:true}).click();await panel.getByRole("button",{name:"Pin selected instance",exact:true}).click();await expect(panel.locator(".session-controls")).toContainText("Pinned retained session instance");
+ const a={...head(101),hash:"BObserverA",payload_hash:"vhPayload101"},b={...head(101),hash:"BObserverB",payload_hash:"vhPayload101"};for(const candidate of [a,b])headers.get(page)?.set(candidate.hash,candidate);await send(page,"shadownet-operations",[vote(0)]);await send(page,"shadownet-proposals",{chain_id:"NetFixture",hash:a.hash,header:a});const panel=page.locator(".network-panel.shadownet");await page.locator(".network-tab.shadownet").click();await panel.getByRole("button",{name:`Inspect candidate ${a.hash}`,exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");await panel.getByText("Sources & observation evidence",{exact:true}).click();await panel.getByRole("button",{name:"Pin selected instance",exact:true}).click();await expect(panel.locator(".session-controls")).toContainText("Pinned retained session instance");
  await page.evaluate(()=>{window.mockStreams["shadownet-proposals"]!.error(new Error("A proposals disconnected"));window.mockStreams["shadownet-operations"]!.error(new Error("A operations disconnected"));});await expect.poll(()=>page.evaluate(()=>window.mockRequests.some(request=>request.url.startsWith("https://tezos-shadownet.octez.io")&&request.url.includes("monitor/validated_blocks")))).toBe(true);await expect.poll(()=>page.evaluate(()=>window.mockRequests.some(request=>request.url.startsWith("https://tezos-shadownet.octez.io")&&request.url.includes("monitor_operations")))).toBe(true);
  await send(page,"shadownet-proposals",{chain_id:"NetFixture",hash:b.hash,header:b});await send(page,"shadownet-operations",[vote(1),vote(2)]);await page.clock.runFor(15000);await expect(panel.locator(".candidate-evidence")).toContainText(a.hash);await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");
  const choice=panel.getByRole("combobox",{name:"Retained session instance"}).locator("option").filter({hasText:"Octez public"});await expect(choice).toHaveCount(1);await panel.getByRole("combobox",{name:"Retained session instance"}).selectOption((await choice.getAttribute("value"))!);await panel.getByRole("button",{name:`Inspect candidate ${b.hash}`,exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("1,200 / 30,000 power");await expect(panel.locator(".candidate-evidence")).toContainText("https://tezos-shadownet.octez.io");
@@ -690,12 +611,13 @@ test("foundations AC-32 immutable twelve events survive history eviction inspect
 test('foundations AC-27 phase receipt filters preserve source-limited absence and unknown signer evidence',async({page},testInfo)=>{
  await page.clock.install();let current=head(100);await prepare(page,false,current,100,false,false,{total:5,quorum:4,powers:[3,2]});await page.route('https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header',route=>route.fulfill({json:{...current,chain_id:'NetFixture'}}));
  await send(page,'mainnet-operations',[vote(0),vote(999)]);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.pre .gauge-counts')).toContainText('3 / 5 power');await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');
- const committee=panel.locator('.committee-evidence');await committee.locator('summary').click();const rows=committee.locator('tbody tr'),filter=committee.getByRole('combobox',{name:'Committee phase receipt filter'}),query=committee.getByRole('searchbox',{name:'Search committee alias or address'});
+ const committee=panel.locator('.committee-evidence');await openDetails(committee);const rows=committee.locator('tbody tr'),filter=committee.getByRole('combobox',{name:'Committee phase receipt filter'}),query=committee.getByRole('searchbox',{name:'Search committee alias or address'});
  await expect(rows).toHaveCount(2);await expect(rows.nth(0).locator('td').nth(5)).toHaveText('Received');await expect(rows.nth(0).locator('td').nth(6)).toHaveText('Partial / unavailable');await expect(rows.nth(1).locator('td').nth(5)).toHaveText('Partial / unavailable');await expect(committee.locator('.committee-unknown')).toContainText('slot 999');await expect(committee.locator('.committee-unknown')).toContainText('unknown power');await expect(committee.locator('tbody')).not.toContainText('999');
  await filter.selectOption('att:absent');await expect(rows).toHaveCount(0);await expect(committee).toContainText('no network-wide inactivity or global completeness claim');await expect(committee).toContainText('Coverage partial / unavailable');await filter.selectOption('att:unknown');await expect(rows).toHaveCount(2);
  await page.route('https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*',route=>route.fulfill({json:{validated:[vote(0)],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}}));
  const candidate={...head(101),hash:'BCommitteeSnapshot',payload_hash:'vhPayload101'};headers.get(page)?.set(candidate.hash,candidate);await page.clock.runFor(15000);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:`Inspect candidate ${candidate.hash}`,exact:true}).click();await expect(panel.locator('.att .gauge-counts')).toContainText('0 / 5 power');
  await filter.selectOption('att:absent');await expect(rows).toHaveCount(2);await expect(rows.nth(0).locator('td').nth(6)).toHaveText('Absent in selected source snapshot');await expect(rows.nth(1).locator('td').nth(6)).toHaveText('Absent in selected source snapshot');await expect(rows.nth(0).locator('td').nth(7)).toContainText('Source https://rpc.tzkt.io/mainnet');await expect(rows.nth(0).locator('td').nth(7)).toContainText('head BBlock100');await expect(panel).toContainText('Source-snapshot measured zero');
+ await panel.getByRole('button',{name:'Follow live',exact:true}).click();
  await page.route('https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*',route=>route.fulfill({json:{}}));await page.evaluate(()=>window.mockStreams['mainnet-operations']!.error(new Error('Selected source coverage interrupted')));await expect(rows).toHaveCount(0);await expect(panel).toContainText('Retained source snapshot stale');await filter.selectOption('att:unknown');await expect(rows).toHaveCount(2);await expect(rows.nth(0).locator('td').nth(6)).toHaveText('Partial / unavailable');await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');
  await page.getByRole('button',{name:'Pause',exact:true}).click();await page.getByRole('button',{name:'Resume',exact:true}).click();await page.route('**/helpers/attestation_rights?*',route=>route.fulfill({json:[{level:Number(new URL(route.request().url()).searchParams.get('level')),delegates:[]}]}));current={...current,hash:'BCommitteeMissingRights',payload_hash:'vhFork'};await page.route('https://mainnet.smartpy.io/chains/main/blocks/head/header',route=>route.fulfill({json:{...current,chain_id:'NetFixture'}}));await send(page,'mainnet-head',current);
  await send(page,'mainnet-operations',[{...vote(999),hash:'unknown-under-missing-rights'}]);await expect(panel.getByRole('button',{name:'Inspect payload vhPayload101',exact:true})).toHaveCount(2);await panel.getByRole('button',{name:'Inspect payload vhPayload101',exact:true}).last().click();await expect(panel.locator('.candidate-evidence')).toContainText('Source https://mainnet.smartpy.io');await expect(panel.locator('.candidate-evidence')).toContainText('observed head unknown');await expect.poll(()=>page.evaluate(()=>window.mockRequests.some(request=>request.url.startsWith('https://mainnet.smartpy.io/')&&request.url.includes('attestation_rights')))).toBe(true);await filter.selectOption('all');await query.fill('999');await expect(rows).toHaveCount(0);await expect(committee.locator('.committee-unknown')).toContainText('slot 999');await expect(committee.locator('.committee-unknown')).toContainText('unknown-under-missing-rights');await expect(committee.locator('.committee-unknown')).toContainText('https://mainnet.smartpy.io');await expect(panel.locator('.pre .gauge-counts')).toContainText('Voting power unavailable');await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');
@@ -707,7 +629,7 @@ test('foundations AC-26 committee matching and explicit order stay stable across
  const aliases=addresses.map((address,slot)=>({address,alias:slot===0?'Zeta':slot===1||slot===3?`${addresses[0]} Alpha`:slot===4?'Sort':slot===5?'Sort A':`Group ${String(slot).padStart(2,'0')}`}));
  await page.addInitScript(()=>{const original=window.fetch.bind(window),gate={waiting:false,release:()=>{}};Object.assign(window,{committeeAliasGate:gate});window.fetch=async(input,options)=>{const response=await original(input,options),url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url);if(url.hostname==='api.tzkt.io'&&url.pathname.includes('/v1/delegates')){const body=await response.json();response.json=()=>new Promise(resolve=>{gate.waiting=true;gate.release=()=>resolve(body);});}return response;};});
  await prepare(page,false,head(),100,false,false,{total:52,quorum:4,powers:[3,...Array(49).fill(1)]},aliases);await send(page,'mainnet-operations',[vote(0)]);await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('3 / 52 power');
- const committee=page.locator('.mainnet .committee-evidence');await committee.locator('summary').click();const query=committee.getByRole('searchbox',{name:'Search committee alias or address'}),sort=committee.getByRole('combobox',{name:'Committee sort'}),resort=committee.getByRole('button',{name:'Resort committee'}),rows=committee.locator('tbody tr');
+ const committee=page.locator('.mainnet .committee-evidence');await openDetails(committee);const query=committee.getByRole('searchbox',{name:'Search committee alias or address'}),sort=committee.getByRole('combobox',{name:'Committee sort'}),resort=committee.getByRole('button',{name:'Resort committee'}),rows=committee.locator('tbody tr');
  const order=()=>rows.evaluateAll(elements=>elements.map(row=>row.children[1]?.getAttribute('title')));
  await sort.selectOption('alias');await query.fill(`  ${address(0).toUpperCase()}  `);await expect(rows).toHaveCount(1);await expect(rows).toContainText('No alias');await expect(query).toBeFocused();
  await expect.poll(()=>page.evaluate(()=>(window as unknown as {committeeAliasGate:{waiting:boolean}}).committeeAliasGate.waiting)).toBe(true);await page.evaluate(()=>(window as unknown as {committeeAliasGate:{release:()=>void}}).committeeAliasGate.release());
@@ -734,7 +656,7 @@ test('foundations AC-26 committee matching and explicit order stay stable across
  test('foundations AC-6 complete committee keeps received delegates searchable with exact phase evidence',async({page})=>{
  const d1=`tz1BakerAddress${String(0).padStart(25,'0')}`,d2=`tz1BakerAddress${String(1).padStart(25,'0')}`;
  await prepare(page,false,head(),100,false,false,{total:5,quorum:4,powers:[3,2]},[{address:d1,alias:'Baker Alpha'},{address:d2,alias:'Baker Beta'}]);
- const noVotes={...head(101),hash:'BCommitteeNoVotes',payload_hash:'vhPayload101'};headers.get(page)?.set(noVotes.hash,noVotes);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:noVotes.hash,header:noVotes});const panel=page.locator('.mainnet');await panel.getByRole('button',{name:'Inspect candidate BCommitteeNoVotes',exact:true}).click();const knownCommittee=panel.locator('.committee-evidence');await knownCommittee.locator('summary').click();await expect(knownCommittee.locator('tbody tr').first()).toContainText('60.00%');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');await expect(knownCommittee.locator('tbody tr').first()).toContainText('60.00%');await expect(panel.locator('.pre .gauge-counts')).toContainText('Voting power unavailable');await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');await panel.getByRole('button',{name:'Follow live',exact:true}).click();
+ const noVotes={...head(101),hash:'BCommitteeNoVotes',payload_hash:'vhPayload101'};headers.get(page)?.set(noVotes.hash,noVotes);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:noVotes.hash,header:noVotes});const panel=page.locator('.mainnet');await panel.getByRole('button',{name:'Inspect candidate BCommitteeNoVotes',exact:true}).click();const knownCommittee=panel.locator('.committee-evidence');await openDetails(knownCommittee);await expect(knownCommittee.locator('tbody tr').first()).toContainText('60.00%');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');await expect(knownCommittee.locator('tbody tr').first()).toContainText('60.00%');await expect(panel.locator('.pre .gauge-counts')).toContainText('Voting power unavailable');await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');await panel.getByRole('button',{name:'Follow live',exact:true}).click();
  await send(page,'mainnet-operations',[vote(0),vote(999)]);await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('3 / 5 power');
  // Existing production table boundary: received D1 must remain in the committee,
  // even without complete source coverage. This is not a missing-module red.
@@ -839,7 +761,7 @@ test('foundations AC-36 selected-source phase and comparison labels disclose una
  await page.clock.install();await prepare(page,false);const initial=headers.get(page)!.get('BBlock100')!;await page.route('https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header',route=>route.fulfill({json:{...initial,chain_id:'NetFixture'}}));
  await send(page,'mainnet-operations',[vote(0)]);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');await expect(panel).toContainText('partial positive observations');await expect(panel).toContainText(/coverage partial/i);
  await page.route('https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*',route=>route.fulfill({json:{validated:[vote(0)],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}}));await page.clock.runFor(15000);const candidate={...head(101),hash:'BScopedCoverage',payload_hash:'vhPayload101'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate BScopedCoverage',exact:true}).click();await expect(panel.locator('.att .gauge-counts')).toContainText('0 / 30,000 power');await expect(panel).toContainText('Source-snapshot measured zero');await expect(panel).toContainText('no global completeness');
- const committee=panel.locator('.committee-evidence');await committee.locator('summary').click();await committee.getByRole('combobox',{name:'Committee phase receipt filter'}).selectOption('att:absent');await expect(committee.locator('tbody tr')).toHaveCount(50);await expect(committee).toContainText('no network-wide inactivity or global completeness claim');await expect(committee.locator('tbody tr').first()).toContainText('Absent in selected source snapshot');
+ const committee=panel.locator('.committee-evidence');await openDetails(committee);await committee.getByRole('combobox',{name:'Committee phase receipt filter'}).selectOption('att:absent');await expect(committee.locator('tbody tr')).toHaveCount(50);await expect(committee).toContainText('no network-wide inactivity or global completeness claim');await expect(committee.locator('tbody tr').first()).toContainText('Absent in selected source snapshot');
  await panel.getByText('Sources & observation evidence',{exact:true}).click();await page.route('https://tezos-mainnet.octez.io/**',async route=>{const path=new URL(route.request().url()).pathname;if(path.endsWith('/chain_id'))await route.fulfill({json:'NetFixture'});else if(path.endsWith('/head/header'))await route.fulfill({json:{...initial,chain_id:'NetFixture',protocol:'UnknownProtocol'}});else if(path.includes('pending_operations'))await route.fulfill({json:{validated:[vote(1)],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}});else await route.fallback();});await panel.getByLabel('Comparison provider').selectOption('https://tezos-mainnet.octez.io');await panel.getByRole('button',{name:'Compare selected observation',exact:true}).click();const result=panel.locator('.comparison-result');await expect(result).toContainText('Power unknown');await expect(result).toContainText('Separate B source-limited observations');await expect(result).toContainText('not vote agreement or finality');await expect(result).toContainText('fetched current B https://tezos-mainnet.octez.io');await expect(panel).toContainText(/finality.*unavailable|unavailable.*finality/i);
  testInfo.annotations.push({type:'foundation-verified',description:'AC-36'});
 });
@@ -853,7 +775,7 @@ test('foundations AC-37 browser session reset discloses nonarchival history and 
 
 test('foundations AC-35 primary fallback keeps actual responder while failed comparison never cascades',async({page},testInfo)=>{
  await prepare(page,false,head(),100,false,true);await expect.poll(()=>page.evaluate(()=>Boolean(window.mockStreams['mainnet-operations']))).toBe(true);const respondingHead=headers.get(page)!.get('BBlock100')!;await page.route('https://mainnet.smartpy.io/chains/main/blocks/head/header',route=>route.fulfill({json:{...respondingHead,chain_id:'NetFixture'}}));await send(page,'mainnet-operations',[vote(0)]);const panel=page.locator('.network-panel.mainnet');await panel.getByRole('button',{name:'Inspect payload vhPayload101',exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText('Source https://mainnet.smartpy.io');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await panel.getByText('Sources & observation evidence',{exact:true}).click();const before=await panel.locator('.candidate-evidence').textContent(),power=await panel.locator('.pre .gauge-counts').textContent(),reads:string[]=[];
- await page.route('https://tezos-mainnet.octez.io/**',async route=>{const path=new URL(route.request().url()).pathname;if(!path.endsWith('/chain_id')){await route.fallback();return;}reads.push(route.request().url());await route.fulfill({status:503,body:'Explicit comparison provider unavailable'});});await panel.getByLabel('Comparison provider').selectOption('https://tezos-mainnet.octez.io');await panel.getByRole('button',{name:'Compare selected observation',exact:true}).click();await expect(panel.locator('.comparison-result')).toContainText('unavailable');await expect(panel.locator('.comparison-result')).toContainText('503');expect(reads).toEqual(['https://tezos-mainnet.octez.io/chains/main/chain_id']);await expect(panel.locator('.candidate-evidence')).toHaveText(before??'');await expect(panel.locator('.pre .gauge-counts')).toHaveText(power??'');await expect(panel.locator('.comparison-result')).toContainText('Selected observed A https://mainnet.smartpy.io');await expect(panel.locator('.comparison-result')).toContainText('fetched current B https://tezos-mainnet.octez.io');
+ await page.route('https://tezos-mainnet.octez.io/**',async route=>{const path=new URL(route.request().url()).pathname;if(!path.endsWith('/chain_id')){await route.fallback();return;}reads.push(route.request().url());await route.fulfill({status:503,body:'Explicit comparison provider unavailable'});});await panel.getByLabel('Comparison provider').selectOption('https://tezos-mainnet.octez.io');await panel.getByRole('button',{name:'Compare selected observation',exact:true}).click();await expect(panel.locator('.comparison-result')).toContainText('unavailable');await expect(panel.locator('.comparison-result')).toContainText('503');expect(reads).toEqual(['https://tezos-mainnet.octez.io/chains/main/chain_id']);await expect(panel.locator('.candidate-evidence')).toHaveText(before??'');await expect(panel.locator('.pre .gauge-counts')).toHaveText(power??'');await expect(panel.locator('.comparison-result')).toContainText('Selected historical A https://mainnet.smartpy.io');await expect(panel.locator('.comparison-result')).toContainText('fetched current B https://tezos-mainnet.octez.io');
  await page.clock.install();let reconciliations=0;await page.route('https://mainnet.smartpy.io/chains/main/blocks/head/header',async route=>{reconciliations++;await route.fulfill({status:503,json:{error:'Same observer reconciliation unavailable'}});});const beforeReconcile=await page.evaluate(()=>window.mockRequests.length);
  await send(page,'mainnet-operations',[vote(0,124)]);await panel.getByRole('button',{name:'Inspect payload vhPayload124',exact:true}).click();await page.clock.runFor(15000);await expect.poll(()=>reconciliations).toBe(1);await expect(panel.locator('.candidate-evidence')).toContainText('Unresolved');await expect(panel.locator('.candidate-evidence')).toContainText('https://mainnet.smartpy.io');
  await page.clock.runFor(20000);expect(reconciliations).toBe(1);await send(page,'mainnet-operations',[vote(0,124)]);expect(reconciliations).toBe(1);const retry=panel.getByRole('button',{name:'Retry selected observer context',exact:true});await retry.click();await expect.poll(()=>reconciliations).toBe(2);
@@ -870,7 +792,7 @@ test('foundations AC-21 paused cached inspection rejects late alias rights and c
  await prepare(page,false);await send(page,'mainnet-operations',[vote(0)]);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await panel.getByRole('button',{name:'Inspect payload vhPayload101',exact:true}).click();await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();
  await page.evaluate(()=>(window as unknown as {cancelledBodyFixture:{armRights:boolean}}).cancelledBodyFixture.armRights=true);await send(page,'mainnet-head',head(101));await expect.poll(()=>page.evaluate(()=>(window as unknown as {cancelledBodyFixture:{gates:{kind:string}[]}}).cancelledBodyFixture.gates.some(gate=>gate.kind==='rights'))).toBe(true);
  const initial=headers.get(page)!.get('BBlock100')!;await page.route('https://tezos-mainnet.octez.io/**',async route=>{const path=new URL(route.request().url()).pathname;if(path.endsWith('/chain_id'))await route.fulfill({json:'NetFixture'});else if(path.endsWith('/head/header'))await route.fulfill({json:{...initial,chain_id:'NetFixture',protocol:'PFixture'}});else if(path.includes('pending_operations'))await route.fulfill({json:{validated:[{...vote(1),hash:'CancelledComparisonPoison'}],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}});else await route.fallback();});await panel.getByLabel('Comparison provider').selectOption('https://tezos-mainnet.octez.io');await panel.getByRole('button',{name:'Compare selected observation',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as unknown as {cancelledBodyFixture:{gates:{kind:string}[]}}).cancelledBodyFixture.gates.map(gate=>gate.kind).sort())).toEqual(['aliases','comparison','rights']);
- await page.getByRole('button',{name:'Pause',exact:true}).click();expect(await page.evaluate(()=>(window as unknown as {cancelledBodyFixture:{gates:{signal:AbortSignal}[]}}).cancelledBodyFixture.gates.every(gate=>gate.signal.aborted))).toBe(true);const reads=await page.evaluate(()=>window.mockRequests.length);const committee=panel.locator('.committee-evidence');await committee.locator('summary').click();await committee.getByRole('searchbox',{name:'Search committee alias or address'}).fill('tz1');await committee.getByRole('combobox',{name:'Committee sort'}).selectOption('address');await expect(committee.locator('tbody tr')).toHaveCount(50);await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');expect(await page.evaluate(()=>window.mockRequests.length)).toBe(reads);
+ await page.getByRole('button',{name:'Pause',exact:true}).click();expect(await page.evaluate(()=>(window as unknown as {cancelledBodyFixture:{gates:{signal:AbortSignal}[]}}).cancelledBodyFixture.gates.every(gate=>gate.signal.aborted))).toBe(true);const reads=await page.evaluate(()=>window.mockRequests.length);const committee=panel.locator('.committee-evidence');await openDetails(committee);await committee.getByRole('searchbox',{name:'Search committee alias or address'}).fill('tz1');await committee.getByRole('combobox',{name:'Committee sort'}).selectOption('address');await expect(committee.locator('tbody tr')).toHaveCount(50);await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');expect(await page.evaluate(()=>window.mockRequests.length)).toBe(reads);
  await page.getByRole('button',{name:'Resume',exact:true}).click();await expect.poll(()=>page.evaluate(()=>window.mockRequests.filter(request=>request.url.includes('/monitor/heads/')&&!request.aborted).length)).toBe(2);await send(page,'mainnet-head',headers.get(page)!.get('BBlock101')!);await page.evaluate(()=>(window as unknown as {cancelledBodyFixture:{gates:{release:()=>void}[]}}).cancelledBodyFixture.gates.forEach(gate=>gate.release()));await panel.getByRole('button',{name:'Follow live',exact:true}).click();const resumedHead=headers.get(page)!.get('BBlock101')!;await page.route('https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header',route=>route.fulfill({json:{...resumedHead,chain_id:'NetFixture'}}));await page.route('https://mainnet.smartpy.io/chains/main/blocks/head/header',route=>route.fulfill({json:{...resumedHead,chain_id:'NetFixture'}}));await page.clock.install();await send(page,'mainnet-operations',[{...vote(0,101),hash:'fresh-target101-after-cancel'}]);await page.clock.runFor(15000);await panel.getByRole('button',{name:'Inspect payload vhPayload101',exact:true}).last().click();await expect(panel.locator('.candidate-evidence')).toContainText('observed head BBlock101');const retry=panel.getByRole('button',{name:'Retry selected observer context',exact:true});if(await retry.isVisible())await retry.click();await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await expect(panel).not.toContainText('Cancelled Poison Alias');await expect(panel.locator('.comparison-result')).not.toContainText('CancelledComparisonPoison');
  testInfo.annotations.push({type:'foundation-verified',description:'AC-21'});
 });
@@ -935,7 +857,7 @@ test('pinned phases preserve their independently captured quorum after asymmetri
 });
 
 test('S9 historical opportunity capture freezes its as-of deadline remaining duration and original context',async({page})=>{
- await page.clock.install();const initial=head(100);await prepare(page,false,initial);const panel=page.locator('.network-panel.mainnet');const candidate={...head(101),hash:'OpportunityHistorical101'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate OpportunityHistorical101',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 101');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Captured historical');const captured=await panel.locator('.baker-opportunity').allTextContents();expect(captured[0]).toContain('execution protocol PFixture');expect(captured[0]).toContain('timing source https://mainnet.smartpy.io');
+ await page.clock.install();const initial=head(100);await prepare(page,false,initial);const panel=page.locator('.network-panel.mainnet');const candidate={...head(101),hash:'OpportunityHistorical101'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await expect(panel.locator('.baker-opportunity').first()).toContainText('reference OpportunityHistorical101');await panel.getByRole('button',{name:'Inspect candidate OpportunityHistorical101',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 101');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Captured historical');const captured=await panel.locator('.baker-opportunity').allTextContents();expect(captured[0]).toContain('execution protocol PFixture');expect(captured[0]).toContain('timing source https://mainnet.smartpy.io');
  const newer={...head(102),hash:'OpportunityLive102',predecessor:candidate.hash};await send(page,'mainnet-head',newer);headers.get(page)!.set(newer.hash,newer);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:newer.hash,header:newer});await page.clock.runFor(90000);expect(await panel.locator('.baker-opportunity').allTextContents()).toEqual(captured);await expect(panel.locator('.candidate-evidence')).toContainText(candidate.hash);
  await page.getByRole('button',{name:'Pause',exact:true}).click();const reads=await page.evaluate(()=>window.mockRequests.length);await page.clock.setSystemTime(new Date('2030-01-01T00:00:00Z'));await page.clock.runFor(2000);expect(await panel.locator('.baker-opportunity').allTextContents()).toEqual(captured);await panel.getByRole('button',{name:'Latest',exact:true}).click();await panel.getByRole('button',{name:'Follow live',exact:true}).click();expect(await page.evaluate(()=>window.mockRequests.length)).toBe(reads);await expect(page.getByRole('button',{name:'Resume',exact:true})).toBeVisible();await expect(panel.locator('.candidate-evidence')).not.toContainText('Observed block hash OpportunityHistorical101');
 });
@@ -946,9 +868,10 @@ test('S9 missing baking rights preserve independently known branch timing',async
 
 test('S9 same-height competing candidate retains its admitted context and independently known timing with missing rights',async({page},testInfo)=>{
  await prepare(page,false,head(100,2));
- await page.evaluate(async()=>{type Captured={observations:ObservationStore<Derived>};const path='/monitor/networkMonitor.ts';const {NetworkMonitor}=await import(path),original=NetworkMonitor.prototype.contextAuthorized;NetworkMonitor.prototype.contextAuthorized=function(this:Captured,...args:unknown[]){Object.assign(window,{sameHeightOpportunityMonitor:this});return original.apply(this,args);};});
- await page.route('**/helpers/baking_rights?*',route=>route.fulfill({json:[]}));const panel=page.locator('.network-panel.mainnet'),candidate={...head(100,2),hash:'OpportunitySameHeight100'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate OpportunitySameHeight100',exact:true}).click();
+ await page.evaluate(async()=>{type Captured={observations:ObservationStore<Derived>};const path='/monitor/networkMonitor.ts';const {NetworkMonitor}=await import(path),original=NetworkMonitor.prototype.contextAuthorized;NetworkMonitor.prototype.contextAuthorized=function(this:Captured,...args:unknown[]){if(this.observations.acceptedTargets().some(value=>value.target.candidate?.header.hash==='OpportunitySameHeight100'))Object.assign(window,{sameHeightOpportunityMonitor:this});return original.apply(this,args);};});
+ await page.route('**/helpers/baking_rights?*',route=>route.fulfill({json:[]}));const panel=page.locator('.network-panel.mainnet'),candidate={...head(100,2),hash:'OpportunitySameHeight100'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 100 · round 3');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await expect(panel.locator('.baker-opportunity').first()).toContainText('reference OpportunitySameHeight100');await panel.getByRole('button',{name:'Inspect candidate OpportunitySameHeight100',exact:true}).click();
  const proof=await page.evaluate(()=>{const store=(window as unknown as {sameHeightOpportunityMonitor:{observations:ObservationStore<Derived>}}).sameHeightOpportunityMonitor.observations,record=store.acceptedTargets().find(value=>value.target.candidate?.header.hash==='OpportunitySameHeight100');return {observerHash:record?.admission?.context.observer.header.hash,observerLevel:record?.admission?.context.observer.header.level,candidateHash:record?.target.candidate?.header.hash,targetLevel:record?.target.level,contextInvalid:record?.contextInvalid};});await testInfo.attach('actual-same-height-admission',{body:JSON.stringify(proof),contentType:'application/json'});expect(proof).toEqual({observerHash:'BBlock100',observerLevel:100,candidateHash:candidate.hash,targetLevel:100,contextInvalid:false});
+ await testInfo.attach('pin-capture-diagnostic',{body:JSON.stringify(await page.evaluate(()=>{const store=(window as unknown as {sameHeightOpportunityMonitor:{observations:ObservationStore<Derived>}}).sameHeightOpportunityMonitor.observations;const pin=store.inspection();return {selected:pin.selectedIdentity,record:pin.snapshot?.record.identity,candidates:pin.snapshot?.candidates.map(value=>({identity:value.identity,opportunities:value.opportunities})),active:store.acceptedTargets().map(value=>({identity:value.identity,opportunities:value.opportunities}))};})),contentType:'application/json'});
  const rows=panel.locator('.baker-opportunity');await expect(rows).toHaveCount(2);await expect(rows.nth(0)).toContainText('Baking rights unavailable');await expect(rows.nth(0)).toContainText('Conditional timer');await expect(rows.nth(0)).toContainText('Level 100 · round 3');await expect(rows.nth(1)).toContainText('Level 101 · round 0');await expect(rows.nth(1)).toContainText('Baking rights unavailable');await expect(rows.nth(1)).toContainText('Conditional timer');
 });
 
@@ -970,7 +893,7 @@ test('S9 selection synchronously aborts old baking-right bodies and late complet
  await prepare(page,false);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await page.evaluate(()=>(window as unknown as {opportunitySelectionGate:{armed:boolean}}).opportunitySelectionGate.armed=true);
  const first={...head(101),hash:'OpportunitySelectionA'},second={...first,hash:'OpportunitySelectionB',payload_hash:'OtherOpportunityPayload'};for(const candidate of [first,second])headers.get(page)!.set(candidate.hash,candidate);
  await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await panel.getByRole('button',{name:'Inspect candidate OpportunitySelectionA',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as unknown as {opportunitySelectionGate:{waiting:boolean}}).opportunitySelectionGate.waiting)).toBe(true);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:second.hash,header:second});await expect(panel.getByRole('button',{name:'Inspect candidate OpportunitySelectionB',exact:true})).toBeVisible();
- const aborted=await page.evaluate(()=>{const gate=(window as unknown as {opportunitySelectionGate:{signal:AbortSignal;release:()=>void}}).opportunitySelectionGate;const button=[...document.querySelectorAll<HTMLButtonElement>('.mainnet .candidate-controls button')].find(value=>value.textContent?.includes('OpportunitySelectionB'));if(!button)throw new Error('Retained second candidate control unavailable');button.click();const aborted=gate.signal.aborted;gate.release();return aborted;});expect(aborted).toBe(true);await expect(panel.locator('.candidate-evidence')).toContainText('OpportunitySelectionB');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await expect(panel.locator('.opportunities')).not.toContainText('CancelledOpportunityPoison');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Captured historical');await expect(panel.locator('.opportunities')).not.toContainText('CancelledOpportunityPoison');
+ const aborted=await page.evaluate(()=>{const gate=(window as unknown as {opportunitySelectionGate:{signal:AbortSignal;release:()=>void}}).opportunitySelectionGate;const button=[...document.querySelectorAll<HTMLButtonElement>('.mainnet .candidate-controls button')].find(value=>value.textContent?.includes('OpportunitySelectionB'));if(!button)throw new Error('Retained second candidate control unavailable');button.click();const aborted=gate.signal.aborted;gate.release();return aborted;});expect(aborted).toBe(true);await expect(panel.locator('.candidate-evidence')).toContainText('OpportunitySelectionB');await expect(panel.locator('.baker-opportunity').first()).toContainText('Timer unavailable');await expect(panel.locator('.opportunities')).not.toContainText('CancelledOpportunityPoison');await panel.getByRole('button',{name:'Follow live',exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText('OpportunitySelectionB');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Captured historical');await expect(panel.locator('.opportunities')).not.toContainText('CancelledOpportunityPoison');
 });
 
 test('foundations AC-34 conditional timers never substitute for applied values or invent observed progression',async({page},testInfo)=>{
@@ -1052,4 +975,140 @@ test("foundations AC-3 autonomous B authority remains readable without primary a
  await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await expect(panel.locator('.authority-evidence')).toContainText('Captured source/context');
  await page.getByRole('button',{name:'Pause',exact:true}).click();const reads=await page.evaluate(()=>window.mockRequests.length);await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await expect(panel.locator('.applied-context')).toHaveText('Last applied block unavailable');await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');await panel.getByText('Committee evidence',{exact:false}).click();expect(await page.evaluate(()=>window.mockRequests.length)).toBe(reads);
  testInfo.annotations.push({type:'foundation-verified',description:'AC-3'});
+});
+
+
+test('V3 AC-22 theme is explicit persistent and follows system only in system mode',async({page})=>{
+ await prepare(page,false);
+ const theme=page.getByRole('combobox',{name:'Appearance'});
+ await expect(theme).toBeVisible();
+ await theme.selectOption('light');await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+ await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+ await page.reload();await expect(theme).toHaveValue('light');
+ await theme.selectOption('system');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+ await expect(page.getByRole('heading',{name:'Tezos Observatory',exact:true})).toBeVisible();
+});
+
+
+test('V3 first observation renders exact paired evidence in both themes across useful widths',async({page},testInfo)=>{
+ await prepare(page,false);
+ await send(page,'mainnet-operations',[vote(0),vote(1)]);
+ const panel=page.locator('.network-panel.mainnet');
+ await expect(panel.locator('.pre .gauge-exact')).toHaveText('1,200 / 30,000');
+ await expect(panel.locator('.att .gauge-exact')).toHaveText('Unavailable');
+ await expect(panel.locator('.selected-title')).toHaveText('101 / r0');
+ await expect(panel.locator('.selected-kind')).toContainText('proposal hash and producer unavailable');
+ for(const width of [390,1440,3440])for(const theme of ['light','dark']){
+  await page.setViewportSize({width,height:width===390?844:1440});
+  await page.getByRole('combobox',{name:'Appearance'}).selectOption(theme);
+  await page.screenshot({path:testInfo.outputPath(`workspace-${testInfo.project.name}-${width}-${theme}.png`),fullPage:true});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
+ }
+});
+
+
+test('V3 AC-29 observed junction places next round above and next level right with readable phone targets',async({page})=>{
+ await prepare(page,false);
+ await send(page,'mainnet-operations',[vote(0,101,0)]);
+ const panel=page.locator('.network-panel.mainnet');
+ for(const width of [360,390,1440,3440,5120]){
+  await page.setViewportSize({width,height:width<400?800:1440});
+  const selected=panel.locator('.navigator-current'),up=panel.locator('.baker-opportunity').first(),right=panel.locator('.baker-opportunity').nth(1);
+  await expect(selected).toContainText('101');await expect(selected).toContainText('r0');
+  await expect(up).toContainText('Level 101 · round 1');await expect(right).toContainText('Level 102 · round 0');
+  const a=await selected.boundingBox(),b=await up.boundingBox(),c=await right.boundingBox();
+  expect(a&&b&&c).toBeTruthy();if(!a||!b||!c)throw new Error('Junction fixture geometry missing');
+  expect(b.y+b.height).toBeLessThanOrEqual(a.y);expect(Math.abs(b.x-a.x)).toBeLessThan(2);
+  expect(c.x).toBeGreaterThan(a.x);expect(Math.abs(c.y-a.y)).toBeLessThan(2);
+  expect(await up.locator('.branch-target').evaluate(node=>parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(14);
+  await expect(up.locator('.branch-critical')).toBeVisible();await expect(right.locator('.branch-critical')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
+ }
+});
+
+
+test('V3 AC-04 selecting a retained candidate immediately pins and Previous follows receipts',async({page})=>{
+ await prepare(page,false);
+ const panel=page.locator('.network-panel.mainnet');
+ for(const hash of ['V3FirstCandidate','V3SecondCandidate']){const candidate={...head(101),hash};headers.get(page)!.set(hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash,header:candidate});await expect(panel.getByRole('button',{name:`Inspect candidate ${hash}`,exact:true})).toBeVisible();}
+ await panel.getByRole('button',{name:'Inspect candidate V3SecondCandidate',exact:true}).click();
+ await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');
+ await panel.getByRole('button',{name:'Previous observation',exact:true}).click();
+ await expect(panel.locator('.candidate-evidence')).toContainText('Observed block hash V3FirstCandidate');
+ await expect(panel.getByRole('button',{name:'Previous observation',exact:true})).toBeDisabled();
+ await panel.getByRole('button',{name:'Latest',exact:true}).click();
+ await expect(panel.locator('.candidate-evidence')).toContainText('Observed block hash V3SecondCandidate');
+ await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');
+});
+
+
+test('V3 AC-02 actual round progress moves the scene down for an upward camera and duplicates stay still',async({page})=>{
+ await prepare(page,false);await send(page,'mainnet-operations',[vote(0,101,0)]);
+ const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
+ await expect(panel.locator('.navigator-current')).toContainText('r0');
+ await page.evaluate(()=>{
+  const scene=document.querySelector('.mainnet .navigator-junction');if(!scene)throw new Error('Scene missing');
+  const samples:{direction:string;duration:number;transform:string}[]=[];(window as unknown as {cameraSamples:typeof samples}).cameraSamples=samples;
+  new MutationObserver(()=>{const direction=(scene as HTMLElement).dataset.direction;if(direction==='up'||direction==='right')requestAnimationFrame(()=>{const animation=scene.getAnimations()[0];if(animation)samples.push({direction,duration:Number(animation.effect?.getTiming().duration),transform:getComputedStyle(scene).transform});});}).observe(scene,{attributes:true,attributeFilter:['data-direction']});
+ });
+ await send(page,'mainnet-operations',[vote(1,101,1)]);
+ await expect(scene).toHaveAttribute('data-direction','up');await expect(scene).toHaveAttribute('data-camera-x','0');await expect(scene).toHaveAttribute('data-camera-y','-1');
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {cameraSamples:{transform:string}[]}).cameraSamples.length)).toBeGreaterThan(0);
+ const samples=await page.evaluate(()=>(window as unknown as {cameraSamples:{direction:string;duration:number;transform:string}[]}).cameraSamples);
+ expect(samples.some(sample=>sample.duration===160&&Number(sample.transform.slice(7,-1).split(',')[5])<0)).toBe(true);
+ await expect.poll(()=>scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+ await send(page,'mainnet-operations',[vote(1,101,1)]);await send(page,'mainnet-operations',[vote(2,101,1)]);
+ await expect(scene).toHaveAttribute('data-camera-y','-1');await expect(panel.locator('.navigator-current')).toContainText('r1');
+ await page.emulateMedia({reducedMotion:'reduce'});await send(page,'mainnet-operations',[vote(3,101,2)]);
+ await expect(panel.locator('.navigator-current')).toContainText('r2');expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+});
+
+test('V3 AC-04 dropdown and promoted first hash retain original navigation order',async({page})=>{
+ await prepare(page,false);const panel=page.locator('.network-panel.mainnet');
+ await send(page,'mainnet-operations',[vote(0)]);await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+ const q=vote(1);q.contents[0]!.block_payload_hash='V3Q';await send(page,'mainnet-operations',[q]);
+ await expect(panel.getByRole('button',{name:'Inspect payload V3Q',exact:true})).toBeVisible();
+ const promoted={...head(101),hash:'V3PromotedP'};headers.get(page)!.set(promoted.hash,promoted);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:promoted.hash,header:promoted});
+ await expect(panel.getByRole('button',{name:'Inspect candidate V3PromotedP',exact:true})).toBeVisible();
+ const select=panel.getByLabel('Retained session instance');const qValue=await select.locator('option').filter({hasText:'V3Q'}).getAttribute('value');expect(qValue).toBeTruthy();await select.selectOption(qValue!);
+ await expect(panel.locator('.selection-label')).toHaveAttribute('title','V3Q');await panel.getByRole('button',{name:'Previous observation',exact:true}).click();
+ await expect(panel.locator('.candidate-evidence')).toContainText('Observed block hash V3PromotedP');await expect(panel.getByRole('button',{name:'Previous observation',exact:true})).toBeDisabled();
+ const pValue=await select.locator('option').filter({hasText:'vhPayload101'}).getAttribute('value');await select.selectOption(pValue!);await expect(panel.getByRole('button',{name:'Inspect candidate V3PromotedP',exact:true})).toHaveAttribute('aria-pressed','true');
+});
+
+test('V3 AC-03 proven next level preserves camera Y after high round and bursts settle within 200 ms',async({page})=>{
+ await prepare(page,false);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
+ const candidate={...head(101,118),hash:'V3High118'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});
+ await expect(panel.locator('.navigator-current')).toContainText('101 · r118');const y=await scene.getAttribute('data-camera-y');
+ const next={...head(102,0),hash:'V3Next102',predecessor:candidate.hash};headers.get(page)!.set(next.hash,next);
+ await send(page,'mainnet-head',candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});
+ await expect(panel.locator('.navigator-current')).toContainText('102 · r0');await expect(scene).toHaveAttribute('data-direction','right');await expect(scene).toHaveAttribute('data-camera-y',y??'0');
+ await page.waitForTimeout(210);expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+ const coords=await scene.evaluate(node=>[node.getAttribute('data-camera-x'),node.getAttribute('data-camera-y')]);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});expect(await scene.evaluate(node=>[node.getAttribute('data-camera-x'),node.getAttribute('data-camera-y')])).toEqual(coords);
+});
+
+test('V3 AC-09 real hash-pinned metadata attributes block baker independently from payload proposer',async({page},testInfo)=>{
+ const protocol='PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY',baker='tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',other='tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6';
+ await prepare(page,false,head(),100,false,false,undefined,undefined,protocol);
+ const reads:string[]=[];await page.route('**/blocks/*/metadata',async route=>{reads.push(route.request().url());const hash=new URL(route.request().url()).pathname.split('/blocks/')[1]!.split('/')[0];await route.fulfill({json:{protocol,next_protocol:protocol,baker:hash==='V3ProducerH2'?baker:other,proposer:hash==='V3ProducerH2'?other:baker,level_info:{level:101,level_position:100,cycle:0,cycle_position:100,expected_commitment:false},balance_updates:[],consumed_milligas:'0',deactivated:[]}});});
+ const panel=page.locator('.network-panel.mainnet');
+ for(const [hash,payload,producer] of [['V3ProducerH2','P',baker],['V3ProducerH3','Q',other]]){
+  const candidate={...head(101),hash:hash!,payload_hash:payload!};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:`Inspect candidate ${hash}`,exact:true}).click();
+  await expect(panel.locator('.candidate-evidence')).toContainText(`Block producer / baker ${producer}`);await expect(panel.locator('.candidate-evidence')).toContainText(`metadata requested hash ${hash}`);await expect(panel.locator('.candidate-evidence')).toContainText('metadata source https://rpc.tzkt.io/mainnet');await expect(panel.locator('.candidate-evidence')).toContainText('metadata chain NetFixture');
+ }
+ expect(reads).toHaveLength(2);await panel.getByRole('button',{name:'Inspect candidate V3ProducerH2',exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText(`Block producer / baker ${baker}`);
+ await panel.getByRole('button',{name:'Previous observation',exact:true}).isEnabled();await panel.getByRole('button',{name:'Latest',exact:true}).click();await panel.getByRole('button',{name:'Follow live',exact:true}).click();await page.getByLabel('Appearance').selectOption('dark');await page.waitForTimeout(100);expect(reads).toHaveLength(2);
+ testInfo.annotations.push({type:'v3-verified',description:'AC-09'});
+});
+
+test('V3 AC-01 exact high-round applied and successor votes retain independent identity and paired scales',async({page},testInfo)=>{
+ const applied=head(5489251,118),powers=[...Array.from({length:23},()=>279),272,311];await prepare(page,false,applied,applied.level,false,false,{total:7000,quorum:4667,powers});
+ const pre=Array.from({length:24},(_,slot)=>vote(slot,5489252,0));const att={hash:'V3ExactAtt',contents:[{kind:'attestations_aggregate',consensus_content:{level:5489252,round:0,block_payload_hash:'vhPayload5489252'},committee:Array.from({length:24},(_,slot)=>({slot}))}]};
+ await send(page,'mainnet-operations',[...pre,att]);const panel=page.locator('.network-panel.mainnet');
+ await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round118');
+ for(const phase of ['pre','att']){await expect(panel.locator(`.${phase} .gauge-counts`)).toContainText('6,689 / 7,000 power');await expect(panel.locator(`.${phase} .gauge-counts`)).toContainText('24 / 25 signers');await expect(panel.locator(`.${phase} .quorum-caption`)).toContainText('4,667 power required');}
+ await expect(panel.locator('.selected-title')).toHaveText('5,489,252 / r0');await expect(panel.locator('.navigator-current')).toContainText('Proposal hash unavailable');await expect(panel.locator('.candidate-evidence')).toContainText('Producer unknown');
+ await page.evaluate(()=>window.mockStreams['mainnet-head']!.error(new Error('Fixture source interruption')));await expect(panel.locator('.status-chip')).toHaveText('RPC coverage degraded');await expect(panel.locator('.network-notice')).toContainText('Heads connection interrupted');await expect(panel.locator('.network-notice')).not.toContainText('chain stalled');
+ testInfo.annotations.push({type:'v3-verified',description:'AC-01'});
 });
