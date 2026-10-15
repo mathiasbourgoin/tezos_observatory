@@ -3,3 +3,4 @@
 export {NetworkData} from './rpc/networkData';
 export {NetworkMonitor} from './monitor/networkMonitor';
 export {ObservationStore} from './monitor/observationStore';
+export {createDashboard} from './dashboardView';
