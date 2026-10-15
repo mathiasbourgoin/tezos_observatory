@@ -4,10 +4,10 @@ export function cameraReceipt(previous:CameraReceipt|undefined,identity:string|u
  if(!identity||!Number.isFinite(emittedMonotonic))return undefined;
  return previous?.identity===identity?previous:Object.freeze({identity,emittedMonotonic});
 }
-/** Readable adjacent-slot travel; late rendering consumes this bounded UI budget. */
-export const CAMERA_DURATION_MS=600;
+/** Full visible travel starts at rendering; receipt age only fences stale destinations. */
+export const CAMERA_DURATION_MS=850;
 export function cameraElapsed(emittedMonotonic:number|undefined,now:number):number|undefined {
  if(emittedMonotonic===undefined||!Number.isFinite(emittedMonotonic)||!Number.isFinite(now))return undefined;
  const elapsed=now-emittedMonotonic;
- return elapsed>=0&&elapsed<CAMERA_DURATION_MS?elapsed:undefined;
+ return elapsed>=0&&elapsed<2000?elapsed:undefined;
 }

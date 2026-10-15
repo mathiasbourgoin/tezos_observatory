@@ -355,16 +355,16 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     const timing = el('p', 'timing-detail address-text', 'Independent clock estimate unavailable');
     const clockProof=disclosure('Independent applied-head clock', `observatory:${network}:clock`); clockProof.body.append(countdown,timing);
     const bakerRows = el('div', 'baker-rows');
-    const junction=el('div','navigator-junction'),previousNode=el('section','navigator-previous'),currentNode=el('section','navigator-current');
+    const junction=el('div','navigator-junction'),stage=el('div','navigator-stage'),previousNode=el('section','navigator-previous'),currentNode=el('section','navigator-current');
     previousNode.setAttribute('aria-label','Previous block context');currentNode.setAttribute('aria-label','Selected observed anchor');
-    const previousTarget=el('strong','branch-target','Previous block unavailable'),previousHash=el('span','address-text'),previousRelation=el('span','subtle');
-    previousNode.append(el('span','eyebrow','← Previous block'),previousTarget,previousHash,previousRelation);
+    const previousTarget=el('strong','branch-target','Previous block unavailable'),previousKind=el('span','subtle'),previousHash=el('span','address-text'),previousRelation=el('span','subtle');
+    previousNode.append(el('span','eyebrow','← Previous block'),previousTarget,previousKind,previousHash,previousRelation);
     const currentTarget=el('strong','branch-target','Observation unavailable'),currentKind=el('span','subtle'),currentHash=el('span','address-text');
     const copyHash=el('button','address-copy','Copy block hash');copyHash.type='button';let observedHash:string|undefined;
     copyHash.addEventListener('click',()=>{if(observedHash)void navigator.clipboard?.writeText(observedHash).then(()=>set(copyHash,'Copied')).catch(()=>set(copyHash,'Copy unavailable'));});
     currentNode.append(el('span','eyebrow','Observed / selected'),currentTarget,currentKind,currentHash,copyHash);
-    junction.append(previousNode,currentNode,bakerRows);
-    for(const name of ['previous','round','level']){const edge=el('span',`navigator-edge navigator-edge-${name}`);edge.setAttribute('aria-hidden','true');junction.append(edge);}
+    stage.append(previousNode,currentNode,bakerRows);junction.append(stage);
+    for(const name of ['previous','round','level']){const edge=el('span',`navigator-edge navigator-edge-${name}`);edge.setAttribute('aria-hidden','true');stage.append(edge);}
     const navigatorStatus=el('p','navigator-status subtle','Solid: observation · dashed: conditional · no implied finality');
     const navigatorContext=el('aside','navigator-context');
     const selectedContext=el('dl','navigator-context-fields');
@@ -406,8 +406,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     const keyedBakers = new Map<string, HTMLElement>(), keyedSources = new Map<string, HTMLElement>();
     let current: NetworkViewModel | undefined,previousAnnouncement:string|undefined;
     const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
-    let cameraAnimations:Animation[]=[],outgoingNode:HTMLElement|undefined,observedCard:HTMLElement|undefined,cameraX=0,cameraY=0,cameraAnchor:ObservedNavigatorView|undefined;
-    const cancelCamera=():void=>{for(const animation of cameraAnimations)animation.cancel();cameraAnimations=[];outgoingNode?.remove();outgoingNode=undefined;previousNode.style.visibility='';};
+    let cameraAnimation:Animation|undefined,departures:HTMLElement|undefined,cameraX=0,cameraY=0,cameraAnchor:ObservedNavigatorView|undefined;
+    const cancelCamera=():void=>{cameraAnimation?.cancel();cameraAnimation=undefined;departures?.remove();departures=undefined;previousNode.style.opacity='';};
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cancelCamera();set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
     const moveCamera=(model:NetworkViewModel):void=>{
       const before=cameraAnchor,after=model.observation;
@@ -432,22 +432,30 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       if(direction!=='static'&&!reducedMotion.matches&&elapsed!==undefined){
         const origin=junction.querySelector<HTMLElement>(direction==='up'?'[data-branch=same-level]':'[data-branch=next-level]');
         if(!origin)return;
-        const frame=junction.getBoundingClientRect(),destination=currentNode.getBoundingClientRect(),slot=origin.getBoundingClientRect(),previous=previousNode.getBoundingClientRect();
-        const dx=slot.x-destination.x,dy=slot.y-destination.y;
-        const outgoing=(observedCard??currentNode).cloneNode(true) as HTMLElement;
-        outgoing.className='navigator-motion-card';outgoing.setAttribute('aria-hidden','true');outgoing.inert=true;
-        Object.assign(outgoing.style,{left:`${destination.x-frame.x}px`,top:`${destination.y-frame.y}px`,width:`${destination.width}px`,height:`${destination.height}px`});
-        outgoingNode=outgoing;junction.append(outgoing);
-        if(direction==='right')previousNode.style.visibility='hidden';
-        const timing={duration:CAMERA_DURATION_MS,easing:'cubic-bezier(.25,.65,.3,1)'};
-        const incomingAnimation=currentNode.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],timing);
-        const outgoingAnimation=outgoing.animate([{transform:'translate(0,0)'},{transform:direction==='up'?`translate(0,${-dy}px)`:`translate(${previous.x-destination.x}px,0)`}],timing);
-        cameraAnimations=[incomingAnimation,outgoingAnimation];
-        // One bounded timeline per observed destination; never queue a stale intermediate step.
-        const timelineNow=document.timeline.currentTime;
-        if(typeof timelineNow==='number')for(const animation of cameraAnimations)animation.startTime=timelineNow-elapsed;
-        else cancelCamera();
-        outgoingAnimation.onfinish=()=>{if(outgoingNode===outgoing){outgoing.remove();outgoingNode=undefined;cameraAnimations=[];previousNode.style.visibility='';}};
+        const frame=stage.getBoundingClientRect(),destination=currentNode.getBoundingClientRect(),slot=origin.getBoundingClientRect();
+        const dx=direction==='right'?slot.x-destination.x:0,dy=direction==='up'?slot.y-destination.y:0;
+        const scrolls:{node:HTMLElement;top:number;left:number}[]=[];
+        const departing=el('div','navigator-departures');departing.setAttribute('aria-hidden','true');departing.inert=true;
+        // The former world and the incoming frontier share one camera transform.
+        const oldNodes=direction==='right'
+          ?[previousNode,currentNode,stage.querySelector('[data-branch=same-level]'),stage.querySelector('.navigator-edge-previous'),stage.querySelector('.navigator-edge-round')]
+          :[previousNode,currentNode,stage.querySelector('[data-branch=next-level]'),...stage.querySelectorAll('.navigator-edge')];
+        for(const node of oldNodes){
+          if(!(node instanceof HTMLElement))continue;
+          const rect=node.getBoundingClientRect(),style=getComputedStyle(node),copy=node.cloneNode(true) as HTMLElement;
+          copy.className=node.classList.contains('navigator-edge')?'navigator-motion-edge':'navigator-motion-card';copy.setAttribute('aria-hidden','true');copy.inert=true;
+          copy.removeAttribute('id');for(const child of copy.querySelectorAll('[id]'))child.removeAttribute('id');
+          Object.assign(copy.style,{left:`${rect.x-frame.x-dx}px`,top:`${rect.y-frame.y-dy}px`,width:`${rect.width}px`,height:`${rect.height}px`,padding:style.padding,borderTop:style.borderTop,borderRight:style.borderRight,borderBottom:style.borderBottom,borderLeft:style.borderLeft,background:style.background,color:style.color,font:style.font,gap:style.gap,display:style.display});
+          const originals=[...node.querySelectorAll<HTMLElement>('*')],copies=[...copy.querySelectorAll<HTMLElement>('*')];
+          for(const [index,original] of originals.entries()){const child=copies[index];if(!child)continue;const rendered=getComputedStyle(original);for(const property of ['order','flex-shrink','flex-grow','flex-basis','align-self','font-size','font-weight','font-family','line-height','letter-spacing','text-transform','padding','margin','min-height','max-width','display','white-space','overflow-wrap'])child.style.setProperty(property,rendered.getPropertyValue(property));}
+          scrolls.push({node:copy,top:node.scrollTop,left:node.scrollLeft});for(const [index,original] of originals.entries()){const child=copies[index];if(child)scrolls.push({node:child,top:original.scrollTop,left:original.scrollLeft});}
+          departing.append(copy);
+        }
+        stage.append(departing);departures=departing;if(direction==='right')previousNode.style.opacity='0';for(const scroll of scrolls){scroll.node.scrollTop=scroll.top;scroll.node.scrollLeft=scroll.left;}
+        // Begin a complete visible journey. Receipt age only fences stale work.
+        const animation=stage.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],{duration:CAMERA_DURATION_MS,easing:'cubic-bezier(.4,0,.2,1)'});
+        cameraAnimation=animation;
+        animation.onfinish=()=>{if(cameraAnimation===animation){departing.remove();departures=undefined;cameraAnimation=undefined;previousNode.style.opacity='';}};
       }
     };
     const tick = (now: number): void => {
@@ -475,9 +483,9 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       observedHash=anchor?.hash;copyHash.disabled=!observedHash;
       set(currentHash,anchor?.hash?short(anchor.hash):'Proposal hash unavailable');currentHash.title=anchor?.hash??'No proposal hash observed';
       currentNode.dataset.identity=anchor?.identity??'';
-      if(anchor?.coherent)observedCard=currentNode.cloneNode(true) as HTMLElement;
       const parent=anchor?.predecessor;
       set(previousTarget,parent?`${number(parent.level)} · r${parent.round}`:'Previous block unavailable');
+      set(previousKind,parent?.hash?'Observed block':parent?'Votes only':'Live unavailable');
       set(previousHash,parent?short(parent.hash):'Ancestry unknown');previousHash.title=parent?.hash??'';
       set(previousRelation,parent?.relation==='ancestry'?'Verified ancestry':parent?'Context only · not ancestry':'Observation gap');
       junction.dataset.relationship=parent?.relation??'unknown';
