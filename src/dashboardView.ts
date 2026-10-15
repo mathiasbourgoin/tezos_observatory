@@ -282,6 +282,19 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
   const applyTheme = () => {document.documentElement.dataset.theme = theme.value === 'system' ? systemTheme.matches ? 'dark' : 'light' : theme.value;};
   theme.onChange(() => {applyTheme(); try {localStorage.setItem('observatory:theme', theme.value); themeNotice.hidden = true;} catch {themeNotice.hidden = false; set(themeNotice, 'Theme saved for this session only');}});
   systemTheme.addEventListener('change', () => {if (theme.value === 'system') applyTheme();}); applyTheme();
+  const paletteLabel = el('label', 'palette-label', 'Colour palette');
+  const palette = el('select', 'palette-select'); palette.setAttribute('aria-label', 'Colour palette');
+  const paletteOptions = [['pollen','Graphite & pollen'],['braise','Braise'],['cinabre','Encre & cinabre'],['ocre','Pierre & ocre'],['reference','Forest / copper']] as const;
+  for (const [value, label] of paletteOptions) {const option = el('option', '', label); option.value = value; palette.append(option);}
+  const paletteNotice = el('span', 'palette-notice', 'Palette saved for this session only'); paletteNotice.hidden = true;
+  const knownPalette = (value: string | null) => paletteOptions.some(([id]) => id === value) ? value ?? 'pollen' : 'pollen';
+  try {palette.value = knownPalette(localStorage.getItem('observatory:palette'));} catch {palette.value = 'pollen';}
+  const applyPalette = () => {document.documentElement.dataset.palette = palette.value;};
+  palette.addEventListener('change', event => {
+    event.stopPropagation(); applyPalette();
+    try {localStorage.setItem('observatory:palette', palette.value); paletteNotice.hidden = true;} catch {paletteNotice.hidden = false;}
+  });
+  applyPalette(); paletteLabel.append(palette); theme.group.append(paletteLabel, paletteNotice);
   appearance.append(theme.root, themeNotice); controls.append(appearance);
   const tabs = el('nav', 'network-tabs'); tabs.setAttribute('aria-label', 'Network');
   const grid = el('div', 'network-grid');

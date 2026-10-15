@@ -3,16 +3,60 @@
  color-scheme:light;
  font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
  font-synthesis:none;
- --paper:#f5f4ec;--surface:#fffef8;--ink:#183c32;--muted:#506158;
- --line:#75867b;--soft:#dce3d8;--selected:#e1eadb;--forest:#195c49;
- --copper:#934321;--pre:#626c24;--att:#17654e;--bad:#a73530;--focus:#99401e;
  color:var(--ink);background:var(--paper);
 }
-:root[data-theme=dark] {
- color-scheme:dark;
- --paper:#111e19;--surface:#192a22;--ink:#edf1e5;--muted:#b2c1b2;
- --line:#859b87;--soft:#31483a;--selected:#293e2f;--forest:#9cdbb9;
- --copper:#f2b087;--pre:#d1d78f;--att:#98d8b4;--bad:#ffb0a6;--focus:#ffbf93;
+:root[data-theme=dark] {color-scheme:dark;}
+/* Palette choice is independent of the light / dark appearance preference.
+   Accent roles share one hue; text labels continue to identify phase and state. */
+:root:not([data-theme=dark]), :root[data-palette=pollen]:not([data-theme=dark]) {
+ --paper:#f3f4ee;--surface:#fcfdf8;--ink:#252b25;--muted:#5d685a;
+ --line:#5d685a;--soft:#cbd2bf;--selected:#eaeedd;--forest:#5d681c;
+ --copper:#5d681c;--pre:#5d681c;--att:#5d681c;--bad:#a73530;--focus:#5d681c;
+}
+:root[data-theme=dark], :root[data-palette=pollen][data-theme=dark] {
+ --paper:#191b1b;--surface:#222525;--ink:#eeeee6;--muted:#afb6b0;
+ --line:#afb6b0;--soft:#434a44;--selected:#2a302a;--forest:#ccd874;
+ --copper:#ccd874;--pre:#ccd874;--att:#ccd874;--bad:#ffb0a6;--focus:#ccd874;
+}
+:root[data-palette=braise]:not([data-theme=dark]) {
+ --paper:#f6f2eb;--surface:#fffcf7;--ink:#30261f;--muted:#736050;
+ --line:#736050;--soft:#d6c9b9;--selected:#f0e6dc;--forest:#94512d;
+ --copper:#94512d;--pre:#94512d;--att:#94512d;--bad:#a73530;--focus:#94512d;
+}
+:root[data-palette=braise][data-theme=dark] {
+ --paper:#1c1a18;--surface:#24211e;--ink:#f1eae0;--muted:#b9afa2;
+ --line:#b9afa2;--soft:#4b4239;--selected:#302a24;--forest:#e4ad83;
+ --copper:#e4ad83;--pre:#e4ad83;--att:#e4ad83;--bad:#ffb0a6;--focus:#e4ad83;
+}
+:root[data-palette=cinabre]:not([data-theme=dark]) {
+ --paper:#f7f1ee;--surface:#fffbf8;--ink:#352521;--muted:#79605a;
+ --line:#79605a;--soft:#dcc8bf;--selected:#f4e4de;--forest:#ab432e;
+ --copper:#ab432e;--pre:#ab432e;--att:#ab432e;--bad:#a73530;--focus:#ab432e;
+}
+:root[data-palette=cinabre][data-theme=dark] {
+ --paper:#201b1b;--surface:#292222;--ink:#f5e9e3;--muted:#c1ada5;
+ --line:#c1ada5;--soft:#51413d;--selected:#362826;--forest:#f09b86;
+ --copper:#f09b86;--pre:#f09b86;--att:#f09b86;--bad:#ffb0a6;--focus:#f09b86;
+}
+:root[data-palette=ocre]:not([data-theme=dark]) {
+ --paper:#f1f0e9;--surface:#fbfaf4;--ink:#303127;--muted:#666856;
+ --line:#666856;--soft:#d0cebc;--selected:#ece8d8;--forest:#7a611e;
+ --copper:#7a611e;--pre:#7a611e;--att:#7a611e;--bad:#a73530;--focus:#7a611e;
+}
+:root[data-palette=ocre][data-theme=dark] {
+ --paper:#20211f;--surface:#292a26;--ink:#edede3;--muted:#b4b5a9;
+ --line:#b4b5a9;--soft:#4c4d42;--selected:#32322c;--forest:#d7bd7b;
+ --copper:#d7bd7b;--pre:#d7bd7b;--att:#d7bd7b;--bad:#ffb0a6;--focus:#d7bd7b;
+}
+:root[data-palette=reference]:not([data-theme=dark]) {
+ --paper:#f3f4eb;--surface:#fcfcf4;--ink:#203b2d;--muted:#5b715f;
+ --line:#5b715f;--soft:#c7d1be;--selected:#eff1e6;--forest:#8d512c;
+ --copper:#8d512c;--pre:#8d512c;--att:#8d512c;--bad:#a73530;--focus:#8d512c;
+}
+:root[data-palette=reference][data-theme=dark] {
+ --paper:#10241e;--surface:#19342a;--ink:#eeeee2;--muted:#b0c1b1;
+ --line:#b0c1b1;--soft:#3b5948;--selected:#223a2f;--forest:#dfac7a;
+ --copper:#dfac7a;--pre:#dfac7a;--att:#dfac7a;--bad:#ffb0a6;--focus:#dfac7a;
 }
 *{box-sizing:border-box}body{margin:0}button,input,select{font:inherit;color:inherit}button,select,summary{cursor:pointer}
 button,input,select{border:1px solid var(--line);border-radius:3px;background:var(--surface);min-height:44px;padding:9px 12px;max-width:100%}
@@ -240,3 +284,10 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 /* Changing progress narration does not move the content below the path. */
 .navigator-status{box-sizing:border-box;height:4.2em;line-height:1.4;overflow:auto;overscroll-behavior:contain}
 @media(max-width:700px){.navigator-status{height:7em}}
+
+/* Both preferences stay inside the existing keyboard-accessible Appearance disclosure. */
+.appearance .choice-options{width:248px;max-height:min(430px,70dvh)}
+.palette-label{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);margin-top:6px;padding:12px 10px 6px;font-size:13px;font-weight:600}
+.palette-select{width:100%;min-height:44px;font-weight:400}
+.palette-notice{display:block;padding:6px 10px;font-size:12px;color:var(--muted)}
+@media(max-width:700px){.appearance .choice-options{width:248px;max-width:calc(100vw - 24px)}}
