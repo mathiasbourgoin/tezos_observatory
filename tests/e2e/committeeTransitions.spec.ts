@@ -7,10 +7,13 @@ for(const width of [1440,390])test(`committee head transition stays anchored and
  await prepare(page,false,head(100),100,false,false,{total:7000,quorum:4667,powers:Array.from({length:25},()=>280)});
  await selectNetwork(page,'shadownet');
  const panel=page.locator('.network-panel.shadownet'),committee=panel.locator('.committee-evidence'),viewport=committee.locator('.delegate-scroll');
- const packets=Array.from({length:256},(_,index)=>({...vote(index%25),hash:`transition-receipt-${index}`}));
+ const payload=width===390?`vh${'a'.repeat(49)}`:'vhPayload101';
+ const packets=Array.from({length:256},(_,index)=>{const operation=vote(index%25);return {...operation,hash:`transition-receipt-${index}`,contents:operation.contents.map(content=>({...content,block_payload_hash:payload}))};});
  await send(page,'shadownet-operations',packets);
  await expect(panel.locator('.pre .gauge-exact')).toHaveText('7,000 / 7,000');
  await expect(committee.locator('tbody tr')).toHaveCount(25);
+ const historySummary=panel.getByLabel('Retained session instance',{exact:true});
+ await expect(historySummary).toContainText(payload);
  await viewport.evaluate(element=>{element.scrollTop=200;});
  const before=await viewport.evaluate(element=>({top:element.scrollTop,width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height,committeeHeight:element.closest('.committee-evidence')!.getBoundingClientRect().height,sourceY:element.closest('.network-panel')!.querySelector('.source-pane')!.getBoundingClientRect().top+scrollY,regions:[...element.closest('.network-panel')!.querySelectorAll('.observer-summary,.session-controls,.opportunities,.selected-inspector,.selected-relationship,.selected-kind,.selected-payload,.proposal-context,.network-notice,.missing-section,.missing-section>details,.consensus-section,.session-rail,.retained-history,.recent-consensus,.block-intervals,.gauges>*,.observer-summary>*,.consensus-section>*')].map(node=>({name:node.className,height:node.getBoundingClientRect().height,text:node.textContent?.slice(0,120)}))}));
  let release:()=>void=()=>undefined,waiting=0;const held=new Promise<void>(resolve=>{release=resolve;});
@@ -21,6 +24,7 @@ for(const width of [1440,390])test(`committee head transition stays anchored and
  await send(page,'shadownet-head',head(101));
  await expect.poll(()=>waiting).toBeGreaterThan(0);
  await expect(committee.locator(':scope > summary')).toContainText('unavailable');
+ await expect(historySummary).toHaveText('Unavailable');
  const frames=await committee.evaluate(async element=>{
   const frames:{unknownTag:string|undefined;unknownCharacters:number;unknownHeight:number;tableHidden:boolean;height:number;viewportHeight:number;sourceY:number;regions:{name:string;height:number}[]}[]=[];
   for(let frame=0;frame<5;frame++){
