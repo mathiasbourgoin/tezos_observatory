@@ -1,0 +1,8 @@
+# External prior art — specification input
+
+| Approach | Source and evidence | Relation to accepted scope |
+|---|---|---|
+| Explorus direct-node consensus/history/rights inspector | [Official Functori introduction](https://www.functori.com/blog/blog-getting-started-with-explorus.html), fetched 2026-10-14; local accepted review docs/reviews/2026-10-14-explorus-teztale.md:11–17 | Aligns with browser-only selectable observed history; no database needed. |
+| Explorus prioritized backup cascade | Official introduction, Network configuration paragraph: additional node addresses are backups tried in sequence | Diverges from explicit independent comparison with no fallback cascade; justify retaining contextual primary fallback while comparison stays independent. |
+| Explorus quorum/network-health and missing/finalized labels | Official introduction, latest-blocks and baking-rights sections | Diverges from source-limited observation and excluded unverified finality/network-wide inactivity; challenge scope and evidence semantics. |
+| Teztale archived observation provenance and observer difference views | Local source-based review docs/reviews/2026-10-14-explorus-teztale.md:19–25; [pinned archiver](https://gitlab.com/tezos/tezos/-/tree/1727d7e192f2374edda7ad7adceef6f4ec51f71a/teztale), [pinned observer comparison](https://gitlab.com/nomadic-labs/teztale-dataviz/-/blob/d9c1eb82f6672e2c9f34ebb7da87b59261609e62/src/views/LevelDiff.tsx) | Provenance aligns; archived multi-observer history/timelines diverge from bounded session-only explicit comparison and deferred receipt timeline. GitLab fetch failed in this phase; pinned-source claims derive from supplied local review, not new fetch validation. |

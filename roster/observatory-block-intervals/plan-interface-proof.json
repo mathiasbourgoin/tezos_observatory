@@ -1,0 +1,10 @@
+{
+  "checks": 96,
+  "namespaces": {
+    "observatory-block-intervals": 20,
+    "observatory-foundations": 38,
+    "observatory-v3": 38
+  },
+  "all_normative_text_and_commands_exact": true,
+  "duplicate_ids": false
+}

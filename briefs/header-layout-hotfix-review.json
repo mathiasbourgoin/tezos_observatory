@@ -1,0 +1,111 @@
+{
+  "task": "header-layout-hotfix",
+  "date": "2026-10-14",
+  "status": "GO",
+  "mode": "fast",
+  "auto_fixes_applied": [],
+  "findings": [],
+  "cross_runtime_findings": [],
+  "summary": "Independent full seven-file scope reviewed: responsive header, approved self-contained SVG assets, explicit observed vote instance and scheduled/conditional opportunity labels. No blocking correctness/security findings.",
+  "no_go_reason": null,
+  "no_go_round": 0,
+  "round": 1,
+  "cycle": 1,
+  "rounds_audit": [
+    {
+      "round": 1,
+      "reviewed_sha": "6c2d7fdccc0bce30cb3f5bb4883dba20222000b7",
+      "fix_sha": null,
+      "fix_sha_reason": "dirty-tree",
+      "specialists_run": [
+        {
+          "name": "reviewer",
+          "selection_reason": "Independent urgent combined header/branding/wording review; executed own Node22 and browser gates"
+        }
+      ],
+      "trace_schema_version": "1.0",
+      "strike": false
+    }
+  ],
+  "cross_runtime": {},
+  "streak_override": null,
+  "escalation_needed": false,
+  "escalation_reason": null,
+  "normalized_by": "review-normalize.js/2.0.0",
+  "reviewed_file_sha256": {
+    "src/dashboardView.ts": "d1be0209cc45b6ae2bf8c31c3d99369192962f1fd72e51021543882b970ba37f",
+    "src/dashboard.css": "a8693d8d29ab43d6a28cd905012b411a1e09f79c400ea5bcb380a757c035e82c",
+    "src/main.ts": "6f98d05cfb6393ecd3e2bf27d9137851698b7531f16297a2cf2b51033b9f59f3",
+    "tests/e2e/header.spec.ts": "86cde1549e1f419eb84699c9dcda1ed41b93920265f697fb0b352d9b51219cab",
+    "tests/e2e/dashboard.spec.ts": "e3e2f1e7a3f907aa32ff6ba66ac63a657090de2da2562583854e02c4c436da9b",
+    "src/public/observatory-mark.svg": "9c7ab800f5c1a6408859c8208509bc8bd19a6891d6aacba03337e6f96e9d18ad",
+    "src/public/favicon.svg": "b28c4a86038388de0da1c3c6cefb7b937351476bc0bce6a830f2fc31b3c1d06b"
+  },
+  "verification": [
+    {
+      "runtime": "Node22.23.3",
+      "command": "npm run check",
+      "exit_code": 0
+    },
+    {
+      "runtime": "Node22.23.3",
+      "command": "npm run build",
+      "exit_code": 0
+    },
+    {
+      "runtime": "Node22.23.3",
+      "command": "npm test",
+      "exit_code": 0,
+      "tests_passed": 38
+    },
+    {
+      "runtime": "Node22.23.3",
+      "command": "npm run test:e2e",
+      "exit_code": 0,
+      "tests_passed": 30
+    },
+    {
+      "command": "SVG XML parse and self-contained/non-executable element and attribute assertions",
+      "exit_code": 0
+    },
+    {
+      "command": "review-bundle-verify.js",
+      "exit_code": 0,
+      "bundle": "1.8.0"
+    }
+  ],
+  "skipped": [
+    "scope gate: FAST mode",
+    "additional specialist agents: root scoped role boundary; direct relevant KB review performed",
+    "cross-runtime: root explicit urgent-lane waiver"
+  ],
+  "limitations": [
+    "Live RPC coverage not certified by mocks",
+    "Root approved branding provenance and actual-size artwork; independent reviewer verified served assets and40px wrapper screenshot",
+    "Optional240px whole-dashboard overflow remains outside supported header fix scope"
+  ],
+  "gate_report": {
+    "mode": "full",
+    "no_go_round": 0,
+    "max_rounds": 5,
+    "legacy_no_go_round": false,
+    "round": 1,
+    "legacy_round": false,
+    "current_round_strike": false,
+    "config": {
+      "max_rounds": 5,
+      "strikes": 2,
+      "static": false
+    },
+    "cause": null,
+    "warnings": [],
+    "violations": [],
+    "checks": [],
+    "trace": {
+      "obligated": true,
+      "lines_seen": 6,
+      "schema_version": "1.0",
+      "skipped": false
+    }
+  }
+}

@@ -5,6 +5,11 @@ interface StoredOperation {
   readonly seenAt: number;
 }
 
+export function operationIdentity(operation:MonitoredOperation):string {
+  const evidence=operation.evidence;
+  return JSON.stringify([evidence?.source.baseUrl??"unknown",evidence?.chainId??"unknown",evidence?.requestedHeadHash??"unknown",evidence?.observedHeadHash??"unknown",operation.hash]);
+}
+
 export class OperationStore {
   private readonly operations = new Map<string, StoredOperation>();
 
@@ -13,12 +18,14 @@ export class OperationStore {
     private readonly ttlMs = 120_000,
   ) {}
 
-  add(batch: readonly MonitoredOperation[], now = Date.now()): number {
+  add(batch: readonly MonitoredOperation[], now = performance.now()): number {
     this.expire(now);
     let added = 0;
     for (const operation of batch) {
-      if (!this.operations.has(operation.hash)) added += 1;
-      this.operations.set(operation.hash, { operation, seenAt: now });
+      const key = operationIdentity(operation);
+      if (this.operations.has(key)) continue;
+      added += 1;
+      this.operations.set(key, { operation, seenAt: now });
     }
     while (this.operations.size > this.maximum) {
       const oldest = this.operations.keys().next().value as string | undefined;
@@ -28,9 +35,17 @@ export class OperationStore {
     return added;
   }
 
-  values(now = Date.now()): readonly MonitoredOperation[] {
+  values(now = performance.now()): readonly MonitoredOperation[] {
     this.expire(now);
     return [...this.operations.values()].map((item) => item.operation);
+  }
+
+  getByIdentity(identity:string):MonitoredOperation|undefined {
+    return this.operations.get(identity)?.operation;
+  }
+
+  get(operation:MonitoredOperation):MonitoredOperation|undefined {
+    return this.operations.get(operationIdentity(operation))?.operation;
   }
 
   clear(): void {

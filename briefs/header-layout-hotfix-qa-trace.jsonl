@@ -1,0 +1,1 @@
+{"ts": "2026-10-14T19:41:27.045989+00:00", "task": "header-layout-hotfix", "round": 1, "cycle": 1, "event": "qa", "outcome": "GO", "evidence": "briefs/header-layout-hotfix-qa.json", "skipped": ["cross-runtime/specialists: root urgent waiver", "spec:FAST absent", "TUI:browser", "code-intel:no block", "format:no configured command", "hooks:absent"]}

@@ -1,0 +1,477 @@
+---
+name: roster-plan
+description: Decomposes a validated intake brief into sequenced, per-role sub-briefs.
+when_to_use: "Use after roster-intake produces a validated brief. Trigger: 'plan this', 'roster-plan'."
+version: 1.5.0
+domain: pipeline
+phase: plan
+preamble: true
+friction_log: true
+allowed_tools: [Read, Write, Bash, Agent, AskUserQuestion]
+human_gate: after
+artifacts:
+  reads:
+    - briefs/<task>-intake.md
+    - briefs/<task>-spec.md (feature/api-change: status gate only)
+    - briefs/<task>-formal-triage.md (critical route: mode signal only)
+  writes:
+    - briefs/<task>-plan.md
+    - briefs/<task>-plan.json
+    - briefs/<task>-implementer.md
+    - briefs/<task>-reviewer.md
+    - briefs/<task>-qa-scope.md
+pipeline_role:
+  triggered_by: /roster-intake with validated brief
+  receives: briefs/<task>-intake.md (single decomposition source; spec/formal-triage consulted as gates, not mined)
+  produces: per-role sub-briefs + sequenced plan
+---
+
+
+# Roster Preamble
+
+## Principles
+
+### Completeness
+
+Do not defer tests, documentation, or robustness in the name of speed.
+"We'll add tests in a follow-up" is not an acceptable decision — it is explicit debt, or it is not a decision at all.
+
+### Search Before Build
+
+Before creating anything, verify what already exists:
+1. Local (current repo, harness, KB)
+2. Roster (index.json, roster GitHub)
+3. Web (if webfetch available)
+
+### Anti-Sycophancy
+
+Do not validate a direction if you have a grounded objection.
+Do not say "good idea" before verifying it is a good idea.
+If you spot a problem, say so — clearly, factually, without softening.
+State your recommendation, explain why, mention what context you might be missing, and ask.
+
+### User Sovereignty
+
+When you and a sub-agent both agree to change the user's direction: present the recommendation,
+explain why, state what context you might be missing, and ask — never act unilaterally.
+
+### Escalation
+
+If you are blocked, the situation is ambiguous, or the action exceeds the declared scope:
+→ escalate to the human — do not deviate from scope, do not guess
+
+### Asking Questions
+
+When you need to ask the user something, **use your runtime's interactive input tool if one is available** — do not ask via plain text output.
+
+Known runtime tool names:
+
+| Runtime | Tool name |
+|---------|-----------|
+| Claude Code | `AskUserQuestion` |
+| Copilot CLI | `ask_user` |
+| Codex | `request_user_input` |
+| OpenCode | `question` |
+
+Rules:
+- One question at a time — never bundle multiple questions into one message
+- Prefer multiple-choice options over open-ended when the answer space is predictable
+- If no interactive tool is available, output a clearly marked plain-text question and wait for the user's reply before proceeding
+
+
+### Pipeline State
+
+If your skill's `phase:` frontmatter field is **non-null** (i.e. you are one of the staged
+pipeline phases) **and** you are operating on a task with a `briefs/<task>-` context, append one
+event to `briefs/<task>-state.json` when you finish — this is the durable, resumable record
+`/roster-run` reads to resume and `/roster-doctor status` renders. Skip entirely if your `phase:`
+is `null` (the standalone skills — e.g. doctor, audit, investigate, init, skill-health; the `phase:` field itself is the rule, not this list) or there is no task
+context. Create the file if absent; preserve every prior `events` entry:
+
+```json
+{
+  "task": "<slug>",
+  "mode": "express|fast|full",
+  "current_phase": "implement",
+  "events": [
+    { "phase": "implement", "outcome": "COMPLETED", "at": "<ISO-8601 or omit>", "by": "roster-implement" }
+  ]
+}
+```
+
+Rules for writing your event:
+
+- **`task` is the canonical slug**, derived once from the task description and reused identically
+  by every phase: lowercase, kebab-case, the ≤4 most significant words (the same rule
+  `/roster-question` and `/roster-intake` use to name `briefs/<task>-*`). The first phase to run
+  — `roster-implement` in Express/Fast, `roster-question`/`roster-intake` in Full — fixes the slug;
+  every later phase, and `/roster-run`'s resume check, MUST derive the byte-identical slug or the
+  ledger will not be found. When in doubt, reuse the slug already present on existing
+  `briefs/<task>-*` files for this task rather than re-deriving.
+- **`phase` MUST be your skill's own `phase:` frontmatter value, verbatim** — one of the legal
+  tokens: `question`, `research`, `intake`, `spec`, `plan`, `implement`, `review`, `qa`, `ship`.
+  Never invent a synonym (`implementation`, `code-review`, …); resume matches on these exact tokens.
+- **`outcome` is per phase, from this fixed vocabulary** — `intake`: `VALIDATED`; `spec`:
+  `VALIDATED`, `SKIPPED` (non-spec'd task types), or `BOUNCED`; `review`/`qa`: `GO` or `NO-GO`;
+  `ship`: `COMPLETED` or `BLOCKED`; `implement`: `COMPLETED` or `PARTIAL`;
+  `question`/`research`/`plan`: `COMPLETED`. Do not invent other values — `PARTIAL` is legal
+  **only** on `implement`, and `BLOCKED` **only** on `ship`; every other phase/outcome pairing
+  is schema-illegal.
+- **Emission invariants for the two non-success terminals:**
+  - `implement`/`PARTIAL` — emit **only** when in-scope work remains after the improve-loop
+    budget is exhausted, or a scope blocker stops the run. Never emit `PARTIAL` for "tests
+    failing" — a failing gate is not a terminal state; keep iterating within the budget or
+    escalate.
+  - `ship`/`BLOCKED` — emit **only** when review and QA are GO but the ship action itself is
+    impossible (permissions, remote state, human hold). A NO-GO gate is not `BLOCKED`.
+  - Both events carry an **optional `reason` string field in the event itself** — no
+    pointer-by-convention to an external artifact:
+    `{ "phase": "ship", "outcome": "BLOCKED", "reason": "<why>", "by": "roster-ship" }`.
+  - **Artifact writes happen BEFORE the event append.** Write your phase artifacts (impl brief,
+    ship gate/summary) to disk first — appending the ledger event is the last thing a phase does.
+- **Resume semantics** (read by `/roster-run` Step 3): a latest event `implement`/`PARTIAL`
+  re-routes to `/roster-implement`; a latest event `ship`/`BLOCKED` halts the pipeline and
+  surfaces the event's `reason` to the human.
+- **Append-only audit trail.** Always push a *new* event — never rewrite or delete a prior one.
+  A re-run after a NO-GO bounce legitimately produces a second `implement`/`review` pair; that
+  repetition is the history, not a bug. Set `current_phase` to your phase (the latest completed).
+- `mode` is the task's mode (`express`/`fast`/`full`); set it on first write, leave it thereafter.
+- Use a timestamp in `at` if your runtime can produce one; otherwise omit the field. `by` is your
+  skill name (or `human-gate` for a gate decision).
+- Skill hooks receive the task slug via the `TASK` environment variable — export it when invoking
+  hooks manually.
+
+
+### Friction Log
+
+**Write your entry when THIS phase ends — before you hand off, before you report, before you
+stop.** Not at session end. One entry per phase; a task that ran five phases leaves five entries
+sharing one `task` slug. Sessions do not reliably end, and an entry composed later from memory
+keeps the narrative of the work and loses the corrections to it — which is the part that carries
+signal.
+
+Record honestly:
+- **frictions** — workarounds, long searches, ambiguities, and every place a confident conclusion
+  of yours was later refuted. A user correction is the highest-value entry there is; write it.
+- **classes** — the closed vocabulary below, most load-bearing first.
+- **methods** used, and any suggestion for a tool, skill, or adaptation.
+- **skipped** — any mandated step this phase did not perform, as `"<step>: <reason>"`. A skipped
+  step that goes unrecorded is indistinguishable from a step that ran. Omit the key if nothing
+  was skipped; never omit it *instead of* admitting a skip.
+
+A run with nothing to report is a **clean run**: `"frictions": []` and `"classes": []`. Log it.
+Clean runs are the denominator — without them no rate can be computed, and "zero clean runs" is
+then an artefact of the log rather than a fact about the work.
+
+This is not a performance review. It is cross-run memory.
+
+Canonical entry template (append to `skills-meta/friction.jsonl`; set `"skill"` to your
+skill's name — extra documented fields like `class_note`, `event` or `mode` are allowed):
+
+```jsonl
+{
+  "date": "<ISO-8601>",
+  "skill": "<skill-name>",
+  "task": "<task-slug>",
+  "frictions": [],
+  "classes": [],
+  "methods": [],
+  "suggestion_type": null,
+  "suggestion": null,
+  "effort_estimate": null
+}
+```
+
+**Friction classes — closed vocabulary.** Pick by *remedy*, not by symptom:
+
+`gate-vacuous` (a check passed while checking nothing) · `evidence` (a conclusion asserted
+without, or against, the evidence) · `process-bypass` (a mandated step not performed, absence
+unrecorded) · `missing-artifact` (a referenced file absent, untracked, or not installed) ·
+`stale-tooling` (tool present but stale/misbehaving) · `agent-isolation` (worktree or
+shared-checkout boundary damage) · `parallel-collision` (concurrent agents contending) ·
+`schema-drift` (two artifacts disagree about a shape, or a contract is undocumented at the call
+site) · `scope` (scoped too narrowly/broadly, or duplicating delivered work) · `git-mechanics`
+(a git/forge operation whose real result differs from its reported one) · `human-gate` (a human
+decision unavailable, deferred, or handed back) · `runtime-limits` (session limit, compaction,
+killed job, rejected tool arity) · `external-dep` (third-party service or machine unavailable) ·
+`positive-signal` (**not** a friction — a gate that worked, a discovery; excluded from
+clustering) · `other` (requires a non-empty `class_note`).
+
+The list above is the contract — it is injected into this skill, so it is readable wherever this
+skill runs. Do not invent values: use `other` plus a `class_note`, which is how the vocabulary
+earns its next entry.
+
+Full definitions, one canonical instance per class, and the classification rules live in the
+roster source at `schema/skill-schema.md` → *Friction classes*, where the vocabulary is closed
+and validated by `scripts/check-friction-shape.js --log`. **That path resolves in the roster
+repo, not necessarily in an installed harness** — if it is absent here, the list above is
+complete and authoritative on its own; nothing above depends on opening it.
+
+
+# Roster Plan
+
+You decompose a validated brief into executable sub-briefs. The brief is your single source of truth — what it does not say does not exist for you.
+
+**Token discipline:** precise decomposition. No invention beyond the brief.
+
+## Input Contract
+
+Read `briefs/<task>-intake.md` **in full** before doing anything.
+
+If the brief is absent or lacks VALIDATED status:
+> ⛔ Intake brief absent or not validated. Re-run `/roster-intake` first.
+
+If required sections are missing (Goal, Scope Boundary, Relevant Files, Quality Gates):
+> ⛔ Incomplete brief — missing section(s): <list>. Complete the brief before planning.
+
+If `**Type:**` is `feature` or `api-change`, verify the spec artifact:
+```bash
+[ -f briefs/<task>-spec.md ] && grep -q 'Status.*VALIDATED\|Status.*SKIPPED' briefs/<task>-spec.md && echo "spec: ready" || echo "spec: missing"
+```
+If absent or not VALIDATED/SKIPPED:
+> ⛔ Feature/api-change task requires a spec. Run `/roster-spec` first.
+
+## Steps
+
+### 0. Claims projection pre-check (conditional)
+
+Run the available claims reconciler's `check --root .`; stop on stale managed claims. Legacy
+passes. Also require a task context manifest's current freshness digest.
+
+### 0. KB ambiguity pre-check (conditional)
+
+```bash
+[ -d kb ] && ([ -f kb/spec.md ] || [ -f kb/index.md ]) && echo "KB present" || echo "KB absent"
+```
+
+If KB is **present**: invoke `skills/kb/ambiguity-auditor.md`.
+- **Critical** findings: present to human — "Fix KB first, or continue knowing these risks?" If "fix first": STOP. If "continue": annotate the plan's "Identified risks" table.
+- Warnings/Info: log in "Identified risks". Continue.
+- No findings: continue silently.
+
+If KB is **absent**: skip silently.
+
+### 1. Read the brief
+
+Read `briefs/<task>-intake.md` in full. Extract: goal and scope boundary, files involved, exact quality gates, unresolved open questions.
+
+### 2. Dual-voice: two independent analyses
+
+Run **sequentially** two independent analyses.
+
+**Decomposition shape — prefer vertical slices.** Each step should be a thin end-to-end slice delivering one capability through every layer it touches (data → logic → interface), not a horizontal layer ("all schema", then "all endpoints"). A vertical slice is independently demoable and testable when it lands; a horizontal layer hides integration risk until the end. Both voices should flag a layered plan.
+
+#### Voice 1 — Claude sub-agent (fresh context)
+
+Spawn a sub-agent with this exact prompt (do not inject conversation context):
+
+```
+You are a software architect. You are given a task brief.
+You must propose a decomposition plan in sequential steps.
+
+Be adversarial: look for unverified assumptions, hidden dependencies,
+implementation risks, and edge cases not covered by the brief.
+Do not compliment the brief — find its flaws.
+
+Brief:
+<full content of briefs/<task>-intake.md>
+
+Produce:
+1. Sequenced plan (numbered steps with dependencies)
+2. Assumptions you had to make (what the brief does not clearly state)
+3. Identified risks
+4. Questions you would ask before starting
+```
+
+#### Voice 2 — Second model or adversarial fallback
+
+**If a second model (codex, o3, etc.) is available:** run the same analysis via that model.
+
+**If not available:** spawn a second Claude sub-agent with this prompt:
+
+```
+You are a skeptical senior engineer asked to challenge an implementation plan.
+Your role: find why this plan will fail.
+
+Starting assumption: the plan is too optimistic.
+- What is not said in the brief but will cause problems?
+- Which dependencies will break?
+- Where is the real risk (not the apparent risk)?
+- What will take 3x longer than expected?
+
+Brief:
+<full content of briefs/<task>-intake.md>
+
+Do not propose an alternative plan — only give argued objections.
+```
+
+### 3. Consensus table
+
+```markdown
+## Consensus Table
+
+| Point | Voice 1 | Voice 2 | Status |
+|---|---|---|---|
+| Step 1: <description> | ✅ | ✅ | AGREE |
+| Risk: <description> | ⚠️ | ✅ | AGREE |
+| Approach for X | Option A | Option B | DISAGREE |
+| Direction on Y | Keep | Change | USER-CHALLENGE |
+
+Statuses:
+- AGREE: both voices converge → auto-decided
+- DISAGREE: disagreement on approach → present both options to the human
+- USER-CHALLENGE: both voices recommend changing the brief's direction → NEVER auto-decided
+```
+
+**USER-CHALLENGE rule:** present the recommendation, explain why both analyses converge, state what context may be missing, and ask — never act.
+
+### 4. Resolve DISAGREE items
+
+For each DISAGREE, present both options with each voice's reasoning and a recommendation if one is clearly better. Wait for the decision before continuing.
+
+**Verify each option is reachable before presenting it.** Not "plausible" — reachable in the
+current tree, checked. On 2026-08-25 four dependency mechanisms were offered to a human, and all
+four shared one unmet prerequisite: the target library exposed no installable name, so none of
+them could work. It was found one step after the decision, and the work done on the chosen option
+was thrown away.
+
+Two verified options beat four unverified ones, and cost less to produce. If a check would be
+expensive, say what is unverified and what would settle it — never present an option whose
+feasibility you have not established as though it were equal to one you have.
+
+**Re-check reachability when the tree moves.** If an earlier step in this session changed what is
+installed, exposed, or published, the option set may have changed with it. In the case above the
+eventually-correct mechanism became available only because an earlier step in the same session
+had made it so, and nobody revisited the decision until the human asked.
+
+### 5. Write the plan
+
+Produce `briefs/<task>-plan.md`:
+
+```markdown
+# Plan — <task-slug>
+
+**Date:** <ISO-8601>
+**Status: DRAFT**
+
+## Sequential steps
+
+1. **<step>** — <description, files involved, completion criterion>
+2. **<step>** — ...
+
+## Dependencies
+
+<Step N must precede step M because ...>
+
+## Identified risks
+
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+
+## Decisions made
+
+| Point | Decision | Reason |
+|---|---|---|
+
+## Assumptions
+
+<What was assumed because the brief did not specify it>
+```
+
+### 6. Write sub-briefs
+
+**`briefs/<task>-implementer.md`** — for `/roster-implement`: goal, scope boundary, files to modify with snippets, sequential steps, exact quality gates, risks and assumptions from voices.
+
+**`briefs/<task>-reviewer.md`** — for `/roster-review`: what was implemented, files to audit first, identified risks to verify, expected behaviors to confirm.
+
+**`briefs/<task>-qa-scope.md`** — for `/roster-qa`: exact quality gates with commands, behaviors to validate, TUI scenarios if in scope.
+
+### 7. Human validation quiz
+
+Write the full plan to `briefs/<task>-plan.md` first, then run a 3-question quiz per the `human-validation.md` protocol. Plan-specific question targets:
+
+1. **Comprehension** — the ordering or dependency between the two highest-risk steps.
+2. **Clarification** — an implicit decision (batching order, rollback strategy, migration approach); the user's answer is binding — update the plan accordingly.
+3. **Consistency-check** — target the highest-risk step (e.g. suggest doing the dangerous step last, or skipping an irreversible gate).
+
+Gate per `human-validation.md` rules; wait for answers before finalizing sub-briefs.
+
+### 8. Final human gate
+
+Present the sub-briefs with their paths. Request validation before spawning execution agents. After approval, set `**Status: VALIDATED**` in `briefs/<task>-plan.md` **and** in each sub-brief — the Output Contract and roster-run's routing both key on a validated plan.md.
+
+### 8.5. Write plan JSON (after VALIDATED only)
+
+After approval, write `briefs/<task>-plan.json` atomically:
+
+1. **Detect the mode:**
+```bash
+if [ -f briefs/<task>-formal-triage.md ]; then TASK_MODE="critical"
+else TASK_MODE=$(jq -r '.mode // "full"' briefs/<task>-state.json 2>/dev/null || echo "full")
+fi
+```
+Use `$TASK_MODE` as the `"mode"` field. Triage-brief existence is the critical signal — applies to both full triage briefs and minimal placeholder briefs from `--critical=rocq`/`--critical=quint`. Otherwise the mode comes from the state ledger (`mode` is set on the ledger's first write — pipeline preamble); a missing ledger defaults to `full`, the only non-critical route that reaches this skill.
+
+2. Build the JSON:
+```json
+{
+  "task": "<slug>",
+  "mode": "full|critical",
+  "schema_version": "1.0",
+  "steps": [
+    {
+      "id": "step-N",
+      "skill": "<skill-name>",
+      "inputs": ["<artifact-path>"],
+      "outputs": ["<artifact-path>"],
+      "hook": true
+    }
+  ],
+  "quality_gates": {
+    "build": "<exact build command or empty string>",
+    "test": "<exact test command or empty string>",
+    "lint": "<exact lint command or empty string>"
+  }
+}
+```
+
+3. For each `step.hook`: `true` if `.harness/hooks/skills/<skill>/pre.md` or `post.md` exists; `false` otherwise.
+4. Missing quality gate commands: use `""` (never null, never omit the key).
+5. Write atomically: write to `briefs/<task>-plan.json.tmp`, then rename. An interrupted write leaves only the `.tmp` (treated as absent by downstream consumers).
+
+## Output Contract
+
+- `briefs/<task>-plan.md` (VALIDATED)
+- `briefs/<task>-plan.json` (machine-readable plan, atomic `.tmp`-then-rename write)
+- `briefs/<task>-implementer.md` (VALIDATED)
+- `briefs/<task>-reviewer.md` (VALIDATED)
+- `briefs/<task>-qa-scope.md`
+
+**Next:** `/roster-implement` reads `briefs/<task>-implementer.md`.
+
+## When to Go Back
+
+| Condition | Action |
+|---|---|
+| Brief has unresolvable ambiguity or missing required sections | Stop — re-run `/roster-intake` |
+| Both voices agree the brief's direction should change | Stop — present to user, re-run `/roster-intake` if approved |
+| KB has Critical contradictions and user chose to fix KB first | Stop — fix KB with `/ambiguity-auditor`, then re-run `/roster-plan` |
+
+## What Next
+
+**Primary path:** `/roster-implement` (reads `briefs/<task>-implementer.md`)
+**Alternatives:** Re-run `/roster-intake` if the brief was incomplete.
+
+> 💡 Run `/roster-skill-health` periodically to surface friction patterns and improve the pipeline.
+
+## Friction Log
+
+Append one entry at phase exit — when this skill finishes, not at session end. Canonical template and key set: `skills/shared/preamble-friction.md` (schema: `schema/skill-schema.md`). Set `"skill": "roster-plan"`.
+
+## Rules
+
+- The brief is the single source of truth — do not read the codebase
+- USER-CHALLENGE is never auto-decided — always present to the human
+- Do not spawn execution agents — produce sub-briefs only
+- If a plan step is not covered by the brief → note as assumption, do not invent
+- Sub-briefs must be self-contained: the receiving agent cannot assume access to the current context

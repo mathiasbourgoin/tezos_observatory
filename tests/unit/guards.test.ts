@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { asOperationBatch, asValidatedProposal } from "../../src/rpc/guards";
+import { asBlockHeader, asOperationBatch, asValidatedProposal } from "../../src/rpc/guards";
 
 it("flattens a validated block shell header and rejects malformed wrappers", () => {
   const header = {
@@ -14,6 +14,7 @@ it("flattens a validated block shell header and rejects malformed wrappers", () 
   ).toEqual({
     level: 10,
     hash: "B10",
+    chainId: "NetXdQprcVkpaWU",
     predecessor: "B9",
     timestamp: header.timestamp,
     fitness: header.fitness,
@@ -132,4 +133,57 @@ describe("consensus operation guards", () => {
       asOperationBatch([{ hash: "invalid", contents: malformed }]),
     ).toEqual([{ hash: "invalid", contents: [] }]);
   });
+});
+
+ it("rejects whole mixed malformed aggregate rather than counting valid members", () => {
+   expect(asOperationBatch([{hash:"mixed",contents:[{kind:"preattestations_aggregate",consensus_content:consensus,committee:[0,-1,10]}]}])).toEqual([{hash:"mixed",contents:[]}]);
+ });
+ it("rejects invalid applied integers and calendar timestamps while accepting offsets", () => {
+   const h={level:120,hash:"H",predecessor:"Parent",timestamp:"2026-10-14T12:00:00+02:00",fitness:["02","00000078","","ffffffff","00000000"]};
+   expect(asBlockHeader(h).timestamp).toBe(h.timestamp);
+   for(const timestamp of ["2026-02-30T12:00:00Z","2026-10-14T12:00:00","2026-13-01T00:00:00Z"])
+     expect(()=>asBlockHeader({...h,timestamp})).toThrow();
+   for(const level of [-1,0.5,Infinity,Number.MAX_SAFE_INTEGER+1])expect(()=>asBlockHeader({...h,level})).toThrow();
+ });
+
+it("preserves the RPC operation branch as a raw anchor without fabricating one",()=>{
+ const parsed=asOperationBatch([{hash:"anchored",branch:"BOriginalBranch",contents:[{kind:"preattestation",...consensus,slot:0}]}]);
+ expect((parsed[0] as unknown as {branch?:string})?.branch).toBe("BOriginalBranch");
+ expect((asOperationBatch([{hash:"unanchored",contents:[{kind:"preattestation",...consensus,slot:0}]}])[0] as unknown as {branch?:string})?.branch).toBeUndefined();
+});
+
+it("rejects missing malformed or negative-encoded Tenderbake applied rounds",()=>{
+ const h={level:120,hash:"H",predecessor:"Parent",timestamp:"2026-10-14T12:00:00Z",fitness:["02","00000078","","ffffffff","00000000"]};
+ for(const fitness of [[],["02","00000078","","ffffffff","notround"],["02","00000078","","ffffffff","ffffffff"],["02","00000078","","ffffffff","80000000"],["00","00000078","","ffffffff","00000000"]])expect(()=>asBlockHeader({...h,fitness})).toThrow();
+ expect(asBlockHeader(h).fitness[4]).toBe("00000000");
+});
+
+
+it("reports unusable consensus coverage separately from valid unrelated operations",()=>{
+ const parse=(contents:unknown[])=>{let unusable=false;const operations=asOperationBatch([{hash:"snapshot",contents}],()=>{unusable=true;});return {operations,unusable};};
+ expect(parse([{kind:"transaction",source:"D1",destination:"D2",amount:"1"}]).unusable).toBe(false);
+ expect(parse([{kind:"preattestation",level:120,round:0,slot:0}]).unusable).toBe(true);
+ expect(parse([{kind:"preattestations_aggregate",consensus_content:consensus,committee:[0,-1]}]).unusable).toBe(true);
+ expect(parse([null]).unusable).toBe(true);
+ expect(parse([{kind:"preattestation",...consensus,slot:0}]).unusable).toBe(false);
+ expect(parse([{kind:"preattestation",level:120,round:0,slot:0}]).operations[0]?.contents).toHaveLength(0);
+});
+
+
+it("does not certify unsupported kinds or empty payload identities as usable consensus coverage",()=>{
+ for(const contents of [[{kind:"future_unknown_operation"}],[{kind:"preattestation",level:120,round:0,slot:0,block_payload_hash:""}],[{kind:"attestations_aggregate",consensus_content:{...consensus,block_payload_hash:""},committee:[{slot:0}]}]]){
+  let unusable=false;asOperationBatch([{hash:"unsupported",contents}],()=>{unusable=true;});expect(unusable).toBe(true);
+ }
+});
+
+it("rejects all counted contents of a mixed operation with a missing or empty relevant payload",()=>{
+ for(const bad of [{kind:"attestation",level:123,round:0,slot:1},{kind:"attestation",level:123,round:0,slot:1,block_payload_hash:""}]){
+  let unusable=false;const result=asOperationBatch([{hash:"mixed",branch:"BOriginal",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"P"},bad]}],()=>{unusable=true;});
+  expect(unusable).toBe(true);expect(result[0]?.contents).toEqual([]);expect(result[0]?.hash).toBe("mixed");expect(result[0]?.branch).toBe("BOriginal");
+ }
+});
+
+it("marks a raw empty contents envelope unusable without poisoning valid filtered nonconsensus",()=>{
+ let unusable=false;const empty=asOperationBatch([{hash:"empty",contents:[]}],()=>{unusable=true;});expect(unusable).toBe(true);expect(empty[0]?.hash).toBe("empty");
+ unusable=false;const unrelated=asOperationBatch([{hash:"transaction",contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]}],()=>{unusable=true;});expect(unusable).toBe(false);expect(unrelated[0]?.contents).toEqual([]);
 });

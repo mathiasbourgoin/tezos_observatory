@@ -1,0 +1,120 @@
+{
+  "candidate": "0b9d3d8eee7fd0f5da00b9aae60a5c5503d84875",
+  "reviewer": "/root/v3_combined_full_review",
+  "scope": "timing-only eight-file delta and focused behavior",
+  "source_review": "APPROVE_BOUNDED_APPROACH_NO_NEW_SOURCE_FINDING",
+  "behavioral_verdict": "STRICT_AC13_UNRESOLVED_ACCEPTED_RISK_FOR_PRAGMATIC_DELIVERY",
+  "source_high_clearance": true,
+  "full_contract_go": false,
+  "gates": {
+    "clean_ci": 0,
+    "check": 0,
+    "units": {
+      "exit": 0,
+      "passed": 360
+    },
+    "build": 0
+  },
+  "initial_browser": {
+    "exit": 130,
+    "reason": "Reviewer intentionally interrupted two accidentally selected matrix cases after all ten dashboard scenarios had completed",
+    "completed_dashboard_passed": 8,
+    "completed_dashboard_failed": 2,
+    "matrix_interrupted": 2,
+    "failures": [
+      {
+        "engine": "chromium",
+        "scenario": "AC13 adjacent",
+        "elapsed_ms": 229.09999999403954,
+        "limit_ms": 200
+      },
+      {
+        "engine": "firefox",
+        "scenario": "AC02 UP/duplicate",
+        "observed_animation_samples": 0,
+        "failure": "positive sample predicate timed out"
+      }
+    ]
+  },
+  "focused_dashboard_rerun": {
+    "exit": 0,
+    "passed": 10,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0,
+    "errors": [],
+    "chromium_ms": [
+      152.40000000596046,
+      173.5,
+      110.30000001192093
+    ],
+    "firefox_ms": [
+      158,
+      162,
+      170
+    ]
+  },
+  "qualification": "Initial failures occurred before deliberate matrix interruption; subsequent GREEN does not erase or establish cause for earlier RED. Large initial frame gaps are observed but not established causal exoneration. Root owns pragmatic risk disposition.",
+  "bindings": {
+    "sourceCombined": "530086e91740cd434e8ede9ae3651c9cad1dd97d155b44c0cabcc45607d01f13",
+    "contractCombined": "d7cbf8eb896bab0f8a7339ce65085ed6c33ad5a72222b995e0ec004aee9e7414",
+    "productionCombined": "b706841a7a2c708ed190d895240c424463c20313a164e59e727c04adccd5559f"
+  },
+  "evidence": [
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/browser.json",
+      "sha256": "e3427e501774c14c42b3fb98f441924041d5b826e8a926de483318719512cbae"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/browser.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/build.log",
+      "sha256": "e930c8690365c727e1e6d208f5ed6dbb72cd96e5bd1e32a84d25bb1753a1d4a9"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/check.log",
+      "sha256": "edb0084172bd41fd84c2d83ca5d108aa78e5933be1a4eb8d5cac58300583a5fb"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/ci.log",
+      "sha256": "ed3ddc15fc7027c2fbf062d9ae77b40c358665682beb2b47d8e84ad5f2f9380f"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/dashboard-browser.json",
+      "sha256": "42f83a4938725c3778024d765d6e04694cbf4da794a2bc2d88c50dd32fb99c32"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/dashboard-browser.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/initial-failures-extracted.json",
+      "sha256": "84acb675b5a99d13b2c40e0d0ef3dd635b48d8e99316ccfa87548d8b2e73f397"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/own-timing-owner-probe.json",
+      "sha256": "1db2a1745cc9ec18f397af881604f4e124ebb50bb209e0223dd59855ffad5151"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/source-bindings.json",
+      "sha256": "8e682eab80458a1c9965d04e852579d730637484a3e299ad88924457e2b9290b"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-0b9/unit.log",
+      "sha256": "6f922db40f08a1722659c5a6a6a17f91b6b04fd87eab945e688fd975262ac3a3"
+    }
+  ],
+  "clearance_scope": "Source delta approved; root explicitly accepts remaining strict200ms reliability and under-load UP-sample limitation for pragmatic delivery only",
+  "root_disposition": {
+    "authority": "Root under maintainer explicit pragmatism and delegated intermediate authority",
+    "decision": "Accept retained229.1ms timing/UP-zero-sample risk for current delivery; no further timing iterations; no full-contract PASS or closed strictAC13 claim",
+    "remaining_gates": [
+      "core data/navigation integrated QA",
+      "essential practical visual/native checks",
+      "actual remote CI and publication decision"
+    ],
+    "canonical_waiver_artifact": "Root-owned exact waiver artifact pending"
+  }
+}

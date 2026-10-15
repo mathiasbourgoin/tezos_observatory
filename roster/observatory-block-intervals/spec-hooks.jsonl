@@ -1,0 +1,3 @@
+{"hook": "block-dangerous-commands", "TASK": "observatory-block-intervals", "exit": 0, "stdout": "", "stderr": "", "invocation": "actual extracted installed Command block via bash"}
+{"hook": "enforce-file-manifest", "TASK": "observatory-block-intervals", "exit": 0, "stdout": "", "stderr": "", "invocation": "actual extracted installed Command block via bash"}
+{"hook": "post-edit-lint", "TASK": "observatory-block-intervals", "exit": 0, "stdout": "", "stderr": "", "invocation": "actual extracted installed Command block via bash"}

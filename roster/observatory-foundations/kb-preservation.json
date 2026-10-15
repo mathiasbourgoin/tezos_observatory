@@ -1,0 +1,36 @@
+{
+  "baseline_revision": "371a20e",
+  "proof": {
+    "context/onboarding.md": {
+      "baseline_sha256": "a3688485876d621a225bcf09df56d457a557b358edcf80946e48c4acdabccdbf",
+      "preserved_body_sha256": "06ed082ac2f26d84caaa968374d37511585ffe5e72070323e5fd916f014c1ab3",
+      "approved_transform_matches": true
+    },
+    "context/v3-contract.md": {
+      "baseline_sha256": "9f5a06e4108e45eebebdac6e76ccbdaf7ff4255df929653103827a17a7ed92e5",
+      "preserved_body_sha256": "9f5a06e4108e45eebebdac6e76ccbdaf7ff4255df929653103827a17a7ed92e5",
+      "approved_transform_matches": true
+    },
+    "context/required-properties.md": {
+      "baseline_sha256": "bd39b542c5010bc5607082977fca39629bc905aff47d51b94d9b30cf0ad17e1f",
+      "preserved_body_sha256": "7f6fd2bb7903a9765b427074862f91ff6703cf0722435398451942013311ddba",
+      "approved_transform_matches": true
+    },
+    "architecture.md": {
+      "baseline_sha256": "48b05dc040530d9ef1f5fa2faebe963815e237eb721f92f336c3a92479eb0d4a",
+      "preserved_body_sha256": "48b05dc040530d9ef1f5fa2faebe963815e237eb721f92f336c3a92479eb0d4a",
+      "approved_transform_matches": true
+    },
+    "glossary.md": {
+      "baseline_sha256": "d58616ceb9e73213741104fec4042627e6463eb62d0b08a39574a172d0d7673e",
+      "preserved_body_sha256": "d58616ceb9e73213741104fec4042627e6463eb62d0b08a39574a172d0d7673e",
+      "approved_transform_matches": true
+    },
+    "risks.md": {
+      "baseline_sha256": "a62c368215537fecb81aced16c29443d83dc1f13c9518ec287ce6074c0e48edd",
+      "preserved_body_sha256": "a62c368215537fecb81aced16c29443d83dc1f13c9518ec287ce6074c0e48edd",
+      "approved_transform_matches": true
+    }
+  },
+  "broken_links": []
+}

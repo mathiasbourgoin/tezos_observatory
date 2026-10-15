@@ -1,0 +1,161 @@
+{
+  "task": "observation-label-hotfix",
+  "date": "2026-10-14",
+  "status": "GO",
+  "mode": "fast",
+  "auto_fixes_applied": [],
+  "findings": [],
+  "cross_runtime_findings": [],
+  "summary": "Independent narrow review found no blocking correctness/security defect; applied headline, payload attribution and unavailable gauges verified through production-page tests. Scope extended to explicit dev Node types and Vitest config typing; manifest/lock alignment and independent Node22 gates passed.",
+  "no_go_reason": null,
+  "no_go_round": 0,
+  "round": 1,
+  "cycle": 2,
+  "rounds_audit": [
+    {
+      "round": 1,
+      "reviewed_sha": "d9a58f2e072d640677782afb0427157183c99f80",
+      "fix_sha": null,
+      "fix_sha_reason": "dirty-tree",
+      "specialists_run": [
+        {
+          "name": "reviewer",
+          "selection_reason": "Independent requested CI scope extension after prior app GO; unchanged app hashes retained"
+        }
+      ],
+      "trace_schema_version": "1.0",
+      "strike": false
+    }
+  ],
+  "cross_runtime": {},
+  "streak_override": null,
+  "escalation_needed": false,
+  "escalation_reason": null,
+  "normalized_by": "review-normalize.js/2.0.0",
+  "skipped": [
+    "scope gate: FAST mode",
+    "additional spec-compliance/code-quality agents: independent reviewer checked relevant KB directly; root disallows added fanout",
+    "architect: narrow three-file change",
+    "cross-runtime: explicitly waived by delegated root for urgent narrow review"
+  ],
+  "reviewed_file_sha256": {
+    "src/main.ts": "df752641fe8995931f7ffe6ea2781e9c116359fa9cc86f0ddeb49f69a3695e9a",
+    "src/dashboardView.ts": "c0b6939dffbe836d565404cb127a89c64cf812d3a942bcccca90369cf34dfbb5",
+    "tests/e2e/dashboard.spec.ts": "08cd118a1a73833d7b3b9f203ab16d5e9b0f035eda9b476ac0cbf6b4131c5435",
+    "package.json": "4152fa0b2b90cfd4f09d973dee42c34e5d457057c67d6e8a22fd02e60840ffd1",
+    "package-lock.json": "82cbfe2f92668f5e6323bc0969b25eebc66d56f2d8308b993eca398d2d146fba",
+    "vite.config.ts": "fea8b8c8352542ad2ddb9f52d571917f91df666d395cb235d296fccc661aa9c8"
+  },
+  "verification": [
+    {
+      "command": "npm run check",
+      "exit_code": 0
+    },
+    {
+      "command": "npm run build",
+      "exit_code": 0
+    },
+    {
+      "command": "npm test",
+      "exit_code": 0,
+      "tests_passed": 38
+    },
+    {
+      "command": "npm run test:e2e -- tests/e2e/dashboard.spec.ts",
+      "exit_code": 0,
+      "tests_passed": 20
+    },
+    {
+      "command": "npm run test:e2e",
+      "exit_code": 0,
+      "tests_passed": 26
+    },
+    {
+      "runtime": "Node22.23.3",
+      "commands": [
+        "npm run check",
+        "npm run build",
+        "npm test",
+        "npm ls @types/node vitest vite --depth=0"
+      ],
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "unit_tests_passed": 38
+    }
+  ],
+  "gate_report": {
+    "mode": "full",
+    "no_go_round": 0,
+    "max_rounds": 5,
+    "legacy_no_go_round": false,
+    "round": 1,
+    "legacy_round": false,
+    "current_round_strike": false,
+    "config": {
+      "max_rounds": 5,
+      "strikes": 2,
+      "static": false
+    },
+    "cause": null,
+    "warnings": [],
+    "violations": [],
+    "checks": [],
+    "trace": {
+      "obligated": true,
+      "lines_seen": 2,
+      "schema_version": "1.0",
+      "skipped": false
+    }
+  },
+  "prior_cycle_review": {
+    "round": 1,
+    "cycle": 1,
+    "rounds_audit": [
+      {
+        "round": 1,
+        "reviewed_sha": "d9a58f2e072d640677782afb0427157183c99f80",
+        "fix_sha": null,
+        "fix_sha_reason": "dirty-tree",
+        "specialists_run": [
+          {
+            "name": "reviewer",
+            "selection_reason": "Independent urgent narrow correctness/security review plus direct relevant KB checks"
+          }
+        ],
+        "trace_schema_version": "1.0",
+        "strike": false
+      }
+    ],
+    "gate_report": {
+      "mode": "full",
+      "no_go_round": 0,
+      "max_rounds": 5,
+      "legacy_no_go_round": false,
+      "round": 1,
+      "legacy_round": false,
+      "current_round_strike": false,
+      "config": {
+        "max_rounds": 5,
+        "strikes": 2,
+        "static": false
+      },
+      "cause": null,
+      "warnings": [],
+      "violations": [],
+      "checks": [],
+      "trace": {
+        "obligated": true,
+        "lines_seen": 6,
+        "schema_version": "1.0",
+        "skipped": false
+      }
+    }
+  },
+  "review_tool_friction": [
+    "Initial extension normalization used round2/cycle1 and warned prior GO starts a fresh cycle; corrected to round1/cycle2 without deleting trace evidence."
+  ]
+}

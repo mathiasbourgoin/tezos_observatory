@@ -1,0 +1,9 @@
+# Browser evidence scope qualification
+
+Root correction after independent QA inspected the final configured suite: the140 passing Chromium/Firefox cases at corrected sourcea2be/root89f1/QA8eb15c4 are **134 actual production `/` cases plus6 legacy fixture-page cases**. They are not140 production cases. The independent QA report records that precise split.
+
+`tests/e2e/header.spec.ts` contains one actual `/` test per engine. `dashboard.spec.ts` contributes132 actual production cases across both engines. `missingDelegates.spec.ts` contributes two engine executions of one `/fixtures/missing.html` case; `nextOpportunities.spec.ts` contributes four engine executions of two `/fixtures/opportunities.html` cases. Root inspected these real navigation targets. All140 configured cases still pass; no test was removed or relabelled as production to obtain acceptance.
+
+Earlier review/correction prose used “full140 production scenarios” for this aggregate suite. That shorthand overstates the production subset and is corrected by this qualification. The full-suite execution receipts/count remain genuine; six fixture cases cannot substitute for actual production behavior. The38 final original semantic commands independently exercised30 browser-required criteria on the actual production `/` in BOTH engines, including implicit native-spelled3/16/17/19/23. Independent original-defect page repros also ran on `/`. The production-consumer requirement is therefore supported by its actual evidence, not by counting the legacy fixtures.
+
+This is an evidence-label correction, not a code, contract, test expectation, source revision or gate-result change. Final whole-review GO at89f1 retains its explicit scope; independent QA supplies a separate actual verdict. Astra must preserve meaningful actual production acceptance, and later visual/accessibility/motion acceptance remains unperformed.

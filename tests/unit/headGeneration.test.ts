@@ -105,3 +105,12 @@ describe("HeadGeneration", () => {
     expect(state.snapshot()?.operations).toHaveLength(0);
   });
 });
+
+it("withdraws derived authority when the same hash is observed at another endpoint",()=>{
+ const state=new HeadGeneration<string>();
+ const observed=(baseUrl:string)=>({...head(100),evidence:{source:{network:"mainnet" as const,name:baseUrl,baseUrl},receivedAt:1,receivedMonotonic:1}});
+ const a=state.transition(observed("A"));state.commitDerived(a,"A rights");
+ const b=state.transition(observed("B"));expect(b).toBe(a+1);expect(state.snapshot()?.derived).toBeNull();
+ expect(state.snapshot()?.head.evidence?.source.baseUrl).toBe("B");
+ expect(()=>state.commitDerived(a,"late A rights")).toThrow("obsolete head generation");
+});

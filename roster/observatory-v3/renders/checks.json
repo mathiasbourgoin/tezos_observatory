@@ -1,0 +1,191 @@
+[
+  {
+    "layout": "path",
+    "width": 390,
+    "theme": "light",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 11.99,
+      "muted": 6.24,
+      "accent": 6.72,
+      "line": 3.88,
+      "pre": 5.8,
+      "att": 7.37
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "path",
+    "width": 390,
+    "theme": "dark",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 12.66,
+      "muted": 8.03,
+      "accent": 8.38,
+      "line": 3.97,
+      "pre": 9.47,
+      "att": 9.23
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "path",
+    "width": 1440,
+    "theme": "light",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 11.99,
+      "muted": 6.24,
+      "accent": 6.72,
+      "line": 3.88,
+      "pre": 5.8,
+      "att": 7.37
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "path",
+    "width": 1440,
+    "theme": "dark",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 12.66,
+      "muted": 8.03,
+      "accent": 8.38,
+      "line": 3.97,
+      "pre": 9.47,
+      "att": 9.23
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "path",
+    "width": 3440,
+    "theme": "light",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 11.99,
+      "muted": 6.24,
+      "accent": 6.72,
+      "line": 3.88,
+      "pre": 5.8,
+      "att": 7.37
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "path",
+    "width": 3440,
+    "theme": "dark",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 12.66,
+      "muted": 8.03,
+      "accent": 8.38,
+      "line": 3.97,
+      "pre": 9.47,
+      "att": 9.23
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "inspector",
+    "width": 390,
+    "theme": "light",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 11.99,
+      "muted": 6.24,
+      "accent": 6.72,
+      "line": 3.88,
+      "pre": 5.8,
+      "att": 7.37
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "inspector",
+    "width": 390,
+    "theme": "dark",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 12.66,
+      "muted": 8.03,
+      "accent": 8.38,
+      "line": 3.97,
+      "pre": 9.47,
+      "att": 9.23
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "inspector",
+    "width": 1440,
+    "theme": "light",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 11.99,
+      "muted": 6.24,
+      "accent": 6.72,
+      "line": 3.88,
+      "pre": 5.8,
+      "att": 7.37
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "inspector",
+    "width": 1440,
+    "theme": "dark",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 12.66,
+      "muted": 8.03,
+      "accent": 8.38,
+      "line": 3.97,
+      "pre": 9.47,
+      "att": 9.23
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "inspector",
+    "width": 3440,
+    "theme": "light",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 11.99,
+      "muted": 6.24,
+      "accent": 6.72,
+      "line": 3.88,
+      "pre": 5.8,
+      "att": 7.37
+    },
+    "runtimeErrors": []
+  },
+  {
+    "layout": "inspector",
+    "width": 3440,
+    "theme": "dark",
+    "documentOverflow": false,
+    "tokenContrastOnPaper": {
+      "ink": 12.66,
+      "muted": 8.03,
+      "accent": 8.38,
+      "line": 3.97,
+      "pre": 9.47,
+      "att": 9.23
+    },
+    "runtimeErrors": []
+  },
+  {
+    "searchVisibleRows": 1
+  },
+  {
+    "textEquivalentOpen": true
+  },
+  {
+    "localPan": true
+  }
+]

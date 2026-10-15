@@ -1,0 +1,13 @@
+# PR86 consumer module-scope correction
+
+Candidate `38634df` on isolated branch `fix/pr86-consumer-scope`, checkout `/tmp/roster-pr86-scope`, extends the preserved Beta correction `0269b2796b127df03a38748e1e208473490dfabc`. Neither earlier checkout was changed. No publication or merge occurred.
+
+The independent reviewer demonstrated two admitted consumers whose unchanged `scripts/user.js` executed before installation and failed afterwards: ESM inherited from an ancestor package, and ESM detected by Node22 syntax. The installer checked only the target root's explicit `type: module`, then added a CommonJS scope over these unrelated scripts. The review qualified the defect against the existing ownership contract and confirmed that the harness installer already protects all unrelated JavaScript when adding an undeclared scope.
+
+The bundle installer now follows that existing policy without a new module resolver: adding its scope requires the existing JavaScript paths to belong to the bundle. The guard also applies with `--force`. Explicit compatible consumer scopes retain ordinary collision checks. Documentation describes the requirement; the existing manifest generator refreshed only the distributed documentation digest.
+
+New actual Node22 regressions first produced **two completed assertion failures** because installation wrongly succeeded; the explicit CommonJS positive passed. After correction, **six targeted consumer tests pass**, including both refusal variants with/without force, original ESM installation, explicit compatible scope and installed QA gate execution. An initial post-edit run failed because the documentation digest had not yet been regenerated; the existing manifest integrity guard caught that omission. The generator was run and the complete targeted tests rerun successfully, without bypassing integrity checks.
+
+Clean install, TypeScript build, full upstream suite **636/636 across42 runner summaries**, complete standalone installer suite **28/28**, and whitespace checks pass. Full and installer logs: `/tmp/roster-pr86-scope-full.log` and `/tmp/roster-pr86-scope-install.log`. No failures, skips or cancellations appear in their runner summaries; full final harness-sync passes. Existing optional postinstall and advisory schema warnings remain qualified. Test-created Python bytecode was removed before committing.
+
+This is implementation evidence only. The earlier independent correction verification covers0269b279, not this change. Exact new-candidate independent review, required specialist/convergence evidence and separate QA remain required. S9 Observatory work remains separate and retains priority.

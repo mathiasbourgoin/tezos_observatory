@@ -1,0 +1,9 @@
+# S9 root integration
+
+Independent S9 report7fdb0da approves only owner source `b964fed57cacbc3c33174f4a4e00755a9c6f94bf`, after its own clean258unit/136browser/full38 and additional regressions. Root integrated baseacef968→98fddf8, correction212bbe9→98026cf and finalb964fed→2b6f247 sequentially. Documentation410a6b→e3300d2 and fresh-review assignmentf4859c4→038df63 remain implementation evidence, not whole acceptance.
+
+Root independently ran Node22.23.3 typecheck,258unit tests/19files, build, originalAC12 (29groups) and originalAC34 with Chromium/Firefox (33groups), all exit0. Exact source/tests/checker/package/lock/config diff against approvedb964fed was empty. Generated S9 screenshots from root verification were restored to the approved committed blobs. Root did not substitute these focused checks for the independent full38 execution.
+
+Human glossaryba670dc adds reviewed opportunity/clock/calendar/phase-threshold definitions while retaining pending whole-foundation and Astra gates. All24 local links exist; modified vocabulary was checked for ambiguous timing/observed authority and consistent source attribution. No normative managed projection was edited. Native `.harness/bin/claims-reconcile.js audit/check --root .` reports323claims (170foundations+153V3), no namespace collision, fresh digest `ceb740eb6e894bacaa792db0bb79070c521775172cb2391a01c5f3bb1bed51fc`. An initial invocation at absent scripts/claims-reconcile.js failed MODULE_NOT_FOUND; the installed harness path above executed successfully. No optional semantic index exists.
+
+This integrates S9 and prepares S10 closure. A NEW independent whole-foundation review must reconcile94FR/38AC/38checks,11intakeitems and29clarifications plus actual numerical/interaction evidence. A separate NEW QA follows only whole review GO. No whole approval, parent completion, Astra implementation, push or deployment is claimed.

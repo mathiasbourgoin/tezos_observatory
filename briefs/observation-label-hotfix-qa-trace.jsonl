@@ -1,0 +1,1 @@
+{"ts": "2026-10-14T19:07:00.589467+00:00", "task": "observation-label-hotfix", "round": 1, "cycle": 1, "event": "qa", "outcome": "GO", "evidence": "briefs/observation-label-hotfix-qa.json", "skipped": ["cross-runtime rerun: explicit root delegated waiver", "spec: FAST absent", "TUI: browser", "code-intel: no block", "format: no configured command", "hooks: absent"]}

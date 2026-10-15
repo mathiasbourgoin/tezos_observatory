@@ -1,0 +1,50 @@
+[
+  {
+    "severity": "HIGH",
+    "confidence": 5,
+    "path": "src/dashboardView.ts",
+    "line": 5,
+    "category": "correctness",
+    "summary": "Duplicate: phase model omits its own immutable receipt and age",
+    "evidence": "KB glossary Receipt and Phase definitions; kb/context/required-properties.md properties1/8; specs/observatory-v3.md FR-005. At f75 VoteView still contains only count/expected/power/total/threshold; gauge99-121 accepts no provenance, so neither phase can expose its own receipt/age. Independently confirmed by source inspection; served-browser stagger reproduction belongs to spec specialist, not this auditor. Duplicate of spec-v3-fr005-missing-phase-receipt-age.",
+    "fix": "Carry accepted phase-specific observer/helper/context and original receipt facts into LIVE and retained/frozen view; retain truthful missing/coverage states.",
+    "fingerprint": "spec-v3-fr005-missing-phase-receipt-age",
+    "specialist": "code-quality"
+  },
+  {
+    "severity": "HIGH",
+    "confidence": 5,
+    "path": "scripts/v3-evidence-contract.mjs",
+    "line": 90,
+    "category": "correctness",
+    "summary": "Duplicate: declared production inventory need not cover actual emitted files",
+    "evidence": "kb/context/required-properties.md property10 and V3 FR-069/FR-074 require source-qualified deterministic evidence. loadV3Evidence checks hashes only for Object.entries(manifest.production); unlike its source inventory check it never compares with actual dist file set. Independently confirmed static gap; the omitted-import mutation experiment belongs to primary reviewer, not this auditor.",
+    "fix": "Require exact actual emitted dist file keys before validating production hashes, without reintroducing eager build-dependent discovery.",
+    "fingerprint": "scripts/v3-evidence-contract.mjs:90:correctness",
+    "specialist": "code-quality"
+  },
+  {
+    "severity": "MEDIUM",
+    "confidence": 5,
+    "path": "src/rpc/blockIntervals.ts",
+    "line": 53,
+    "category": "architecture",
+    "summary": "New collector exceeds the project 50-line function limit",
+    "evidence": ".harness/rules/code-quality.md Size Limits defines max function length50. collectBlockIntervals occupies lines53-131 inclusive79, spanning transport cancellation/body validation, endpoint acquisition, metadata and window assembly. kb/architecture.md keeps RPC acquisition distinct from presentation; extraction can remain within this native module.",
+    "fix": "Extract bounded per-read transport and/or endpoint/window assembly functions while retaining a single batch budget/controller owner and existing lifecycle tests. Do not replace with new infrastructure.",
+    "fingerprint": "src/rpc/blockIntervals.ts:53:architecture",
+    "specialist": "code-quality"
+  },
+  {
+    "severity": "MEDIUM",
+    "confidence": 5,
+    "path": "src/dashboardView.ts",
+    "line": 255,
+    "category": "architecture",
+    "summary": "Dashboard growth crosses the file-size limit and enlarges the monolithic factory",
+    "evidence": ".harness/rules/code-quality.md Size Limits sets max file500/function50. Actual wc gives509 lines versus351 at bf0f2d5; createDashboard spans255-509 inclusive255 lines. Existing factory was already large, but current change adds regions, chooser controls, camera, and provenance inside it. kb/architecture.md assigns production DOM here and permits reusable src/view elements. This is maintainability, not evidence of incorrect values.",
+    "fix": "Extract cohesive view/region factories under the established view boundary, retaining keyed DOM, reader state, callback-only acquisition and actual motion tests. Do not merely compress lines.",
+    "fingerprint": "src/dashboardView.ts:255:architecture",
+    "specialist": "code-quality"
+  }
+]

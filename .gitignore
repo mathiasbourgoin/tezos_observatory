@@ -2,3 +2,13 @@ node_modules/
 dist/
 test-results/
 playwright-report/
+skills-meta/
+kb/.index/
+briefs/*-xruntime.jsonl
+briefs/*-gate-report.json
+briefs/*-state.json
+briefs/*.json.draft
+briefs/ACTIVE_TASK
+briefs/*-manifest.txt
+# Historical local projection scratch; canonical managed views live in kb/.
+roster/observatory-foundations/claims-projection/
