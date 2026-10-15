@@ -560,7 +560,7 @@ export class NetworkData {
     const pending=delegates.filter(right=>this.forbidden(right.address)===undefined);
     let cursor=0;
     await Promise.all(Array.from({length:Math.min(3,pending.length)},async()=>{
-      while(cursor<pending.length&&!signal.aborted&&this.collecting&&generation===this.collectionGeneration){
+      while(cursor<pending.length&&!signal.aborted&&this.collecting&&generation===this.collectionGeneration&&this.eligibilityObserverKey===observerKey){
         const right=pending[cursor++];if(!right)break;
         try{
           const receipt=await this.targetRequest(`/chains/main/blocks/${head.hash}/context/delegates/${right.address}/is_forbidden`,context,signal);
