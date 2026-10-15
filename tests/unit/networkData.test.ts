@@ -89,6 +89,37 @@ it("cannot poison same-head rights/constants caches with cancelled-generation re
  const fresh=await data.derive(head(120),signal);expect(fresh.rights.get(120)?.[0]?.address).toBe("Fresh");expect(fresh.constants?.quorum).toBe(3);
 });
 
+it('loads distinct current and successor execution durations with exact original context and receipts across proven protocol metadata',async()=>{
+ const calls:string[]=[],selected={...head(120),fitness:['02','00000078','','ffffffff','00000002']};
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);calls.push(url);const anchor=url.split('/blocks/')[1]?.split('/')[0];if(url.endsWith('/header'))return Response.json({...head(Number(anchor?.slice(1))),...(anchor==='B120'?selected:{}),chain_id:'NetFixture'});if(url.endsWith('/protocols'))return Response.json({protocol:'PCurrent',next_protocol:anchor==='B120'?'PSuccessor':'PCurrent'});if(url.endsWith('/context/constants'))return Response.json({minimal_block_delay:anchor==='B120'?'10':'6',delay_increment_per_round:anchor==='B120'?'4':'3',consensus_threshold_size:4,consensus_committee_size:5});throw new Error(`Unexpected timing fixture endpoint ${url}`);});
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal,results=await Promise.allSettled([data.opportunityConstants(selected,120,signal),data.opportunityConstants(selected,121,signal)]);
+ expect(results.map(result=>result.status)).toEqual(['fulfilled','fulfilled']);
+ if(results[0]!.status!=='fulfilled'||results[1]!.status!=='fulfilled')return;
+ const [current,next]=[results[0]!.value,results[1]!.value];expect([current.minimum,current.increment,next.minimum,next.increment]).toEqual([6,3,10,4]);
+ expect([current.context?.protocolHash,next.context?.protocolHash]).toEqual(['PCurrent','PSuccessor']);expect([current.evidence?.requestedHeadHash,next.evidence?.requestedHeadHash]).toEqual(['B119','B120']);expect([current.evidence?.targetLevel,next.evidence?.targetLevel]).toEqual([120,121]);expect([current.evidence?.contextHeadHash,next.evidence?.contextHeadHash]).toEqual(['B120','B120']);expect([current.evidence?.source.baseUrl,next.evidence?.source.baseUrl]).toEqual([data.source.baseUrl,data.source.baseUrl]);
+ expect(calls.filter(url=>url.endsWith('/context/constants')).map(url=>url.split('/blocks/')[1]?.split('/')[0]).sort()).toEqual(['B119','B120']);
+});
+
+it('requests selected observed N/R+1 and N+1/R0 baking rights independently with original attribution',async()=>{
+ const calls:string[]=[];vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);calls.push(url);const proof=contextResponse(url);if(proof)return proof;const query=new URL(url).searchParams;if(url.includes('baking_rights'))return Response.json([{level:Number(query.get('level')),round:Number(query.get('max_round')),delegate:query.get('level')==='120'?'SameLevelBaker':'NextLevelBaker'}]);throw new Error(`Unexpected baking fixture endpoint ${url}`);});
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal,selected=head(120),results=await Promise.all([data.bakers(selected,120,3,signal),data.bakers(selected,121,0,signal)]);
+ expect(results.map(rights=>rights.map(right=>[right.level,right.round,right.delegate]))).toEqual([[[120,3,'SameLevelBaker']],[[121,0,'NextLevelBaker']]]);expect(results.map(rights=>rights[0]?.evidence?.requestedHeadHash)).toEqual(['B119','B120']);expect(results.every(rights=>rights[0]?.evidence?.source.baseUrl===data.source.baseUrl)).toBe(true);
+ expect(calls.filter(url=>url.includes('baking_rights')).map(url=>[new URL(url).searchParams.get('level'),new URL(url).searchParams.get('max_round')]).sort()).toEqual([['120','3'],['121','0']]);await data.bakers(selected,120,3,signal);expect(calls.filter(url=>url.includes('baking_rights'))).toHaveLength(2);
+});
+
+it('does not expose cached timing to a cancelled caller or infer execution constants two levels ahead',async()=>{
+ const calls:string[]=[];vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);calls.push(url);return contextResponse(url)??Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});});
+ const data=new NetworkData('mainnet'),controller=new AbortController();await data.opportunityConstants(head(120),121,controller.signal);controller.abort();
+ const cancelled=await Promise.allSettled([data.opportunityConstants(head(120),121,controller.signal)]);expect(cancelled[0]?.status).toBe('rejected');
+ const before=calls.length;await expect(data.opportunityConstants(head(120),122,new AbortController().signal)).rejects.toThrow('execution');expect(calls).toHaveLength(before);
+});
+
+it.each(['missing-rights','missing-timing'] as const)('keeps %s independent from the other branch evidence request',async missing=>{
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input),proof=contextResponse(url);if(proof)return proof;if(url.includes('baking_rights'))return Response.json(missing==='missing-rights'?[]:[{level:121,round:0,delegate:'StillKnownBaker'}]);if(url.endsWith('/context/constants'))return missing==='missing-timing'?new Response('Timing unavailable',{status:503}):Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});throw new Error(`Unexpected independent fixture endpoint ${url}`);});
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal,results=await Promise.allSettled([data.bakers(head(120),121,0,signal),data.opportunityConstants(head(120),121,signal)]);
+ expect(results[0]?.status).toBe('fulfilled');if(results[0]?.status==='fulfilled')expect(results[0].value.map(right=>right.delegate)).toEqual(missing==='missing-rights'?[]:['StillKnownBaker']);expect(results[1]?.status).toBe(missing==='missing-rights'?'fulfilled':'rejected');
+});
+
 it("rejects cancelled baking rights before they can enter the same-context cache",async()=>{
  let finish:((response:Response)=>void)|undefined;vi.stubGlobal("fetch",(input:string|URL|Request)=>contextResponse(String(input))??new Promise<Response>(resolve=>{finish=resolve;}));
  const data=new NetworkData("mainnet"),signal=new AbortController().signal;

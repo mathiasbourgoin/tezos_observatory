@@ -3,7 +3,7 @@ import {
   asOperationBatch,
   asValidatedProposal,
 } from "../rpc/guards";
-import { proposalRound } from "../consensus/roundSchedule";
+import { proposalRound,type OpportunityFact,type OpportunityCaptureToken } from "../consensus/roundSchedule";
 import type {
   BlockHeader,
   CandidateObservation,
@@ -423,6 +423,11 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   }
   reconcileObservation(identity:string):boolean {
     const record=this.observations.target(identity);return record?this.reconcileTarget(record,true):false;
+  }
+  opportunityToken(identity:string):OpportunityCaptureToken|undefined {return this.running?this.observations.opportunityToken(identity):undefined;}
+  captureOpportunities(identity:string,token:OpportunityCaptureToken,facts:readonly [OpportunityFact,OpportunityFact]):boolean {
+    if(!this.running)return false;
+    const captured=this.observations.captureOpportunities(identity,token,facts);if(captured)this.emit();return captured;
   }
   pinObservation(identity:string):boolean {const pinned=this.observations.pin(identity);if(pinned)this.emit();return pinned;}
   followLive():void {this.observations.followLive();this.emit();}

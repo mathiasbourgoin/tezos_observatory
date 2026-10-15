@@ -1,5 +1,6 @@
 import "./dashboard.css";
 import {SourceComparison,type ComparisonSelection} from "./rpc/sourceComparison";
+import {captureOpportunityFacts,observedHeaderMatches} from './consensus/opportunityFacts';
 import {groupsFor, committeeAuthority, signerPower, observationContextCompatible} from "./consensus/phaseEvidence";
 import {headFactsKey} from "./monitor/headGeneration";
 import {
@@ -22,7 +23,7 @@ import type {
   NetworkName,
   BlockHeader,
 } from "./rpc/models";
-import { proposalRound, roundSchedule } from "./consensus/roundSchedule";
+import { proposalRound, roundSchedule, conditionalRoundBoundary,protocolRoundStart,type OpportunityFact } from "./consensus/roundSchedule";
 declare const __APP_REVISION__: string;
 
 const root = document.getElementById("app");
@@ -66,9 +67,8 @@ interface Runtime {
   comparison:SourceComparison;
   monitor: NetworkMonitor<Derived>;
   view: NetworkMonitorView<Derived> | null;
-  opportunities: NonNullable<NetworkViewModel["nextBakers"]>;
+  opportunityFacts?:readonly [OpportunityFact,OpportunityFact];
   opportunityKey: string;
-  opportunityAt: number;
   opportunityController: AbortController;
   eligibilityHead: string;
   requestFrame: number | null;
@@ -84,7 +84,7 @@ function syncCollection(runtime:Runtime):void {
     if(runtime.collectionActive)stopCollection(runtime);
   } else if(!runtime.collectionActive) {
     runtime.collectionActive=true;runtime.comparison.resume();runtime.data.resume();
-    runtime.opportunityController=new AbortController();runtime.opportunityKey="";runtime.opportunityAt=0;runtime.eligibilityHead="";
+    runtime.opportunityController=new AbortController();runtime.opportunityKey="";runtime.eligibilityHead="";
     runtime.monitor.start();void runtime.data.loadAliases().then(()=>scheduleRender(runtime));
   }
   scheduleRender(runtime);
@@ -107,6 +107,8 @@ function comparisonSelection(runtime:Runtime):ComparisonSelection|undefined {
 function fenceComparisonSelection(runtime:Runtime):void {
  const selection=comparisonSelection(runtime);
  runtime.comparison.setSelection(selection?.key??JSON.stringify(['unavailable-selection',runtime.selectedIdentity,runtime.view?.inspection.mode]));
+ const key=opportunitySelection(runtime)?.key??'unavailable';
+ if(runtime.opportunityKey&&runtime.opportunityKey!==key){runtime.opportunityController.abort();runtime.opportunityKey='';delete runtime.opportunityFacts;}
 }
 function comparisonModel(runtime:Runtime):NonNullable<NetworkViewModel['comparison']>{
  const selection=comparisonSelection(runtime);fenceComparisonSelection(runtime);
@@ -129,10 +131,12 @@ function renderPinned(runtime:Runtime):boolean {
  const live=view.observationTargets.find(value=>value.identity===pin.selectedIdentity),liveState=!live?"outside LIVE-active index":!collectionAllowed()||live.contextInvalid||live.coverageStale?"stale/unavailable":"coherent under last proven observer context";
  const delegate=(right:Readonly<DelegateRight>):DelegateView=>({address:right.address,power:right.power,...(runtime.data.alias(right.address)?{alias:`${runtime.data.alias(right.address)} · TzKT`,searchAlias:runtime.data.alias(right.address)!}:{}),eligibility:"unavailable",eligibilityNote:"Historical eligibility was not captured; current helper state is not substituted"});
  const model:NetworkViewModel={status:view.headStream.error?"degraded":"unknown",...(capturedCommittee.usable?{committeeTotal:capturedCommittee.total}:{}),session:sessionModel(runtime),level:record.target.level,consensusLevel:record.target.level,round:record.target.round,activityRound:record.target.round,roundSource:"observed",...(pin.selectedIdentity?{selectedIdentity:pin.selectedIdentity}:{}),...(record.target.payload?{payload:record.target.payload}:{}),...(applied?{appliedLevel:applied.level,...(proposalRound(applied.fitness,applied.level)===undefined?{}:{appliedRound:proposalRound(applied.fitness,applied.level)!}),hash:applied.hash,blockTimestamp:Date.parse(applied.timestamp),...(applied.evidence?{observedAt:applied.evidence.receivedAt,observedMonotonic:applied.evidence.receivedMonotonic}:{}),snapshotMonotonic:snapshot.evidence.receivedMonotonic}:{}),candidates:snapshot.candidates.map(value=>({identity:value.identity,hash:value.target.candidate!.header.hash,level:value.target.level,round:value.target.round,...(value.target.payload?{payload:value.target.payload}:{})})),...(candidate?{observedProposal:{level:candidate.header.level,round:record.target.round,...(candidate.header.payload_hash?{payload:candidate.header.payload_hash}:{}),at:candidate.evidence.receivedAt}}:{}),candidateEvidence:`${candidate?`Observed block hash ${candidate.header.hash}`:"Candidate hash unavailable"} · Producer unknown · Shared payload evidence; signatures are not candidate-specific · Source ${original.source.baseUrl} · requested head ${original.requestedHeadHash??"unknown"} · observed head ${original.observedHeadHash??"unknown"} · observed head parent ${original.predecessor??"unknown"} · original chain ${original.chainId??"unknown"} · protocol-level counter ${original.protocolLevel??"unknown"} · candidate parent ${candidate?.header.predecessor??"unknown"} · first received ${new Date(snapshot.evidence.receivedAt).toISOString()} · selected fact received ${new Date(original.receivedAt).toISOString()}${snapshot.partial?" · Historical inspection facts partially retained":""}${snapshot.unknownSlots.length?` · Unknown-rights signer slots: ${snapshot.unknownSlots.join(", ")}`:""}`,contextEvidence:context?`Captured source/context · ${context.observer.source.baseUrl} · chain ${context.observer.chainId} · context head ${context.observer.header.hash} · parent ${context.observer.header.predecessor} · anchor ${context.anchor.header.hash} · target ${context.level} · execution protocol ${context.protocolHash} · rights requested anchor ${record.admission?.rights[0]?.evidence?.requestedHeadHash??"unknown"} · rights received ${record.admission?.rights[0]?.evidence?new Date(record.admission.rights[0].evidence.receivedAt).toISOString():"unknown"}`:"Historical context unavailable",recentConsensus:capturedRecent(runtime),connection:collectionAllowed()?"Collection continues independently":"Paused",source:record.target.source.name,note:`${pin.frozen?"Pinned frozen snapshot outside retained history":"Pinned retained session instance"} · Current selected identity ${liveState} · As of ${new Date(record.phases?.pre?.maximumEvidence.receivedAt??snapshot.evidence.receivedAt).toISOString()} · ${complete?"Captured source-snapshot coverage; no global completeness claim":"Historical coverage partial/unavailable"}. ${record.coverage?`Source snapshot received ${new Date(record.coverage.evidence.receivedAt).toISOString()} · source ${record.coverage.evidence.source.baseUrl} · ${record.coverage.reasons.join("; ")||"complete validated category as received"}. `:""}Historical opportunity facts unavailable until captured; current timing and rights are not substituted.`,events:capturedEvents(runtime),sources:[]};
- for(const phase of ["pre","att"] as const){const fact=record.phases?.[phase],committee=snapshot.phaseCommittees[phase],addresses=phase==="pre"?snapshot.currentPre:snapshot.currentAtt;if(!fact||!committee)continue;const total=signerPower(new Set(committee.map(right=>right.address)),committee);if(total===undefined||total<=0||(fact.power===0&&!complete))continue;const value={count:addresses.length,expected:committee.length,power:fact.power,total};if(phase==="pre")model.preattestations=value;else model.attestations=value;model.quorum=fact.threshold;model.committeePower=total;}
+ for(const phase of ["pre","att"] as const){const fact=record.phases?.[phase],committee=snapshot.phaseCommittees[phase],addresses=phase==="pre"?snapshot.currentPre:snapshot.currentAtt;if(!fact||!committee)continue;const total=signerPower(new Set(committee.map(right=>right.address)),committee);if(total===undefined||total<=0||(fact.power===0&&!complete))continue;const value={count:addresses.length,expected:committee.length,power:fact.power,total,threshold:fact.threshold};if(phase==="pre")model.preattestations=value;else model.attestations=value;model.quorum=fact.threshold;model.committeePower=total;}
  if(complete){model.missingPre=snapshot.committee.filter(right=>!snapshot.currentPre.includes(right.address)).map(delegate);model.missingAtt=snapshot.committee.filter(right=>!snapshot.currentAtt.includes(right.address)).map(delegate);}
  model.committee=snapshot.committee.map(right=>({...delegate(right),preReceipt:snapshot.currentPre.includes(right.address)?"Received":complete?"Absent in selected source snapshot":"Partial / unavailable",attReceipt:snapshot.currentAtt.includes(right.address)?"Received":complete?"Absent in selected source snapshot":"Partial / unavailable",contextNote:context?`Source ${context.observer.source.baseUrl} (observer) · rights responder ${right.evidence?.source.baseUrl??"unknown"} · chain ${context.observer.chainId} · head ${context.observer.header.hash} · target ${context.level} · protocol ${context.protocolHash}`:"Historical context unavailable"}));
  model.unknownConsensus=snapshot.unknownSlots.map(slot=>`slot ${slot} · source ${record.target.source.baseUrl} · level ${record.target.level} · round ${record.target.round} · payload ${record.target.payload??"unknown"} · unknown power`);
+ const opportunityRecord=snapshot.candidates.find(value=>value.identity===pin.selectedIdentity)??record;
+ if(opportunityRecord.opportunities){model.opportunityFacts=opportunityRecord.opportunities;model.opportunitiesHistorical=true;if(model.note)model.note=model.note.replace("Historical opportunity facts unavailable until captured; current timing and rights are not substituted.","Captured historical opportunities; current timing and rights are not substituted.");}
  model.comparison=comparisonModel(runtime);dashboard.update(runtime.network,model);return true;
 }
 
@@ -157,7 +161,7 @@ function render(runtime: Runtime): void {
   const appliedHead=snapshot.head,appliedRound=proposalRound(snapshot.head.fitness,snapshot.head.level);
   const retainedTargets=[...view.observationTargets,...view.unresolvedTargets];
   const sourceLocalTargets=retainedTargets.filter(target=>target.target.source.baseUrl!==appliedHead.evidence?.source.baseUrl || (target.admission!==undefined && target.admission.head.hash!==appliedHead.hash) || target.target.level>appliedHead.level+1).sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
-  const selectedIdentity=runtime.followLiveSelection?view.inspection.selectedIdentity:runtime.selectedIdentity;
+  const selectedIdentity=runtime.selectedIdentity??view.inspection.selectedIdentity;
   const sourceTarget=retainedTargets.find(target=>target.identity===selectedIdentity)??(runtime.followLiveSelection?undefined:sourceLocalTargets.find(target=>target.admission&&!target.contextInvalid)??sourceLocalTargets[0]);
   const admitted=sourceTarget && !sourceTarget.contextInvalid?sourceTarget.admission:undefined;
   const head=admitted?.head??snapshot.head,derived=sourceTarget?admitted?.derived??null:snapshot.derived,operations=sourceTarget?view.rawOperations:snapshot.operations;
@@ -308,8 +312,9 @@ function render(runtime: Runtime): void {
   };
   const degraded = view.headStream.error !== null;
   const paused = !collectionAllowed();
+  const predictionElapsed=!paused&&runtime.opportunityFacts?.some(fact=>fact.timing.state==='known'&&fact.timing.basis==='observed-selected'&&headFactsKey(fact.timing.reference)===headFactsKey(appliedHead)&&fact.timing.parameters.context.observer.header.hash===appliedHead.hash&&Math.max(0,performance.now()-fact.capturedMonotonic)>=fact.timing.remainingAtCapture);
   const model: NetworkViewModel = {
-    status: degraded ? "degraded" : view.progression?.to.header.hash===appliedHead.hash && view.progression.to.source.baseUrl===appliedHead.evidence?.source.baseUrl && ["next-level","same-level-round","skipped-levels"].includes(view.progression.kind)?"healthy":"unknown",
+    status: degraded ? "degraded" : predictionElapsed?"stalled":view.progression?.to.header.hash===appliedHead.hash && view.progression.to.source.baseUrl===appliedHead.evidence?.source.baseUrl && ["next-level","same-level-round","skipped-levels"].includes(view.progression.kind)?"healthy":"unknown",
     candidates: selectable,
     session:sessionModel(runtime),
     ...(chosenIdentity ? {selectedIdentity:chosenIdentity} : {}),
@@ -336,7 +341,7 @@ function render(runtime: Runtime): void {
     ...(proposal && observedProposalRound!==undefined?{observedProposal:{level:proposal.level,round:observedProposalRound,...(proposal.payload_hash?{payload:proposal.payload_hash}:{})}}:{}),
     ...(selected
       ? { payload: selected.payload }
-      : observedInstance && proposal?.payload_hash && proposal.level===consensusLevel && proposalRound(proposal.fitness)===currentRound
+      : observedInstance && proposal?.payload_hash && proposal.level===consensusLevel && proposalRound(proposal.fitness,proposal.level)===currentRound
         ? { payload: proposal.payload_hash }
         : consensusLevel === head.level &&
           currentRound === headRound &&
@@ -356,9 +361,7 @@ function render(runtime: Runtime): void {
     note: paused
       ? `Monitoring paused. Values below are retained observations.${coverage?` Retained source snapshot stale · source ${coverage.evidence.source.baseUrl} · original received ${new Date(coverage.evidence.receivedAt).toISOString()}.`:""}`
       : `${hasObservation||hasCoverage ? `Observed votes · level ${consensusLevel.toLocaleString("en-US")} · round ${currentRound ?? "unavailable"}` : `Matching votes unavailable${schedule ? ` · scheduled level ${consensusLevel.toLocaleString("en-US")} · estimated round ${schedule.round}` : ""}`}${currentGroups.length > 1 ? ` · ${currentGroups.length} competing payloads; selected payload shown` : ""}${groups.some((group) => group.round !== currentRound) ? " · older/future-round votes excluded" : ""}. ${hasCoverage?`Source-snapshot measured zero for phases without received votes · source ${coverage.evidence.source.baseUrl} · snapshot received ${new Date(coverage.evidence.receivedAt).toISOString()} · no global completeness claim. `:hasObservation?`Source ${selectedEvidence?.source.baseUrl??"unknown"} · partial positive observations; absent phase evidence is unproven. `:""}${coverage&&sourceTarget?.coverageStale?`Retained source snapshot stale · original received ${new Date(coverage.evidence.receivedAt).toISOString()}. `:""}`,
-    nextBakers: runtime.opportunities.filter(baker=>baker.label.startsWith("Next round") ?
-      baker.level===consensusLevel && baker.round===(schedule?.round??currentRound??-2)+1 :
-      baker.level===consensusLevel+1 && baker.round===0),
+    ...(runtime.opportunityFacts?{opportunityFacts:runtime.opportunityFacts}:{}),
     sources: [
       {
         name: "Heads",
@@ -426,17 +429,12 @@ function render(runtime: Runtime): void {
       .filter((r) => !att.has(r.address))
       .map(delegateView);
   }
-  if (constants && !paused && !degraded) {
-    if (schedule && currentRound !== undefined) {
-      model.timing = {
-        ...schedule,
-        level: consensusLevel,
-        round: schedule.round,
-        nextRound: schedule.round + 1,
-      };
-      void loadOpportunities(runtime, head, consensusLevel, schedule.round + 1);
-    }
+  const clockParameters=snapshot.derived?.constantsByLevel.get(appliedHead.level+1),clockContext=clockParameters?.context;
+  if(!paused&&!degraded&&appliedRound!==undefined&&clockParameters&&clockContext&&runtime.monitor.contextAuthorized(clockContext)&&clockContext.protocolHash===clockContext.observer.protocolHash&&clockContext.observer.source.baseUrl===appliedHead.evidence?.source.baseUrl&&observedHeaderMatches(clockContext.observer.header,appliedHead)){
+    const boundary=conditionalRoundBoundary({referenceTimestamp:Date.parse(appliedHead.timestamp),referenceRound:appliedRound,branch:'next-level',minimum:clockParameters.minimum,increment:clockParameters.increment,roundBasis:'proven'});
+    if(boundary!==undefined){const clock=roundSchedule(boundary,clockParameters.minimum,clockParameters.increment,now);model.timing={...clock,level:appliedHead.level+1,nextRound:clock.round+1};}
   }
+  if(!paused)void loadOpportunities(runtime);
   model.recentConsensus=capturedRecent(runtime);
   model.comparison=comparisonModel(runtime);
   dashboard.update(runtime.network, model);
@@ -456,48 +454,51 @@ function scheduleRender(runtime: Runtime): void {
   });
 }
 
-async function loadOpportunities(
-  runtime: Runtime,
-  head: BlockHeader,
-  level: number,
-  round: number,
-): Promise<void> {
-  const key = `${head.hash}:${level}:${round}`;
-  if (
-    key === runtime.opportunityKey
-  )
-    return;
-  runtime.opportunityKey = key;
-  runtime.opportunityAt = Date.now();
-  runtime.opportunityController.abort();
-  runtime.opportunityController = new AbortController();
-  const signal = runtime.opportunityController.signal;
-  // A new head must never retain an old level's proposer names.
-  runtime.opportunities = [];
-  const result = await Promise.allSettled([
-    runtime.data.bakers(head, level, round, signal),
-    runtime.data.bakers(head, level + 1, 0, signal),
-  ]);
-  if (signal.aborted || !collectionAllowed() || !runtime.collectionActive || runtime.view?.snapshot?.head.hash !== head.hash) return;
-  const opportunities: NonNullable<NetworkViewModel["nextBakers"]> = [];
-  result.forEach((item, index) => {
-    if (item.status === "fulfilled")
-      for (const right of item.value) {
-        const alias = runtime.data.alias(right.delegate);
-        opportunities.push({
-          label:
-            index === 0
-              ? "Next round · same level"
-              : "Following level · round 0",
-          address: right.delegate,
-          level: right.level,
-          round: right.round,
-          ...(alias ? { alias: `${alias} · TzKT` } : {}),
-        });
-      }
-  });
-  runtime.opportunities = opportunities;
-  scheduleRender(runtime);
+function opportunitySelection(runtime:Runtime){
+ const view=runtime.view;if(!view||view.inspection.mode==='pin')return undefined;
+ const identity=runtime.selectedIdentity??view.inspection.selectedIdentity;
+ const record=view.observationTargets.find(value=>value.identity===identity);
+ if(record?.contextInvalid||record&&!record.admission)return undefined;
+ const head=record?.admission?.head??view.snapshot?.head;
+ const reference=record?.target.candidate?.header??head;
+ const requestHead=record?.target.candidate?Object.freeze({...record.target.candidate.header,evidence:record.target.candidate.evidence}):head;
+ const context=record?.admission?.context??(head?view.snapshot?.derived?.contexts.get(head.level):undefined);
+ const level=record?.target.level??head?.level,round=record?.target.round??(head?proposalRound(head.fitness,head.level):undefined);
+ if(!head||!context||level===undefined||round===undefined||!runtime.monitor.contextAuthorized(context))return undefined;
+ const key=JSON.stringify([identity??head.hash,headFactsKey(head),reference?headFactsKey(reference):null,context.key,level,round]);
+ return {key,head,requestHead:requestHead??head,reference,context,level,round,identity:record?.identity};
+}
+async function loadOpportunities(runtime:Runtime):Promise<void>{
+ const selected=opportunitySelection(runtime);if(!selected||!collectionAllowed()||!runtime.collectionActive||selected.key===runtime.opportunityKey)return;
+ runtime.opportunityController.abort();runtime.opportunityController=new AbortController();
+ const signal=runtime.opportunityController.signal;runtime.opportunityKey=selected.key;delete runtime.opportunityFacts;
+ const token=selected.identity?runtime.monitor.opportunityToken(selected.identity):undefined;
+ const result=await Promise.all([0,1].map(async index=>{
+   const level=selected.level+index,round=index===0?selected.round+1:0;
+   // A parent context cannot prove the execution protocol two levels ahead.
+   if(level>selected.requestHead.level+1)return {rights:undefined,parameters:undefined};
+   const [rights,parameters]=await Promise.allSettled([runtime.data.bakers(selected.requestHead,level,round,signal),runtime.data.opportunityConstants(selected.requestHead,level,signal)]);
+   return {rights:rights.status==='fulfilled'?rights.value:undefined,parameters:parameters.status==='fulfilled'?parameters.value:undefined};
+ }));
+ if(signal.aborted||!collectionAllowed()||!runtime.collectionActive||opportunitySelection(runtime)?.key!==selected.key)return;
+ const capturedAt=Date.now(),capturedMonotonic=performance.now();
+ const facts=result.map((value,index):OpportunityFact=>{
+   const branch=index===0?'same-level':'next-level',right=value.rights?.[0],parameters=value.parameters;
+   const reference=selected.reference??selected.head,referenceTimestamp=Date.parse(reference.timestamp),referenceRound=proposalRound(reference.fitness,reference.level);
+   // Observed selected timestamps are authoritative; a synthetic future block is not.
+   const observed=reference.level===selected.level&&referenceRound===selected.round;
+   const migrationKnown=index===0||parameters?.context?.protocolHash===selected.context.protocolHash;
+   const hypothetical=!observed&&index===0&&reference.level===selected.level-1&&referenceRound!==undefined&&selected.context.protocolHash===selected.context.observer.protocolHash;
+   const deadline=parameters&&migrationKnown?(observed?conditionalRoundBoundary({referenceTimestamp,referenceRound:selected.round,branch,minimum:parameters.minimum,increment:parameters.increment,roundBasis:'proven'}):hypothetical?protocolRoundStart({referenceTimestamp,referenceRound:referenceRound!,targetRound:selected.round+1,minimum:parameters.minimum,increment:parameters.increment,roundBasis:'proven'}):undefined):undefined;
+   return {branch,level:selected.level+index,round:index===0?selected.round+1:0,condition:index===0?'Conditional on continued same-level production':'Earliest protocol boundary conditional on hypothetical next-level production from selected predecessor',capturedAt,capturedMonotonic,
+    proposer:right?.context&&right.evidence?{state:'known',right:{...right,context:right.context,evidence:right.evidence}}:{state:'unavailable',reason:'Exact branch baking rights unavailable'},
+    timing:deadline!==undefined&&parameters?.context&&parameters.evidence?{state:'known',basis:observed?'observed-selected':'hypothetical-selected',parameters:{...parameters,context:parameters.context,evidence:parameters.evidence},reference,referenceTimestamp,referenceRound:observed?selected.round:referenceRound!,deadline,remainingAtCapture:Math.max(0,deadline-capturedAt)}:{state:'unavailable',reason:!observed?'Selected timestamp basis unavailable':!migrationKnown?'Target migration timing basis unavailable':'Exact execution timing parameters unavailable'}};
+ }) as [OpportunityFact,OpportunityFact];
+ const captured=captureOpportunityFacts(facts,selected.context,selected.level,selected.round,source=>streamSources[runtime.network].some(configured=>configured.baseUrl===source.baseUrl&&configured.network===source.network),selected.reference);
+ if(!captured)return;
+ if(selected.identity&&(!token||!runtime.monitor.captureOpportunities(selected.identity,token,captured)))return;
+ runtime.opportunityFacts=captured;
+ scheduleRender(runtime);
 }
 
 for (const network of ["mainnet", "shadownet"] as const) {
@@ -535,9 +536,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
     comparison:new SourceComparison(network,streamSources[network],{rawCapacity:()=>10000-(runtime.view?.rawOperations.length??0),onChange:()=>{for(const value of runtimes.values())scheduleRender(value);}}),
     monitor,
     view: null,
-    opportunities: [],
     opportunityKey: "",
-    opportunityAt: 0,
     opportunityController: new AbortController(),
     eligibilityHead: "",
     requestFrame: null,

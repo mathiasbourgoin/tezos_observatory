@@ -1,7 +1,7 @@
-import {proposalRound} from './consensus/roundSchedule';
+import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
 export type Network = 'mainnet' | 'shadownet';
-export interface VoteView {count: number; expected: number; power: number; total: number}
+export interface VoteView {count: number; expected: number; power: number; total: number;threshold?:number}
 export interface DelegateView {address: string; alias?: string;searchAlias?:string; power: number; forbidden?: boolean; eligibility?: 'eligible' | 'forbidden' | 'unavailable'; eligibilityState?:'stale'|'context-invalid'; eligibilityNote?:string;preReceipt?:string;attReceipt?:string;contextNote?:string}
 export interface SourceView {name: string; url: string; status: string; detail?: string}
 export interface RecentConsensusView {identity?:string;level: number; round: number; prePower?: number; attPower?: number; preTotal?:number;attTotal?:number;total: number; payload?: string;source?:string}
@@ -25,6 +25,8 @@ export interface NetworkViewModel {
   preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;committeeTotal?:number;
   timing?: {level?: number; round: number; nextRound: number; endsAt: number; startedAt?: number};
   nextBakers?: {label: string; alias?: string; address: string; round: number; level: number}[];
+  opportunityFacts?:readonly OpportunityFact[];
+  opportunitiesHistorical?:boolean;
   missingPre?: DelegateView[]; missingAtt?: DelegateView[]; committee?:DelegateView[];unknownConsensus?:readonly string[]; sources?: SourceView[];
 }
 
@@ -312,13 +314,14 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       retryIdentity=model.retryIdentity;retry.hidden=retryIdentity===undefined;retry.disabled=!model.canRetry;
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
-      pre.update(model.preattestations, model.quorum); att.update(model.attestations, model.quorum);
+      pre.update(model.preattestations, model.preattestations?.threshold??model.quorum); att.update(model.attestations, model.attestations?.threshold??model.quorum);
       missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);committee.update(model.committee,model.committeeTotal??model.committeePower,model.unknownConsensus);
-      const bakers = model.nextBakers ?? [], bakerKeys = new Set<string>();
+      const bakers = model.opportunityFacts?model.opportunityFacts.map(fact=>({label:fact.branch==='same-level'?'Next round · same level':'Following level · round 0',alias:undefined,level:fact.level,round:fact.round,address:fact.proposer.state==='known'?fact.proposer.right.delegate:'',detail:fact})):model.nextBakers ?? [], bakerKeys = new Set<string>();
       for (const [index, baker] of bakers.entries()) {
         const key = `${baker.label}:${baker.level}:${baker.round}:${baker.address}`; bakerKeys.add(key);
         let row = keyedBakers.get(key);
         if (!row) {row = el('div', 'baker-opportunity'); row.append(el('span', 'eyebrow', baker.label === 'Next round · same level' ? 'Next scheduled proposal' : baker.label === 'Following level · round 0' ? 'Following level · conditional' : baker.label), el('strong', '', baker.alias ?? short(baker.address)), el('span', 'subtle', `Level ${number(baker.level)} · round ${baker.round}`)); row.title = baker.address; keyedBakers.set(key, row);}
+        if('detail' in baker){const fact=baker.detail as OpportunityFact,timing=fact.timing;set(row.children[1] as HTMLElement,fact.proposer.state==='known'?short(fact.proposer.right.delegate):'Baking rights unavailable');let detail=row.querySelector('.opportunity-detail');if(!detail){detail=el('span','subtle opportunity-detail');row.append(detail);}const remaining=timing.state==='known'?Math.max(0,timing.remainingAtCapture-(model.opportunitiesHistorical?0:Math.max(0,performance.now()-fact.capturedMonotonic))):undefined;set(detail as HTMLElement,`${fact.condition} · Future hash unknown · ${timing.state==='known'?`Conditional timer · ${remaining===0?'Awaiting observation':`${Math.ceil(remaining!/1000)}s remaining`} · deadline ${new Date(timing.deadline).toISOString()} · ${model.opportunitiesHistorical?'Captured historical':'As of'} ${new Date(fact.capturedAt).toISOString()} · timing source ${timing.parameters.evidence.source.baseUrl} · timing received ${new Date(timing.parameters.evidence.receivedAt).toISOString()} · reference ${timing.reference.hash} · basis ${timing.basis} · target ${timing.parameters.context.level} · execution protocol ${timing.parameters.context.protocolHash}`:`Timer unavailable · ${timing.reason}`}${fact.proposer.state==='known'?` · proposer source ${fact.proposer.right.evidence.source.baseUrl} · rights received ${new Date(fact.proposer.right.evidence.receivedAt).toISOString()} · chain ${fact.proposer.right.context.observer.chainId} · context head ${fact.proposer.right.context.observer.header.hash} · execution protocol ${fact.proposer.right.context.protocolHash} · requested anchor ${fact.proposer.right.evidence.requestedHeadHash??'unknown'}`:` · ${fact.proposer.reason}`}`);}
         if (bakerRows.children[index] !== row) bakerRows.insertBefore(row, bakerRows.children[index] ?? null);
       }
       for (const [key, row] of keyedBakers) if (!bakerKeys.has(key)) {row.remove(); keyedBakers.delete(key);}

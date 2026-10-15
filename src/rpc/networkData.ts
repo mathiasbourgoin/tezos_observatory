@@ -421,6 +421,14 @@ export class NetworkData {
     }
   }
 
+  async opportunityConstants(head:BlockHeader,level:number,signal:AbortSignal):Promise<Constants> {
+    const generation=this.collectionGeneration;this.assertCollecting(generation,signal);
+    if(level!==head.level&&level!==head.level+1)throw new Error("Target execution timing context unavailable");
+    const context=await this.targetContext(head,level,signal,true);
+    const value=await this.protocolConstants(context,signal);
+    this.assertCollecting(generation,signal);return value;
+  }
+
   async bakers(head:BlockHeader,level:number,round:number,signal:AbortSignal):Promise<readonly BakingRight[]> {
     if(!Number.isSafeInteger(round)||round<0||round>10000)throw new Error("Proposal rights lookup exceeds bounded round window");
     const context=await this.targetContext(head,level,signal,true),key=JSON.stringify([context.key,round]);

@@ -1,4 +1,6 @@
 import {expect, test, type Page} from '@playwright/test';
+import type {ObservationStore} from '../../src/monitor/observationStore';
+import type {Derived} from '../../src/rpc/networkData';
 
 // Runtime/import failures must remain execution errors in semantic reports.
 const executionErrors=new WeakMap<Page,string[]>();
@@ -33,6 +35,22 @@ const head = (level = 100, round = 0) => ({
 const vote = (slot: number, level = 101, round = 0) => ({
   hash: `operation-${slot}-${level}-${round}`,
   contents: [{kind: 'preattestation', slot, level, round, block_payload_hash: `vhPayload${level}`}],
+});
+
+test('foundations AC-33 selected-relative opportunities retain observed branches and require exact proposer rights',async({page},testInfo)=>{
+ await page.clock.install();const observed=head(100,0);await prepare(page,false,observed);
+ const panel=page.locator('.network-panel').first();
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 100 · round 1');
+ await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('Level 101 · round 0');
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('proposer source https://mainnet.smartpy.io');await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('proposer source https://mainnet.smartpy.io');await expect(panel.locator('.baker-opportunity').first()).toContainText('Future hash unknown');await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('Future hash unknown');
+ const applied=await panel.locator('.headline').textContent();await page.clock.runFor(120000);
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 100 · round 1');
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('Awaiting observation');
+ await expect(panel.locator('.headline')).toHaveText(applied!);
+ const selected={...head(101,2),hash:'ObservedOpportunity101'};headers.get(page)!.set(selected.hash,selected);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:selected.hash,header:selected});await panel.getByRole('button',{name:'Inspect candidate ObservedOpportunity101',exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText('Observed block hash ObservedOpportunity101');await expect(panel.locator('.candidate-evidence')).toContainText('Producer unknown');await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 101 · round 3');await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('Level 102 · round 0');await expect(panel.locator('.baker-opportunity').first()).toContainText('Future hash unknown');await expect(panel.locator('.headline')).toHaveText(applied!);
+ for(const mode of ['missing','conflicting'] as const){await page.route('**/helpers/baking_rights?*',async route=>{const url=new URL(route.request().url()),level=Number(url.searchParams.get('level')),round=Number(url.searchParams.get('max_round'));await route.fulfill({json:mode==='missing'?[]:[{level,round,delegate:'ConflictingBakerA'},{level,round,delegate:'ConflictingBakerB'}]});});const candidate={...selected,hash:`ObservedOpportunity-${mode}`};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:`Inspect candidate ${candidate.hash}`,exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText(`Observed block hash ${candidate.hash}`);await expect(panel.locator('.baker-opportunity').first()).toContainText('Baking rights unavailable');await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('Baking rights unavailable');await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 101 · round 3');await expect(panel.locator('.baker-opportunity').nth(1)).toContainText('Level 102 · round 0');await expect(panel.locator('.headline')).toHaveText(applied!);}
+ testInfo.annotations.push({type:'foundation-verified',description:'AC-33'});
 });
 
 const headers=new WeakMap<Page,Map<string,ReturnType<typeof head>>>();
@@ -157,42 +175,53 @@ test('recent consensus retains peak power after the current level moves on',asyn
   await expect(page.locator('.mainnet .pre .gauge-counts')).not.toContainText('1,200');
 });
 
-test('unknown observations stay unavailable and votes outside the current round are excluded', async ({page}) => {
+test('unobserved phases stay unavailable while coherent received rounds remain selected independently of the clock', async ({page}) => {
   await prepare(page, false);
   await expect(page.locator('.mainnet .pre .gauge-percent')).toHaveText('—');
   await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('Voting power unavailable');
   await send(page, 'mainnet-operations', [vote(0, 101, 9)]);
-  await expect(page.locator('.mainnet .section-heading')).toContainText(['Scheduled round 0']);
-  await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('Voting power unavailable');
+  await expect(page.locator('.mainnet .section-heading')).toContainText(['Observed round 9']);
+  await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('600 / 30,000 power');
+  await expect(page.locator('.mainnet .att .gauge-counts')).toContainText('Voting power unavailable');
   await send(page, 'mainnet-operations', [vote(0, 101, 0)]);
   await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('600 / 30,000 power');
   await send(page, 'mainnet-head', head(102));
   await expect(page.locator('.mainnet .headline')).toContainText('102');
-  await expect(page.locator('.mainnet .consensus-section')).not.toContainText('Current round 9');
+  await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('Voting power unavailable');
+  await expect(page.locator('.mainnet .pre .gauge-percent')).toHaveText('—');
   await expect(page.locator('.mainnet .consensus-section')).not.toContainText('vhPayload100');
 });
 
-test('a round boundary clears the gauges instead of retaining old quorum', async ({page}) => {
+test('clock boundaries preserve observed power until a new round is received or its parent context is replaced', async ({page}) => {
   await page.clock.install({time: new Date()});
   await prepare(page);
   await send(page, 'mainnet-operations', [vote(0),vote(1)]);
   await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('1,200 / 30,000 power');
   await page.clock.fastForward(31_000);
-  await expect(page.locator('.mainnet .section-heading')).toContainText(['Scheduled round 2']);
-  await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('Voting power unavailable');
+  await expect(page.locator('.mainnet .section-heading')).toContainText(['Observed round 0']);
+  await expect(page.locator('.mainnet .timing-detail')).toContainText('estimated round 2');
+  await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('1,200 / 30,000 power');
+  await expect(page.locator('.mainnet .baker-opportunity').first()).toContainText('Level 101 · round 1');
   await send(page, 'mainnet-operations', [vote(3,101,2)]);
+  await expect(page.locator('.mainnet .section-heading')).toContainText(['Observed round 2']);
   await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('600 / 30,000 power');
+  await send(page,'mainnet-head',{...head(100),hash:'ReplacedRoundParent'});
+  await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('Voting power unavailable');
+  await expect(page.locator('.mainnet .pre .gauge-percent')).toHaveText('—');
 });
 
-test('a stalled applied head and old votes cannot establish a current observed round',async({page})=>{
+test('fresh votes under an old but coherent parent retain power until proven parent replacement',async({page})=>{
   const old=head(100,75);old.timestamp=new Date(Date.now()-3_600_000).toISOString();
   await prepare(page,true,old,101);
   await send(page,'shadownet-operations',[vote(0,101,0)]);
   const panel=page.locator('.network-panel.shadownet');
   await expect(panel.locator('.headline')).toContainText('Applied block round75');
-  await expect(panel).toContainText('Proposal observation unavailable');
-  await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
+  await expect(panel).toContainText('Observed votes · level 101 · round 0');
+  await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+  await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');
+  await send(page,'shadownet-head',{...old,hash:'ReplacedOldParent'});
   await expect(panel.locator('.pre .gauge-counts')).toContainText('Voting power unavailable');
+  await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
 });
 
 test('desktop and mobile layouts use the viewport without horizontal clipping', async ({page}) => {
@@ -222,26 +251,28 @@ test('mobile network selection and disclosures persist, and pause stops stream u
 });
 
 
-test('production stalled successor shows scheduled 37 and visible applied round 101 with no measured zero', async ({page}, testInfo) => {
+test('stalled applied head keeps estimated round 37 separate from selected observed successor round zero', async ({page}, testInfo) => {
   await page.clock.install({time: new Date('2026-10-14T18:54:31Z')});
   const applied = {...head(5489251, 101), timestamp: '2026-10-14T18:12:09Z'};
   await prepare(page, false, applied, 5489252);
   await send(page, 'shadownet-operations', [vote(0, 5489251, 101), vote(1, 5489252, 0), vote(2, 5489252, 36)]);
   const panel = page.locator('.network-panel.shadownet');
   await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round101');
+  await expect(panel.locator('.candidate-controls button[aria-pressed="true"]')).toHaveAttribute('title','Level 5489251 · round 101 · payload vhPayload5489251');
+  await panel.locator('button[title="Level 5489252 · round 0 · payload vhPayload5489252"]').click();
   await expect(panel.locator('.timing-detail')).toContainText('Scheduled opportunity · level 5,489,252 · estimated round 37');
   await expect(panel.locator('.applied-context')).toContainText('Last applied block · level 5,489,251 · round 101 · block timestamp');
   await expect(panel.locator('.applied-context')).toBeVisible();
-  await expect(panel.locator('.pre .gauge-percent')).toHaveText('—');
+  await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
   await expect(panel.locator('.att .gauge-percent')).toHaveText('—');
-  await expect(panel.locator('.selection-label')).toContainText('payload Unavailable');
-  await expect(panel.locator('.network-notice')).toContainText('Matching votes unavailable · scheduled level 5,489,252 · estimated round 37');
+  await expect(panel.locator('.selection-label')).toHaveAttribute('title','vhPayload5489252');
+  await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 5,489,252 · round 0');await expect(panel.locator('.network-notice')).toContainText('partial positive observations');
   const opportunities = panel.locator('.baker-opportunity');
   await expect(opportunities.nth(0)).toContainText('Next scheduled proposal');
-  await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 38');
+  await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 1');
   await expect(opportunities.nth(1)).toContainText('Following level · conditional');
   await expect(opportunities.nth(1)).toContainText('Level 5,489,253 · round 0');
-  await expect(panel.locator('.opportunities')).not.toContainText('same level');
+  await expect(opportunities.nth(0)).toContainText('Conditional on continued same-level production');await expect(opportunities.nth(1)).toContainText('Earliest protocol boundary conditional on hypothetical next-level production');
   await panel.screenshot({path: testInfo.outputPath('stalled-successor-hotfix.png')});
 });
 
@@ -283,7 +314,7 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await expect(panel.locator('.timing-detail')).toContainText('estimated round 6');
   const opportunities = panel.locator('.baker-opportunity');
   await expect(opportunities.nth(0)).toContainText('Next scheduled proposal');
-  await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 7');
+  await expect(opportunities.nth(0)).toContainText('Level 5,489,252 · round 1');
   await expect(opportunities.nth(1)).toContainText('Following level · conditional');
   await expect(opportunities.nth(1)).toContainText('Level 5,489,253 · round 0');
 });
@@ -878,4 +909,79 @@ test('optional pending failure preserves independently proven head agreement and
  const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.authority-evidence')).toContainText('chain NetFixture');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByLabel('Comparison provider').selectOption('https://tezos-mainnet.octez.io');const compare=panel.getByRole('button',{name:'Compare selected observation',exact:true}),result=panel.locator('.comparison-result');
  await compare.click();await expect(result).toContainText('503');await expect(result).toContainText('Head fields: head-agreement');await expect(result).toContainText('partial');
  fetched={...fetched,hash:'DifferentKnownHead'};await compare.click();await expect(result).toContainText('DifferentKnownHead');await expect(result).toContainText('Head fields: divergence');await expect(result).toContainText('503');await expect(result).toContainText('not vote agreement or finality');
+});
+
+test('foundations AC-15 coherent prediction expiry remains independent from transport and observed advancement',async({page},testInfo)=>{
+ await page.clock.install();const current=head(100,2);await prepare(page,false,current);const panel=page.locator('.network-panel.mainnet');
+ await expect(panel.locator('.status-chip')).toHaveText('Progress unknown');await expect(panel.locator('.connection-line')).toContainText('Live RPC streams');
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await expect(panel.locator('.baker-opportunity').first()).toContainText('round 3');const events=await panel.locator('.event-history').textContent();
+ await page.clock.runFor(15000);await expect(panel.locator('.baker-opportunity').first()).toContainText('Awaiting observation');await expect(panel.locator('.status-chip')).toHaveText('Prediction elapsed');await expect(panel.locator('.headline')).toContainText('100');expect(await panel.locator('.event-history').textContent()).toBe(events);await expect(panel.locator('.connection-line')).toContainText('Live RPC streams');
+ await page.route('**/context/constants',route=>route.fulfill({status:503,body:'Exact execution timing unavailable'}));await send(page,'mainnet-head',{...current,hash:'MissingTimingFork'});await expect(panel).toContainText('Observed same-height reorg');await page.clock.runFor(15000);await expect(panel.locator('.status-chip')).toHaveText('Progress unknown');await expect(panel.locator('.countdown')).toHaveText('Timing unavailable');await expect(panel.locator('.headline')).toContainText('100');
+ const advanced={...head(101),predecessor:'MissingTimingFork'};await send(page,'mainnet-head',advanced);await expect(panel.locator('.headline')).toContainText('101');await expect(panel).toContainText('Observed next-level advance');await page.evaluate(()=>window.mockStreams['mainnet-head']!.error(new Error('Observed source head transport interrupted')));await expect(panel.locator('.status-chip')).toHaveText('RPC coverage degraded');await expect(panel).toContainText('Observed next-level advance');await expect(panel).not.toContainText('global chain stall');
+ testInfo.annotations.push({type:'foundation-verified',description:'AC-15'});
+});
+
+test('pinned phases preserve their independently captured quorum after asymmetric raw retention',async({page})=>{
+ await prepare(page,false);await send(page,'mainnet-operations',[vote(0)]);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await panel.getByRole('button',{name:'Inspect payload vhPayload101',exact:true}).click();
+ await page.evaluate(async()=>{type CapturedMonitor={observations:ObservationStore<Derived>;emit:()=>void};const path='/monitor/networkMonitor.ts';const {NetworkMonitor}=await import(path),original=NetworkMonitor.prototype.pinObservation;NetworkMonitor.prototype.pinObservation=function(this:CapturedMonitor,identity:string){Object.assign(window,{phaseThresholdMonitor:this});return original.call(this,identity);};});
+ await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();
+ const facts=await page.evaluate(()=>{
+  const monitor=(window as unknown as {phaseThresholdMonitor:{observations:ObservationStore<Derived>;emit:()=>void}}).phaseThresholdMonitor,store=monitor.observations,record=store.acceptedTargets()[0],proof=record?.admission;if(!record||!proof)throw new Error('Actual selected monitor proof unavailable');const source=record.target.source;
+  store.addOperations(Array.from({length:10000},(_,index)=>({hash:`phase-threshold-unrelated-${index}`,evidence:{source,receivedAt:2+index,receivedMonotonic:2+index},contents:[]})));
+  store.accept({...proof,...store.generation(source),constants:{...proof.constants,quorum:600}});
+  store.addOperations([{hash:'phase-threshold-att',evidence:{source,receivedAt:20000,receivedMonotonic:20000},contents:[{kind:'attestation',level:record.target.level,round:record.target.round,slot:0,...(record.target.payload?{block_payload_hash:record.target.payload}:{})}]}]);monitor.emit();const phases=store.inspection().snapshot?.record.phases;return {pre:phases?.pre?.threshold,att:phases?.att?.threshold};
+ });
+ expect(facts).toEqual({pre:20000,att:600});await expect(panel.locator('.att .quorum-caption')).toContainText('600 power required');await expect(panel.locator('.pre .quorum-caption')).toContainText('19,400 more power to quorum');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await expect(panel.locator('.att .gauge-counts')).toContainText('600 / 30,000 power');
+});
+
+test('S9 historical opportunity capture freezes its as-of deadline remaining duration and original context',async({page})=>{
+ await page.clock.install();const initial=head(100);await prepare(page,false,initial);const panel=page.locator('.network-panel.mainnet');const candidate={...head(101),hash:'OpportunityHistorical101'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate OpportunityHistorical101',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 101');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Captured historical');const captured=await panel.locator('.baker-opportunity').allTextContents();expect(captured[0]).toContain('execution protocol PFixture');expect(captured[0]).toContain('timing source https://mainnet.smartpy.io');
+ const newer={...head(102),hash:'OpportunityLive102',predecessor:candidate.hash};await send(page,'mainnet-head',newer);headers.get(page)!.set(newer.hash,newer);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:newer.hash,header:newer});await page.clock.runFor(90000);expect(await panel.locator('.baker-opportunity').allTextContents()).toEqual(captured);await expect(panel.locator('.candidate-evidence')).toContainText(candidate.hash);
+ await page.getByRole('button',{name:'Pause',exact:true}).click();const reads=await page.evaluate(()=>window.mockRequests.length);await page.clock.setSystemTime(new Date('2030-01-01T00:00:00Z'));await page.clock.runFor(2000);expect(await panel.locator('.baker-opportunity').allTextContents()).toEqual(captured);await panel.getByRole('button',{name:'Latest',exact:true}).click();await panel.getByRole('button',{name:'Follow live',exact:true}).click();expect(await page.evaluate(()=>window.mockRequests.length)).toBe(reads);await expect(page.getByRole('button',{name:'Resume',exact:true})).toBeVisible();await expect(panel.locator('.candidate-evidence')).not.toContainText('Observed block hash OpportunityHistorical101');
+});
+
+test('S9 missing baking rights preserve independently known branch timing',async({page})=>{
+ await prepare(page,false,head(100,0));await page.route('**/helpers/baking_rights?*',route=>route.fulfill({json:[]}));const panel=page.locator('.network-panel.mainnet');const candidate={...head(101,2),hash:'OpportunityNoRights101'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate OpportunityNoRights101',exact:true}).click();const rows=panel.locator('.baker-opportunity');await expect(rows).toHaveCount(2);await expect(rows.nth(0)).toContainText('Baking rights unavailable');await expect(rows.nth(0)).toContainText('Conditional timer');await expect(rows.nth(0)).toContainText('Level 101 · round 3');await expect(rows.nth(1)).toContainText('Level 102 · round 0');await expect(rows.nth(1)).toContainText('Baking rights unavailable');await expect(rows.nth(1)).toContainText('Conditional timer');
+});
+
+test('S9 same-height competing candidate retains its admitted context and independently known timing with missing rights',async({page},testInfo)=>{
+ await prepare(page,false,head(100,2));
+ await page.evaluate(async()=>{type Captured={observations:ObservationStore<Derived>};const path='/monitor/networkMonitor.ts';const {NetworkMonitor}=await import(path),original=NetworkMonitor.prototype.contextAuthorized;NetworkMonitor.prototype.contextAuthorized=function(this:Captured,...args:unknown[]){Object.assign(window,{sameHeightOpportunityMonitor:this});return original.apply(this,args);};});
+ await page.route('**/helpers/baking_rights?*',route=>route.fulfill({json:[]}));const panel=page.locator('.network-panel.mainnet'),candidate={...head(100,2),hash:'OpportunitySameHeight100'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate OpportunitySameHeight100',exact:true}).click();
+ const proof=await page.evaluate(()=>{const store=(window as unknown as {sameHeightOpportunityMonitor:{observations:ObservationStore<Derived>}}).sameHeightOpportunityMonitor.observations,record=store.acceptedTargets().find(value=>value.target.candidate?.header.hash==='OpportunitySameHeight100');return {observerHash:record?.admission?.context.observer.header.hash,observerLevel:record?.admission?.context.observer.header.level,candidateHash:record?.target.candidate?.header.hash,targetLevel:record?.target.level,contextInvalid:record?.contextInvalid};});await testInfo.attach('actual-same-height-admission',{body:JSON.stringify(proof),contentType:'application/json'});expect(proof).toEqual({observerHash:'BBlock100',observerLevel:100,candidateHash:candidate.hash,targetLevel:100,contextInvalid:false});
+ const rows=panel.locator('.baker-opportunity');await expect(rows).toHaveCount(2);await expect(rows.nth(0)).toContainText('Baking rights unavailable');await expect(rows.nth(0)).toContainText('Conditional timer');await expect(rows.nth(0)).toContainText('Level 100 · round 3');await expect(rows.nth(1)).toContainText('Level 101 · round 0');await expect(rows.nth(1)).toContainText('Baking rights unavailable');await expect(rows.nth(1)).toContainText('Conditional timer');
+});
+
+test('S9 missing projected timing preserves independently proven baking rights',async({page})=>{
+ const current=head(100,0);await prepare(page,false,current);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');
+ await page.route('**/context/constants',route=>route.fulfill({status:503,body:'New branch timing unavailable'}));const candidate={...head(101,2),hash:'OpportunityRightsOnly101'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate OpportunityRightsOnly101',exact:true}).click();const rows=panel.locator('.baker-opportunity');await expect(rows).toHaveCount(2);await expect(rows.nth(0)).toContainText('Level 101 · round 3');await expect(rows.nth(0)).toContainText('proposer source');await expect(rows.nth(0)).toContainText('Timer unavailable');await expect(rows.nth(0)).not.toContainText('Baking rights unavailable');await expect(rows.nth(1)).toContainText('Level 102 · round 0');await expect(rows.nth(1)).toContainText('proposer source');await expect(rows.nth(1)).toContainText('Timer unavailable');
+});
+
+test('S9 activation keeps current execution timing separate and successor migration timing explicitly unknown',async({page})=>{
+ const current=head(100,0);await prepare(page,false,current);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');const candidate={...head(101,2),hash:'OpportunityMigration101'};headers.get(page)!.set(candidate.hash,candidate);const queried:{level:string|null;round:string|null;anchor:string}[]=[];
+ await page.route('**/OpportunityMigration101/protocols',route=>route.fulfill({json:{protocol:'PFixture',next_protocol:'PSuccessor'}}));await page.route('**/OpportunityMigration101/context/constants',route=>route.fulfill({json:{minimal_block_delay:'10',delay_increment_per_round:'4',consensus_threshold_size:20000,consensus_committee_size:30000}}));
+ await page.route('**/helpers/baking_rights?*',async route=>{const url=new URL(route.request().url());if(url.hostname==='mainnet.smartpy.io')queried.push({level:url.searchParams.get('level'),round:url.searchParams.get('max_round'),anchor:url.pathname.split('/blocks/')[1]?.split('/')[0]??''});await route.fallback();});
+ await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:'Inspect candidate OpportunityMigration101',exact:true}).click();const rows=panel.locator('.baker-opportunity');await expect(rows).toHaveCount(2);await expect(rows.nth(0)).toContainText('Level 101 · round 3');await expect(rows.nth(0)).toContainText(`deadline ${new Date(Date.parse(candidate.timestamp)+12000).toISOString()}`);await expect(rows.nth(0)).toContainText('execution protocol PFixture');await expect(rows.nth(1)).toContainText('Level 102 · round 0');await expect(rows.nth(1)).toContainText('Timer unavailable');await expect(rows.nth(1)).toContainText(/migration.*unavailable|migration.*unproven/i);await expect(rows.nth(1)).not.toContainText('Conditional timer');await expect(rows.nth(1)).toContainText('Future hash unknown');
+ expect(queried).toContainEqual({level:'101',round:'3',anchor:'BBlock100'});expect(queried).toContainEqual({level:'102',round:'0',anchor:candidate.hash});
+});
+
+test('S9 selection synchronously aborts old baking-right bodies and late completion cannot overwrite the new candidate',async({page})=>{
+ await page.addInitScript(()=>{const original=window.fetch.bind(window),gate={armed:false,held:false,waiting:false,signal:undefined as AbortSignal|null|undefined,release:()=>{}};Object.assign(window,{opportunitySelectionGate:gate});window.fetch=async(input,options)=>{const response=await original(input,options),url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url);if(gate.armed&&!gate.held&&url.hostname==='mainnet.smartpy.io'&&url.pathname.includes('baking_rights')&&url.searchParams.get('level')==='101'&&url.searchParams.get('max_round')==='1'){gate.held=true;gate.signal=options?.signal;const body=await response.json();response.json=()=>new Promise(resolve=>{gate.waiting=true;gate.release=()=>resolve(body.map((entry:object)=>({...entry,delegate:'CancelledOpportunityPoison'})));});}return response;};});
+ await prepare(page,false);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await page.evaluate(()=>(window as unknown as {opportunitySelectionGate:{armed:boolean}}).opportunitySelectionGate.armed=true);
+ const first={...head(101),hash:'OpportunitySelectionA'},second={...first,hash:'OpportunitySelectionB',payload_hash:'OtherOpportunityPayload'};for(const candidate of [first,second])headers.get(page)!.set(candidate.hash,candidate);
+ await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await panel.getByRole('button',{name:'Inspect candidate OpportunitySelectionA',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as unknown as {opportunitySelectionGate:{waiting:boolean}}).opportunitySelectionGate.waiting)).toBe(true);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:second.hash,header:second});await expect(panel.getByRole('button',{name:'Inspect candidate OpportunitySelectionB',exact:true})).toBeVisible();
+ const aborted=await page.evaluate(()=>{const gate=(window as unknown as {opportunitySelectionGate:{signal:AbortSignal;release:()=>void}}).opportunitySelectionGate;const button=[...document.querySelectorAll<HTMLButtonElement>('.mainnet .candidate-controls button')].find(value=>value.textContent?.includes('OpportunitySelectionB'));if(!button)throw new Error('Retained second candidate control unavailable');button.click();const aborted=gate.signal.aborted;gate.release();return aborted;});expect(aborted).toBe(true);await expect(panel.locator('.candidate-evidence')).toContainText('OpportunitySelectionB');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');await expect(panel.locator('.opportunities')).not.toContainText('CancelledOpportunityPoison');await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.baker-opportunity').first()).toContainText('Captured historical');await expect(panel.locator('.opportunities')).not.toContainText('CancelledOpportunityPoison');
+});
+
+test('foundations AC-34 conditional timers never substitute for applied values or invent observed progression',async({page},testInfo)=>{
+ await page.clock.install();const current=head(100,2);await prepare(page,false,current);const panel=page.locator('.network-panel.mainnet'),rows=panel.locator('.baker-opportunity');await expect(panel.locator('.applied-context')).toContainText('level 100 · round 2');const originalApplied=await panel.locator('.applied-context').textContent();expect(originalApplied).toContain('block timestamp');
+ await expect(rows.nth(0)).toContainText('Level 100 · round 3');await expect(rows.nth(1)).toContainText('Level 101 · round 0');await expect(rows.nth(0)).toContainText('Conditional on continued same-level production');await expect(rows.nth(1)).toContainText('Earliest protocol boundary conditional on hypothetical next-level production');for(const row of [rows.nth(0),rows.nth(1)]){await expect(row).toContainText('Conditional timer');await expect(row).toContainText('timing source https://mainnet.smartpy.io');await expect(row).toContainText('execution protocol PFixture');await expect(row).toContainText('Future hash unknown');await expect(row).toContainText(`deadline ${new Date(Date.parse(current.timestamp)+12000).toISOString()}`);}
+ await panel.screenshot({path:`roster/observatory-foundations/slice-9-${testInfo.project.name}.png`});
+ const events=await panel.locator('.event-history').textContent();await page.clock.runFor(15000);await expect(rows.nth(0)).toContainText('Awaiting observation');await expect(rows.nth(1)).toContainText('Awaiting observation');await expect(panel.locator('.applied-context')).toHaveText(originalApplied??'');expect(await panel.locator('.event-history').textContent()).toBe(events);await expect(rows.nth(0)).toContainText('Level 100 · round 3');await expect(rows.nth(1)).toContainText('Level 101 · round 0');
+ const sameLevel={...head(100,3),hash:'ObservedTimingRound3',timestamp:new Date(Date.parse(current.timestamp)+12000).toISOString()};await send(page,'mainnet-head',sameLevel);await expect(panel.locator('.applied-context')).toContainText('level 100 · round 3');await expect(panel).toContainText('Observed same-level round advance');
+ const nextLevel={...head(101),hash:'ObservedTiming101',predecessor:sameLevel.hash,timestamp:new Date(Date.parse(current.timestamp)+27000).toISOString()};await send(page,'mainnet-head',nextLevel);await expect(panel.locator('.applied-context')).toContainText('level 101 · round 0');await expect(panel).toContainText('Observed next-level advance');
+ await send(page,'mainnet-head',{...nextLevel,hash:'ObservedTimingFork101'});await expect(panel).toContainText('Observed same-height reorg');await expect(panel.locator('.applied-context')).toContainText('level 101 · round 0');
+ const skipped={...head(104),hash:'ObservedTiming104'};await send(page,'mainnet-head',skipped);await expect(panel.locator('.applied-context')).toContainText('level 104 · round 0');await expect(panel).toContainText('Skipped delivered levels; intermediate path unobserved');expect(await panel.locator('.event-history').textContent()).toBe(events);
+ await page.route('**/context/constants',route=>route.fulfill({status:503,body:'Exact timing inputs unavailable'}));await send(page,'mainnet-head',{...skipped,hash:'ObservedTimingMissing104'});await expect(panel).toContainText('Observed same-height reorg');await expect(panel.locator('.countdown')).toHaveText('Timing unavailable');await page.clock.runFor(15000);await expect(panel.locator('.status-chip')).toHaveText('Progress unknown');await expect(panel.locator('.applied-context')).toContainText('level 104 · round 0');expect(await panel.locator('.event-history').textContent()).toBe(events);
+ testInfo.annotations.push({type:'foundation-verified',description:'AC-34'});
 });

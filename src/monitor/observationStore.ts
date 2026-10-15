@@ -1,7 +1,8 @@
 import type {AdmissionEvidence,BlockHeader,CandidateObservation,MonitoredOperation,NetworkName,ObservationEvidence,RpcSource} from "../rpc/models";
 import {OperationStore,operationIdentity} from "../rpc/operationStore";
 import {committeeAuthority,contextFacts,groupsFor,signerPower} from "../consensus/phaseEvidence";
-import {proposalRound} from "../consensus/roundSchedule";
+import {proposalRound,type OpportunityFact,type OpportunityCaptureToken} from "../consensus/roundSchedule";
+import {captureOpportunityFacts} from "../consensus/opportunityFacts";
 import type {Constants,DelegateRight,TargetContext,RpcContext,PendingSnapshot} from "../rpc/networkData";
 import type {ReconciliationTarget} from "./observerReconciliation";
 import {headFactsKey} from "./headGeneration";
@@ -28,6 +29,7 @@ export interface ObservationTarget<T> {
   readonly coverage?:PendingCoverage;
   readonly coverageStale?:boolean;
   readonly phases?:{readonly pre?:AcceptedPhase;readonly att?:AcceptedPhase};
+  readonly opportunities?:readonly [OpportunityFact,OpportunityFact];
 }
 /** Raw body operations have one owner, the canonical bounded raw store. */
 export type PendingCoverage=Omit<PendingSnapshot,"operations"> & {readonly normalizedOperationCount:number};
@@ -333,6 +335,27 @@ export class ObservationStore<T> {
     return undefined;
   }
   history():readonly SessionSnapshot<T>[] {return [...this.sessionHistory.values()].sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));}
+  opportunityToken(identity:string):OpportunityCaptureToken|undefined {
+    const record=this.target(identity);if(!this.enabled||!record?.admission||record.contextInvalid||!this.contextAuthorized(record.admission.context))return undefined;
+    return Object.freeze({...this.generation(record.target.source),contextFacts:contextFacts(record.admission.context)});
+  }
+  captureOpportunities(identity:string,token:OpportunityCaptureToken,facts:readonly [OpportunityFact,OpportunityFact]):boolean {
+    // A frozen pin is a copy, never a retained enrichment owner.
+    const historical=[...this.sessionHistory.values()].flatMap(snapshot=>[snapshot.record,...snapshot.candidates]).find(record=>record.identity===identity);
+    const record=this.find(identity)??historical;
+    if(!this.enabled||!record?.admission||record.contextInvalid||!this.contextAuthorized(record.admission.context))return false;
+    const generation=this.generation(record.target.source);
+    if(token.collectionGeneration!==generation.collectionGeneration||token.observerGeneration!==generation.observerGeneration||token.contextFacts!==contextFacts(record.admission.context))return false;
+    const captured=captureOpportunityFacts(facts,record.admission.context,record.target.level,record.target.round,source=>this.allowed(source),record.target.candidate?.header??record.admission.head);
+    if(!captured)return false;
+    const update=(value:ObservationTarget<T>):ObservationTarget<T>=>value.identity===identity?Object.freeze({...value,opportunities:captured}):value;
+    for(const product of [this.acceptedCandidates,this.instances]){const value=product.get(identity);if(value)product.set(identity,update(value));}
+    const snapshotUpdate=(snapshot:SessionSnapshot<T>):SessionSnapshot<T>=>Object.freeze({...snapshot,record:update(snapshot.record),candidates:Object.freeze(snapshot.candidates.map(update))});
+    for(const [key,snapshot] of this.sessionHistory)if(snapshot.record.identity===identity||snapshot.candidates.some(value=>value.identity===identity))this.sessionHistory.set(key,snapshotUpdate(snapshot));
+    if(this.lastLiveSnapshot&&(this.lastLiveSnapshot.record.identity===identity||this.lastLiveSnapshot.candidates.some(value=>value.identity===identity)))this.lastLiveSnapshot=snapshotUpdate(this.lastLiveSnapshot);
+    return true;
+  }
+
   pin(identity:string):boolean {
     const frozen=this.frozenPin;
     if(frozen && (frozen.identity===identity || frozen.record.identity===identity || frozen.candidates.some(candidate=>candidate.identity===identity))){

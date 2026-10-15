@@ -4,6 +4,7 @@ import {NetworkData,sources,type Derived} from "../../src/rpc/networkData";
 import {asOperationBatch} from "../../src/rpc/guards";
 import {groupsFor,signerPower} from "../../src/consensus/phaseEvidence";
 import type {BlockHeader,ObservationEvidence,RpcSource} from "../../src/rpc/models";
+import type {OpportunityFact} from "../../src/consensus/roundSchedule";
 const a=sources.mainnet[0]!,b=sources.mainnet[1]!;
 const head=(level:number):BlockHeader=>({chainId:"NetFixture",level,hash:`H${level}`,predecessor:`H${level-1}`,timestamp:"2026-01-01T00:00:00Z",fitness:["02",level.toString(16).padStart(8,"0"),"","ffffffff","00000000"]});
 const evidence=(source:RpcSource,at=1):ObservationEvidence=>({source,receivedAt:at,receivedMonotonic:at});
@@ -424,4 +425,60 @@ it("Latest replaces a frozen copy when its same instance has a newer coherent ac
  store.addOperations([{...operation("newer-live-owner"),evidence:evidence(b,10000),contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"FrozenLatestPayload"}]}]);
  for(let index=0;index<151;index++)store.addCandidate({identity:`latest-retire-${index}`,header:{...head(123),hash:`LatestRetire${index}`,payload_hash:`LatestRetirePayload${index}`},evidence:evidence(b,index+2)});
  const frozen=store.inspection();expect(frozen.frozen).toBe(true);store.addOperations([{...operation("newer-live-second"),evidence:evidence(b,20000),contents:[{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"FrozenLatestPayload"}]}]);expect(store.inspection().snapshot?.record.phases?.pre?.power).toBe(3);expect(store.latest()).toBe(true);expect(store.inspection().snapshot?.record.phases?.pre?.power).toBe(5);expect(store.inspection().snapshot?.record.target.payload).toBe("FrozenLatestPayload");
+});
+
+async function opportunityFixture(){
+ const current={...head(123),payload_hash:'P',timestamp:new Date().toISOString()};installRpc(current);
+ const originalFetch=globalThis.fetch;vi.stubGlobal('fetch',async(input:string|URL|Request,options?:RequestInit)=>{const url=new URL(String(input));if(url.pathname.includes('baking_rights'))return Response.json([{level:Number(url.searchParams.get('level')),round:Number(url.searchParams.get('max_round')),delegate:'DBaker'}]);return originalFetch(input,options);});
+ const store=new ObservationStore<Derived>('mainnet',sources.mainnet),data=new NetworkData('mainnet');
+ const observed={...current,evidence:evidence(b,1)};store.observeHead(observed);
+ const record=store.addCandidate({identity:'opportunity-selected',header:current,evidence:evidence(b,1)})!;
+ const proof=await data.reconcile({...record.target,observerHead:observed},new AbortController().signal);store.accept(proof);store.establishNetworkIdentity(proof.context.observer);
+ const signal=new AbortController().signal,derived=await data.derive(proof.head,signal),rights=await Promise.all([data.bakers(proof.head,123,1,signal),data.bakers(proof.head,124,0,signal)]);
+ const capturedAt=Date.parse(current.timestamp)+1000,capturedMonotonic=performance.now()+1000;
+ const facts=rights.map((values,index):OpportunityFact=>{
+  const right=values[0],parameters=derived.constantsByLevel.get(123+index);
+  if(!right?.context||!right.evidence||!parameters?.context||!parameters.evidence)throw new Error('Missing actual opportunity fixture context');
+  return {branch:index===0?'same-level':'next-level',level:123+index,round:index===0?1:0,condition:index===0?'Conditional on continued same-level production':'Earliest boundary conditional on hypothetical next-level production',capturedAt,capturedMonotonic,proposer:{state:'known',right:{...right,context:right.context,evidence:right.evidence}},timing:{state:'known',basis:'observed-selected',parameters:{...parameters,context:parameters.context,evidence:parameters.evidence},reference:current,referenceTimestamp:Date.parse(current.timestamp),referenceRound:0,deadline:Date.parse(current.timestamp)+6000,remainingAtCapture:5000}};
+ }) as [OpportunityFact,OpportunityFact];
+ const token=store.opportunityToken(record.identity);expect(token).toBeDefined();
+ return {store,record,proof,current,facts,token:token!};
+}
+
+it('captures both exact opportunity branches without refreshing selected receipt history order or newer count',async()=>{
+ const {store,record,facts,token}=await opportunityFixture();expect(store.pin(record.identity)).toBe(true);const before=store.inspection(),receipt=before.snapshot!.evidence;
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ expect(store.target(record.identity)?.opportunities).toEqual(facts);expect(store.inspection().snapshot?.record.opportunities).toEqual(facts);
+ expect(store.inspection().snapshot?.evidence).toBe(receipt);expect(store.inspection().newer).toBe(before.newer);expect(store.inspection().selectedIdentity).toBe(record.identity);
+ expect(store.target(record.identity)?.opportunities?.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined)).toEqual(facts.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined));
+});
+
+it.each(['rights-only','timing-only','neither'] as const)('captures independent %s branch availability without borrowing another branch fact',async availability=>{
+ const {store,record,facts,token}=await opportunityFixture();const absent={state:'unavailable' as const,reason:'Not captured under this exact branch context'};
+ const pair:[OpportunityFact,OpportunityFact]=[{...facts[0],...(availability==='timing-only'||availability==='neither'?{proposer:absent}:{}),...(availability==='rights-only'||availability==='neither'?{timing:absent}:{})},{...facts[1],proposer:absent,timing:absent}];
+ expect(store.captureOpportunities(record.identity,token,pair)).toBe(true);expect(store.target(record.identity)?.opportunities).toEqual(pair);expect(store.target(record.identity)?.opportunities?.[1].timing.state).toBe('unavailable');
+});
+
+it('enriches retained opportunity history after active eviction and preserves one immutable frozen capture after history eviction',async()=>{
+ const {store,record,facts,token,current}=await opportunityFixture();expect(store.pin(record.identity)).toBe(true);expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ for(let index=0;index<101;index++)store.addCandidate({identity:`opportunity-active-${index}`,header:{...current,hash:`OpportunityActive${index}`},evidence:evidence(b,index+2)});
+ expect(store.acceptedTargets().some(value=>value.identity===record.identity)).toBe(false);expect(store.inspection().frozen).toBe(false);
+ const enriched=facts.map(fact=>({...fact,capturedAt:fact.capturedAt+1,capturedMonotonic:fact.capturedMonotonic+1,...(fact.timing.state==='known'?{timing:{...fact.timing,remainingAtCapture:4999}}:{})})) as [OpportunityFact,OpportunityFact];
+ expect(store.captureOpportunities(record.identity,token,enriched)).toBe(true);expect(store.target(record.identity)?.opportunities).toEqual(enriched);
+ for(let index=0;index<151;index++)store.addCandidate({identity:`opportunity-history-${index}`,header:{...current,hash:`OpportunityHistory${index}`,payload_hash:`HistoricalPayload${index}`},evidence:evidence(b,index+200)});
+ const frozen=store.inspection();expect(frozen.frozen).toBe(true);const captured=frozen.snapshot!.candidates.find(value=>value.identity===record.identity)?.opportunities??frozen.snapshot!.record.opportunities;expect(captured).toEqual(enriched);
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(false);expect(store.inspection().snapshot).toBe(frozen.snapshot);expect(captured).toEqual(enriched);
+ const uncaptured=store.history().find(value=>value.record.target.payload==='HistoricalPayload150');expect(uncaptured?.record.opportunities).toBeUndefined();
+});
+
+it.each(['pause-resume','same-height-reorg'] as const)('rejects late opportunity capture after %s without historical live-fill',async change=>{
+ const {store,record,facts,token,current}=await opportunityFixture();
+ if(change==='pause-resume'){store.stop();store.start();}else store.observeHead({...current,hash:'OpportunityFork',evidence:evidence(b,100)});
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(false);expect(store.target(record.identity)?.opportunities).toBeUndefined();
+});
+
+it.each(['level','round','source','timing-context','requested-anchor','unsafe-deadline','unsafe-remaining','unsafe-capture'] as const)('rejects contradictory %s opportunity facts at actual retained-store boundary',async kind=>{
+ const {store,record,facts,token}=await opportunityFixture();const first=facts[0];if(first.proposer.state!=='known'||first.timing.state!=='known')throw new Error('Fixture branch is not proven');
+ const bad:OpportunityFact=kind==='level'?{...first,level:124}:kind==='round'?{...first,round:2}:kind==='source'?{...first,proposer:{state:'known',right:{...first.proposer.right,evidence:{...first.proposer.right.evidence,source:{...b,baseUrl:'https://unconfigured.invalid'}}}}}:kind==='timing-context'?{...first,timing:{...first.timing,parameters:{...first.timing.parameters,context:{...first.timing.parameters.context,level:124}}}}:kind==='requested-anchor'?{...first,timing:{...first.timing,parameters:{...first.timing.parameters,evidence:{...first.timing.parameters.evidence,requestedHeadHash:'WrongAnchor'}}}}:kind==='unsafe-deadline'?{...first,timing:{...first.timing,deadline:Number.MAX_SAFE_INTEGER+1}}:kind==='unsafe-remaining'?{...first,timing:{...first.timing,remainingAtCapture:-1}}:{...first,capturedMonotonic:NaN};
+ expect(store.captureOpportunities(record.identity,token,[bad,facts[1]])).toBe(false);expect(store.target(record.identity)?.opportunities).toBeUndefined();
 });

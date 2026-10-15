@@ -5,7 +5,7 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
-const browserChecks=new Set(['AC-4','AC-5','AC-6','AC-7','AC-8','AC-13','AC-16','AC-17','AC-19','AC-20','AC-21','AC-22','AC-23','AC-24','AC-25','AC-26','AC-27','AC-28','AC-29','AC-30','AC-31','AC-32','AC-35','AC-36','AC-37','AC-38']);
+const browserChecks=new Set(['AC-15','AC-33','AC-34','AC-4','AC-5','AC-6','AC-7','AC-8','AC-13','AC-16','AC-17','AC-19','AC-20','AC-21','AC-22','AC-23','AC-24','AC-25','AC-26','AC-27','AC-28','AC-29','AC-30','AC-31','AC-32','AC-35','AC-36','AC-37','AC-38']);
 // Preserve the contractual native command spelling while requiring production evidence too.
 const implicitBrowserChecks=new Set(['AC-16','AC-17','AC-19','AC-23']);
 const implemented = new Set(['AC-1','AC-2','AC-3','AC-9','AC-10','AC-11','AC-12','AC-14','AC-18','AC-19',...browserChecks]);
@@ -71,7 +71,15 @@ try {
     return {observer,anchor:observer,level:120,protocolHash:'PFixture',key:JSON.stringify([observerSource.baseUrl,'NetFixture','Parent','Grandparent','PFixture',120])};
   };
   rights=[{address:'D1',slot:0,power:3,context:authorityContextFor(source)},{address:'D2',slot:1,power:2,context:authorityContextFor(source)}];
-  if(['AC-7','AC-28','AC-29','AC-30','AC-35','AC-36','AC-37','AC-38'].includes(criterion)) {
+  if(criterion==='AC-34') {
+    const {conditionalRoundBoundary,protocolRoundStart}=await server.ssrLoadModule('/consensus/roundSchedule.ts');
+    const current={referenceTimestamp:27000,referenceRound:2,minimum:6,increment:3,roundBasis:'proven'};
+    check(conditionalRoundBoundary({...current,branch:'same-level'}),39000,'Selected same-level R+1 uses its own execution durations');
+    check(conditionalRoundBoundary({...current,branch:'next-level',minimum:10,increment:4}),45000,'Successor durations include the actual predecessor-round term');
+    check(protocolRoundStart({...current,referenceTimestamp:0,targetRound:2}),27000,'Hypothetical selected round derives from proven parent without a synthetic observed header');
+    check(conditionalRoundBoundary({...current,branch:'next-level',roundBasis:'unknown'}),undefined,'Unsupported migration basis does not fabricate a timer');
+    for(const invalid of [{minimum:0},{increment:-1},{referenceRound:0x80000000},{referenceTimestamp:Number.MAX_SAFE_INTEGER},{minimum:Number.MAX_SAFE_INTEGER}])check(conditionalRoundBoundary({...current,...invalid,branch:'same-level'}),undefined,'Unsafe or unsupported protocol timing inputs remain unavailable');
+  } else if(['AC-7','AC-28','AC-29','AC-30','AC-35','AC-36','AC-37','AC-38'].includes(criterion)) {
     const {SourceComparison}=await server.ssrLoadModule('/rpc/sourceComparison.ts');
     const originalFetch=globalThis.fetch,originalNow=Object.getOwnPropertyDescriptor(performance,'now');let clock=1000;
     const a=streamSources.mainnet[0],b=streamSources.mainnet[1],reads=[];
