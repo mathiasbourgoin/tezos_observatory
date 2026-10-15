@@ -416,7 +416,7 @@ function render(runtime: Runtime): void {
       : view.headStream.mode === "fallback"
         ? "Heads polling (15s) · reduced coverage"
         : view.operationMode === "fallback"
-          ? "Heads stream · operations polling (30s)"
+          ? runtime.network==="mainnet"?"Heads stream · source-local snapshots (proven heads / 6s) · raw stream separate":"Heads stream · operations polling (30s)"
           : view.headStream.mode === "stream"
             ? "Live RPC streams"
             : "Reconnecting",
