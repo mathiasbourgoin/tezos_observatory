@@ -43,7 +43,7 @@ export class CandidateProducers {
   this.fence();
   for(const record of [...records].sort((a,b)=>a.evidence.receivedMonotonic-b.evidence.receivedMonotonic||a.identity.localeCompare(b.identity))){
    if(!this.eligible(record)||this.attempts.has(record.identity)||this.facts.has(record.identity)||this.attempts.size>=100)continue;
-   const context=record.admission!.context;
+   const context=record.admission?.context;if(!context)continue;
    this.attempts.set(record.identity,{source:record.target.source.baseUrl,chain:context.observer.chainId,level:record.target.level});
    if(this.flight)this.queued=record;else this.launch(record);
   }
@@ -58,15 +58,15 @@ export class CandidateProducers {
   return this.enabled&&!!candidate&&!!context&&!record.contextInvalid&&context.protocolHash===PRODUCER_PROTOCOL&&candidate.header.chainId===context.observer.chainId&&candidate.evidence.source.baseUrl===context.observer.source.baseUrl&&!!watermark&&watermark.chain===context.observer.chainId&&context.observer.header.level===watermark.level&&record.target.level>=watermark.level&&record.target.level<=watermark.level+1&&!!this.options.epoch(record);
  }
  private launch(record:Record):void {
-  const epoch=this.options.epoch(record);if(!epoch||!this.eligible(record))return;
+  const epoch=this.options.epoch(record),context=record.admission?.context,candidate=record.target.candidate;if(!epoch||!context||!candidate||!this.eligible(record))return;
   const controller=new AbortController(),flight={record,controller,epoch};this.flight=flight;
-  void this.options.data.blockMetadata(record.target.candidate!.header,record.target.source,controller.signal).then(receipt=>{
+  void this.options.data.blockMetadata(candidate.header,record.target.source,controller.signal).then(receipt=>{
    if(controller.signal.aborted||this.flight!==flight||!this.eligible(record)||this.options.epoch(record)!==epoch)return;
-   if(receipt.evidence.source.baseUrl!==record.target.source.baseUrl||receipt.evidence.source.network!==record.target.source.network||receipt.evidence.requestedHeadHash!==record.target.candidate!.header.hash)return;
+   if(receipt.evidence.source.baseUrl!==record.target.source.baseUrl||receipt.evidence.source.network!==record.target.source.network||receipt.evidence.requestedHeadHash!==candidate.header.hash)return;
    const baker=metadataBaker(receipt.value,record);if(!baker)return;
-   const context=record.admission!.context,hash=record.target.candidate!.header.hash;
+   const hash=candidate.header.hash;
    const fact:BlockProducerFact=Object.freeze({identity:record.identity,hash,baker,protocol:context.protocolHash,evidence:Object.freeze({...receipt.evidence,source:Object.freeze({...receipt.evidence.source}),chainId:context.observer.chainId,protocolHash:context.protocolHash,contextHeadHash:context.observer.header.hash,predecessor:context.anchor.header.hash})});
-   this.facts.set(record.identity,fact);if(this.facts.size>100)this.facts.delete(this.facts.keys().next().value!);this.options.changed(fact,epoch);
+   this.facts.set(record.identity,fact);if(this.facts.size>100){const oldest=this.facts.keys().next().value;if(oldest!==undefined)this.facts.delete(oldest);}this.options.changed(fact,epoch);
   }).catch(()=>{/* Optional metadata failure remains unknown, without retry or cascade. */}).finally(()=>{
    if(this.flight!==flight)return;this.flight=undefined;const queued=this.queued;this.queued=undefined;if(queued&&this.eligible(queued))this.launch(queued);
   });
