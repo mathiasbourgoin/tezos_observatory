@@ -48,8 +48,7 @@ export const sources: Record<NetworkName, readonly RpcSource[]> = {
   ],
 };
 
-// TzKT allows browser monitor streams but restricts protocol helper routes.
-// Keep attestation-rights and constants lookups on their existing providers.
+// Helper-capable observers remain available for heads, snapshots and comparisons.
 export const streamSources: Record<NetworkName, readonly RpcSource[]> = {
   mainnet: [
     ...sources.mainnet,
@@ -60,6 +59,13 @@ export const streamSources: Record<NetworkName, readonly RpcSource[]> = {
     },
   ],
   shadownet: sources.shadownet,
+};
+
+// Mainnet helper providers reject operation/proposal streams in browsers.
+// Retain TzKT raw streams separately; its restricted helpers never prove another source.
+export const rawStreamSources:Record<NetworkName,readonly RpcSource[]>={
+  mainnet:streamSources.mainnet.filter(source=>!sources.mainnet.some(helper=>helper.baseUrl===source.baseUrl)),
+  shadownet:sources.shadownet,
 };
 
 export interface RpcContext {
@@ -430,6 +436,7 @@ export class NetworkData {
 
   async reconcile(target:ReconciliationTarget,signal:AbortSignal,onObservedHead?:(head:BlockHeader)=>void):Promise<ReconciledContext> {
     if(![...sources[this.network],...streamSources[this.network]].some(source=>source.baseUrl===target.source.baseUrl && source.network===target.source.network))throw new Error("Unconfigured reconciliation observer");
+    if(!sources[this.network].some(source=>source.baseUrl===target.source.baseUrl && source.network===target.source.network))throw new Error("Raw stream observer restricts browser protocol helpers");
     if(target.candidate && target.candidate.evidence.source.baseUrl!==target.source.baseUrl)throw new Error("Candidate belongs to another observer");
     if(target.observerHead && (target.observerHead.evidence?.source.baseUrl!==target.source.baseUrl || target.observerHead.evidence.source.network!==target.source.network))throw new Error("Current head belongs to an unproven or different observer");
     if(target.candidate && (target.level!==target.candidate.header.level || target.round!==proposalRound(target.candidate.header.fitness,target.candidate.header.level) || target.payload!==target.candidate.header.payload_hash))throw new Error("Reconciliation target does not match candidate facts");

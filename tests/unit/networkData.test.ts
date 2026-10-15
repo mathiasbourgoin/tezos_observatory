@@ -1,5 +1,5 @@
 import {afterEach, expect, it, vi} from "vitest";
-import {NetworkData} from "../../src/rpc/networkData";
+import {NetworkData,rawStreamSources} from "../../src/rpc/networkData";
 import {groupsFor} from "../../src/consensus/phaseEvidence";
 import type {BlockHeader} from "../../src/rpc/models";
 
@@ -12,6 +12,13 @@ const contextResponse=(url:string):Response|undefined=>{
  const level=hash==="BFork"?120:hash==="BForkParent"?119:Number(hash.slice(1));
  return Response.json({...head(level),hash,predecessor:hash==="BFork"?"BForkParent":head(level).predecessor,chain_id:"NetFixture"});
 };
+it('retains raw Mainnet streams without retrying their known restricted protocol helpers',async()=>{
+ const fetchMock=vi.fn();vi.stubGlobal('fetch',fetchMock);
+ const source=rawStreamSources.mainnet[0];if(!source)throw new Error('Raw observer missing');
+ expect(rawStreamSources.mainnet.map(value=>value.baseUrl)).toEqual(['https://rpc.tzkt.io/mainnet']);
+ await expect(new NetworkData('mainnet').reconcile({source,level:121,round:0},new AbortController().signal)).rejects.toThrow('restricts browser protocol helpers');
+ expect(fetchMock).not.toHaveBeenCalled();
+});
 it("reuses committees and constants for the same immutable target",async()=>{
   const calls:string[]=[];
   const fetchMock=vi.fn(async(input:string|URL|Request)=>{
