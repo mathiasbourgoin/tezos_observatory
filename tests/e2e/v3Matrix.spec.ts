@@ -100,7 +100,7 @@ test('V3 AC-10 both phases render exact below at and full thresholds independent
 
 test('V3 AC-36 native choice open checked hover focus and disabled surfaces cover every base',async({page},info)=>{
  test.setTimeout(240000);await prepare(page,false);await send(page,'mainnet-operations',[vote(0)]);
- const panel=page.locator('.network-panel.mainnet');await expect(page.locator('select')).toHaveCount(0);
+ const panel=page.locator('.network-panel.mainnet');await expect(page.locator('select:not(.palette-select)')).toHaveCount(0);await expect(page.getByLabel('Colour palette')).toHaveCount(1);
  for(const name of ['Appearance','Committee sort','Committee phase receipt filter','Retained session instance','Comparison provider']){
   await captureMatrix(page,info,`native-choice-${name.toLowerCase().replaceAll(' ','-')}-open`,async()=>{
    const summary=name==='Appearance'?page.getByLabel(name):panel.getByLabel(name),root=summary.locator('..');
