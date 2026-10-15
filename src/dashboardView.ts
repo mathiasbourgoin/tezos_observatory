@@ -10,13 +10,14 @@ export interface NetworkViewModel {
   observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
   candidates?: readonly {identity:string;hash?:string;payload?:string;level:number;round:number}[];
   selectedIdentity?: string;
+  session?:{mode:"follow"|"pin";frozen:boolean;newer:number;newerPartial:boolean;selected?:string;canPin:boolean;accepted:number;unresolved:number;raw:number;instances:readonly {identity:string;label:string}[]};
   retryIdentity?:string;
   canRetry?:boolean;
   candidateEvidence?: string;
   contextEvidence?: string;
   recentConsensus?: RecentConsensusView[];
   events?:readonly {readonly identity:string;readonly description:string;readonly observedAt:number}[];
-  observedAt?: number; blockTimestamp?: number; lastOperationAt?: number;
+  observedAt?: number; observedMonotonic?:number; snapshotMonotonic?:number; blockTimestamp?: number; lastOperationAt?: number;
   source?: string; connection?: string; error?: string; note?: string;
   preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;
   timing?: {level?: number; round: number; nextRound: number; endsAt: number; startedAt?: number};
@@ -157,7 +158,7 @@ function delegateList(network: Network, phase: 'Pre' | 'Att') {
   }};
 }
 
-export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
+export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void;onPin?:(network:Network)=>void;onFollow?:(network:Network)=>void;onLatest?:(network:Network)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
   root.classList.add('consensus-app');
   const header = el('header', 'masthead'), brand = el('div', 'header-brand');
   const mark = el('img', 'header-mark'); mark.src='./observatory-mark.svg'; mark.alt=''; mark.width=40; mark.height=40;
@@ -210,6 +211,10 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const metadata = el('dl', 'evidence-meta');
     const meta = new Map<string, HTMLElement>();
     for (const label of ['Primary source', 'Applied head', 'Block hash', 'Last successful head', 'Last operation', 'Block age', 'Snapshot age']) {metadata.append(el('dt', '', label)); const value = el('dd', '', 'Unavailable'); metadata.append(value); meta.set(label, value);}
+    const sessionControls=el("div","session-controls"),sessionNote=el("p","table-note"),sessionSelect=el("select");sessionSelect.setAttribute("aria-label","Retained session instance");
+    const pinSelected=el("button","control-button","Pin selected instance"),latest=el("button","control-button","Latest"),follow=el("button","control-button","Follow live");for(const button of [pinSelected,latest,follow])button.type="button";
+    pinSelected.addEventListener("click",()=>options.onPin?.(network));latest.addEventListener("click",()=>options.onLatest?.(network));follow.addEventListener("click",()=>options.onFollow?.(network));sessionSelect.addEventListener("change",()=>{if(sessionSelect.value)options.onSelect?.(network,sessionSelect.value);});sessionControls.append(sessionNote,sessionSelect,pinSelected,latest,follow);evidence.body.append(sessionControls);
+    const sessionOptions=new Map<string,HTMLOptionElement>();
     const authorityEvidence=el('p','authority-evidence table-note');
     const sourceRows = el('div', 'source-rows'), history = el('ol', 'event-history'); evidence.body.append(metadata, authorityEvidence, sourceRows, el('h4', '', 'Recent network events'), history);
     panel.append(panelHeader, headline, appliedContext, proposalContext, connection, notice, consensus, recent.root, opportunities, missing, evidence.details); grid.append(panel);
@@ -217,10 +222,11 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     let current: NetworkViewModel | undefined, previousStatus: NetworkViewModel['status'] | undefined;
     const tick = (now: number): void => {
       if (!current) return;
-      const age = current.observedAt === undefined ? undefined : Math.max(0, (now - current.observedAt) / 1000);
+      const age = current.observedMonotonic === undefined ? undefined : Math.max(0, (performance.now() - current.observedMonotonic) / 1000);
+      const snapshotAge=current.snapshotMonotonic===undefined?undefined:Math.max(0,(performance.now()-current.snapshotMonotonic)/1000);
       set(freshness, age === undefined ? 'No head message yet' : `Last head message ${age < 1 ? 'just now' : `${Math.floor(age)}s ago`}`);
-      set(meta.get('Snapshot age')!, age === undefined ? 'Unavailable' : `${Math.floor(age)}s`);
-      set(meta.get('Block age')!, current.blockTimestamp === undefined ? 'Unavailable' : `${Math.max(0, Math.floor((now - current.blockTimestamp) / 1000))}s`);
+      set(meta.get('Snapshot age')!, snapshotAge === undefined ? 'Unavailable' : `${Math.floor(snapshotAge)}s`);
+      set(meta.get('Block age')!, current.blockTimestamp === undefined ? 'Unavailable' : current.observedAt===undefined||age===undefined?'Unavailable':`${Math.max(0,Math.floor((current.observedAt-current.blockTimestamp)/1000+age))}s`);
       const t = current.timing;
       if (!t) {set(countdown, 'Timing unavailable'); set(timing, 'Calculated opportunity round unavailable'); return;}
       const remaining = Math.ceil((t.endsAt - now) / 1000);
@@ -238,6 +244,8 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       set(proposalContext, model.roundSource === 'schedule' ? 'Proposal observation unavailable' : model.roundSource === 'observed' ? model.observedProposal && model.observedProposal.level===model.level&&model.observedProposal.round===model.round && model.payload && model.observedProposal.payload===model.payload ? `Observed proposal · level ${number(model.level)} · round ${model.round}` : `Observed votes · level ${number(model.level)} · round ${model.round}` : 'Proposal observation unavailable');
       if (model.observedProposal) proposalContext.title = `Last observed proposal: level ${model.observedProposal.level}, round ${model.observedProposal.round}${model.observedProposal.at === undefined ? '' : ` at ${clock(model.observedProposal.at)}`}`;
       else proposalContext.removeAttribute('title');
+      const session=model.session;sessionControls.hidden=!session;
+      if(session){set(sessionNote,`${session.mode==="follow"?"Follow live":session.frozen?"Pinned frozen snapshot outside retained history":"Pinned retained session instance"} · ${session.instances.length} / 150 session instances · ${session.accepted} / 100 active candidates · ${session.unresolved} / 100 unresolved identities · ${session.raw} / 10000 raw operations · ${session.newerPartial?"At least ":""}${session.newer} newer items${session.newerPartial?"; first-arrival history partial":""} · Browser-session history is nonarchival and resets on reload`);pinSelected.disabled=!session.canPin;follow.setAttribute("aria-pressed",String(session.mode==="follow"));latest.setAttribute("aria-pressed","false");const wanted=new Set(session.instances.map(instance=>instance.identity));for(const instance of session.instances){let option=sessionOptions.get(instance.identity);if(!option){option=el("option");option.value=instance.identity;sessionOptions.set(instance.identity,option);sessionSelect.append(option);}set(option,instance.label);}for(const [key,option] of sessionOptions)if(!wanted.has(key)){option.remove();sessionOptions.delete(key);}sessionSelect.value=session.selected??"";}
       recent.update(model.recentConsensus);
       set(transport, `${model.connection ?? 'Monitoring'}${model.source ? ` · ${model.source}` : ''}`);
       set(notice, model.error ?? model.note ?? (model.status === 'stalled' ? 'Proposal activity continues, but the level has not advanced.' : model.status === 'loading' ? 'Waiting for the first successful observation.' : 'Live observations from this browser.'));

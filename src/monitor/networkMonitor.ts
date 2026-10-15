@@ -14,7 +14,7 @@ import type {
   StreamStatus,
   TransportMetrics,
 } from "../rpc/models";
-import {ObservationStore,type ContextAdmission,type ObservationTarget,type AcceptedEvent} from "./observationStore";
+import {ObservationStore,type ContextAdmission,type ObservationTarget,type AcceptedEvent,type SessionSnapshot,type SessionInspection} from "./observationStore";
 import {ObserverReconciliation,reconciliationKey,type ReconciliationTarget} from "./observerReconciliation";
 import type {Constants,DelegateRight,TargetContext,RpcContext} from "../rpc/networkData";
 import { StreamTransport } from "../rpc/streamTransport";
@@ -42,6 +42,8 @@ export interface NetworkMonitorView<T extends NetworkDerivedState> {
   readonly snapshot: HeadSnapshot<T> | null;
   readonly rawOperations: MonitorOperationBatch;
   readonly observationTargets: readonly ObservationTarget<T>[];
+  readonly history:readonly SessionSnapshot<T>[];
+  readonly inspection:SessionInspection<T>;
   readonly unresolvedTargets: readonly ObservationTarget<T>[];
   readonly networkIdentity:RpcContext|null;
   readonly acceptedEvents:readonly AcceptedEvent[];
@@ -422,6 +424,9 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   reconcileObservation(identity:string):boolean {
     const record=this.observations.target(identity);return record?this.reconcileTarget(record,true):false;
   }
+  pinObservation(identity:string):boolean {const pinned=this.observations.pin(identity);if(pinned)this.emit();return pinned;}
+  followLive():void {this.observations.followLive();this.emit();}
+  latestObservation():boolean {const selected=this.observations.latest();this.emit();return selected;}
   contextAuthorized(context:TargetContext):boolean {return this.observations.contextAuthorized(context);}
   observedHead(source:RpcSource):BlockHeader|undefined {return this.observations.observerHead(source);}
   private currentTarget(record:ObservationTarget<T>):ReconciliationTarget {
@@ -553,6 +558,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       progression:this.progression,
       rawOperations: this.observations.rawOperations(),
       observationTargets:this.observations.acceptedTargets(),
+      history:this.observations.history(),
+      inspection:this.observations.inspection(),
       unresolvedTargets:this.observations.unresolvedTargets(),
       networkIdentity:this.observations.networkIdentity()??null,
       headStream: this.headStatus,

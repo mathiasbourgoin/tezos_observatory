@@ -323,3 +323,86 @@ it("does not infer a lost crossing history from never-admitted ahead raw consens
  installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);store.addOperations([operation("never-admitted",999)]);store.addOperations(Array.from({length:10000},(_,index)=>({hash:`unrelated-ahead-${index}`,evidence:evidence(b,index+2),contents:[]})));
  const below={...operation("fresh-known-below"),evidence:evidence(b,20000)},record=store.addOperations([below])[0]!;store.accept(await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal));store.addOperations([{...operation("fresh-known-quorum"),evidence:evidence(b,20001),contents:[{...below.contents[0]!,slot:1}]}]);expect(store.acceptedEvents().filter(event=>event.kind==="crossing")).toHaveLength(1);
 });
+
+it("keeps historical candidate facts after active-index eviction without replay refreshing their first receipt",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);
+ const candidate=(index:number)=>({identity:`candidate-${String(index).padStart(3,"0")}`,header:{...head(123),hash:`C${index}`,payload_hash:`P${index}`},evidence:evidence(b,index+1)});
+ const seed=store.addOperations([operation()])[0]!;store.accept(await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal));
+ const first=store.addCandidate(candidate(0))!;
+ for(let index=1;index<101;index++)store.addCandidate(candidate(index));
+ expect(store.acceptedTargets().filter(record=>record.target.candidate)).toHaveLength(100);
+ expect(store.acceptedTargets().some(record=>record.identity===first.identity)).toBe(false);
+ const historical=store.target(first.identity);expect(historical?.target.candidate?.header.hash).toBe("C0");expect(historical?.evidence.receivedMonotonic).toBe(1);expect(historical?.admission?.context.observer.header.hash).toBe("H122");
+ store.addCandidate({...candidate(0),evidence:evidence(b,999)});expect(store.target(first.identity)?.evidence.receivedMonotonic).toBe(1);
+});
+
+it("enriches a retained pin through active eviction then freezes it on history eviction even when its identity returns",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),seed=store.addOperations([base])[0]!;store.accept(await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal));
+ const candidate=(index:number,payload="P")=>({identity:`pin-candidate-${index}`,header:{...head(123),hash:`Pinned${index}`,payload_hash:payload},evidence:evidence(b,index+1)});
+ const first=store.addCandidate(candidate(0))!;expect(store.pin(first.identity)).toBe(true);
+ for(let index=1;index<101;index++)store.addCandidate(candidate(index));
+ let inspection=store.inspection();expect(inspection.frozen).toBe(false);expect(inspection.snapshot?.candidates).toHaveLength(100);expect(inspection.snapshot?.candidates.some(record=>record.identity===first.identity)).toBe(true);expect(inspection.snapshot?.partial).toBe(true);
+ store.addOperations([{...base,hash:"late-second-signer",evidence:evidence(b,200),contents:[{...base.contents[0]!,slot:1}]}]);inspection=store.inspection();expect(inspection.selectedIdentity).toBe(first.identity);expect(inspection.snapshot?.record.phases?.pre?.maximumPower).toBe(5);expect(inspection.snapshot?.pre).toEqual(["D1","D2"]);
+ for(let index=101;index<252;index++)store.addCandidate(candidate(index,`P${index}`));
+ const frozen=store.inspection();expect(frozen.frozen).toBe(true);expect(frozen.snapshot?.record.phases?.pre?.maximumPower).toBe(5);
+ store.addOperations([{...base,hash:"return-to-frozen",evidence:evidence(b,1000)}]);expect(store.inspection().snapshot===frozen.snapshot).toBe(true);expect(store.inspection().frozen).toBe(true);
+ const replayed=store.addCandidate({...candidate(0),evidence:evidence(b,2000)})!;expect(replayed.evidence.receivedMonotonic).toBe(first.evidence.receivedMonotonic);
+ expect(store.pin("pin-candidate-251")).toBe(true);expect(store.inspection().frozen).toBe(false);expect(store.inspection().snapshot).not.toBe(frozen.snapshot);
+});
+
+it("keeps a proven newer-arrival lower bound through retirement without counting uncertain replay as new",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),seed=store.addOperations([base])[0]!;store.accept(await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal));expect(store.pin(seed.identity)).toBe(true);
+ const add=(index:number)=>store.addCandidate({identity:`newer-${index}`,header:{...head(123),hash:`Newer${index}`,payload_hash:`NewerPayload${index}`},evidence:evidence(b,index+2)});
+ for(let index=0;index<151;index++)add(index);
+ const count=store.inspection().newer;expect(count).toBeGreaterThanOrEqual(150);
+ add(0);expect(store.inspection().newer).toBe(count);expect(store.inspection().newerPartial).toBe(true);
+ const first=store.addCandidate({identity:"genuine-new-after-loss",header:{...head(123),hash:"GenuineNew",payload_hash:"GenuineNew"},evidence:evidence(b,999)});expect(first).toBeDefined();expect(store.inspection().newer).toBe(count);expect(store.inspection().newerPartial).toBe(true);
+});
+
+it("Latest and Follow select the newest actually active coherent candidate and expose unavailable after invalidation",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),seed=store.addOperations([operation()])[0]!;store.accept(await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal));
+ for(let index=0;index<101;index++)store.addCandidate({identity:`live-${index}`,header:{...head(123),hash:`Live${index}`,payload_hash:"P"},evidence:evidence(b,index+2)});
+ expect(store.latest()).toBe(true);expect(store.inspection().selectedIdentity).toBe("live-100");store.followLive();expect(store.inspection().selectedIdentity).toBe("live-100");
+ store.observeHead({...head(122),hash:"Fork122",evidence:evidence(b,1000)});expect(store.latest()).toBe(false);expect(store.inspection().mode).toBe("follow");expect(store.inspection().snapshot).toBeUndefined();
+});
+
+it("bounds historical unique consensus facts across raw turnovers and preserves the committee of an earlier maximum",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),record=store.addOperations([base])[0]!,proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);store.accept(proof);
+ const corrected={...proof,...store.generation(b),rights:proof.rights.map(right=>({...right,power:right.slot===0?2:3}))};store.accept(corrected);
+ const initial=store.history()[0]!;expect(initial.record.phases?.pre?.maximumPower).toBe(3);expect(initial.maximumCommittees?.pre?.find(right=>right.address==="D1")?.power).toBe(3);expect(initial.committee.find(right=>right.address==="D1")?.power).toBe(2);
+ for(let batch=0;batch<2;batch++)store.addOperations(Array.from({length:10000},(_,index)=>({...base,hash:`unknown-${batch}-${index}`,contents:[{...base.contents[0]!,slot:batch*10000+index+2}]})));
+ const retained=store.history()[0]!;expect(retained.unknownSlots.length).toBeLessThanOrEqual(10000);expect(retained.partial).toBe(true);expect(retained.record.phases?.pre?.maximumPower).toBe(3);
+});
+
+it("does not publish complete candidate coverage through a partial historical instance",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),seed=store.addOperations([operation()])[0]!,proof=await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal);store.accept(proof);
+ for(let index=0;index<101;index++)store.addCandidate({identity:`partial-${index}`,header:{...head(123),hash:`Partial${index}`,payload_hash:"P"},evidence:evidence(b,index+2)});
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,500),startedMonotonic:500,operations:[],complete:true,reasons:[]};store.accept({...proof,...store.generation(b),snapshot});
+ expect(store.history()[0]?.partial).toBe(true);expect(store.target("partial-100")?.coverage?.complete).toBe(false);expect(store.history()[0]?.candidates.every(candidate=>candidate.coverage?.complete!==true)).toBe(true);
+});
+
+it("bounds full candidate-only histories independently from accepted and unresolved indexes",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),seed=store.addOperations([operation()])[0]!;store.accept(await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal));
+ for(let index=0;index<151;index++)store.addCandidate({identity:`bounded-${String(index).padStart(3,"0")}`,header:{...head(123),hash:`Bounded${index}`,payload_hash:`BoundedPayload${index}`},evidence:evidence(b,index+2)});
+ expect(store.history()).toHaveLength(150);expect(store.acceptedTargets().filter(record=>record.target.candidate)).toHaveLength(100);expect(store.target("bounded-000")).toBeUndefined();expect(store.target("bounded-001")?.target.candidate?.header.hash).toBe("Bounded1");
+ for(let index=0;index<101;index++)store.addCandidate({identity:`unknown-${index}`,header:{...head(2147483647),hash:`Unknown${index}`,payload_hash:`UnknownPayload${index}`},evidence:evidence(b,1000+index)});
+ expect(store.unresolvedTargets()).toHaveLength(100);expect(store.history()).toHaveLength(150);expect(store.acceptedTargets().filter(record=>record.target.candidate)).toHaveLength(100);
+});
+it("uses the earliest original accepted receipt when delayed compatible evidence joins an existing full instance",async()=>{
+ const current={...head(123),payload_hash:"P"};installRpc(current);const store=new ObservationStore<Derived>("mainnet",sources.mainnet);store.observeHead({...current,evidence:evidence(b)});
+ const candidate={identity:"late-admitted-candidate",header:current,evidence:{...evidence(b,10),observedHeadHash:current.hash,observedHeadLevel:123}},record=store.addCandidate(candidate)!;store.accept(await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal));expect(store.history()[0]?.evidence.receivedMonotonic).toBe(10);
+ store.addOperations([{...operation("early-body"),evidence:{...evidence(b,1),observedHeadHash:current.hash,observedHeadLevel:123}}]);expect(store.history()).toHaveLength(1);expect(store.history()[0]?.evidence.receivedMonotonic).toBe(1);expect(store.history()[0]?.candidates[0]?.evidence.receivedMonotonic).toBe(10);
+});
+
+it("does not reconstruct observed-quorum beside a retained crossing event for the same retired phase",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),record=store.addOperations([base])[0]!;store.accept(await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal));store.addOperations([{...base,hash:"cross-slot-1",contents:[{...base.contents[0]!,slot:1}]}]);const original=store.acceptedEvents()[0]!;expect(original.kind).toBe("crossing");
+ store.addOperations(Array.from({length:151},(_,index)=>({...base,hash:`below-new-${index}`,evidence:evidence(b,index+2),contents:[{...base.contents[0]!,block_payload_hash:`Other${index}`}]})));store.addOperations([{...base,hash:"reconstructed-original",evidence:evidence(b,200),contents:[...base.contents,{...base.contents[0]!,slot:1}]}]);expect(store.acceptedEvents()).toHaveLength(1);expect(store.acceptedEvents()[0]===original).toBe(true);
+});
+
+ it("retains exact bounded session facts after a ten-thousand distinct-payload admission batch",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),seed=store.addOperations([operation()])[0]!;store.accept(await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal));
+ const packets=Array.from({length:10000},(_,index)=>({...operation(`session-stress-${index}`),evidence:evidence(b,index+2),contents:[{kind:"preattestation" as const,level:123,round:0,slot:0,block_payload_hash:`Stress${index}`}]}));
+ store.addOperations(packets);expect(store.rawOperations()).toHaveLength(10000);expect(store.history()).toHaveLength(150);expect(store.acceptedTargets()).toHaveLength(150);expect(store.unresolvedTargets()).toHaveLength(0);expect(store.acceptedEvents()).toHaveLength(0);expect(store.crossingState().retained).toBeLessThanOrEqual(500);
+ const latest=store.history()[0]!;expect(latest.record.target.payload).toBe("Stress9999");expect(latest.evidence).toBe(packets[9999]!.evidence);expect(latest.record.phases?.pre?.power).toBe(3);expect(latest.record.phases?.pre?.maximumPower).toBe(3);expect(latest.currentPre).toEqual(["D1"]);expect(latest.record.admission?.context.observer.header.hash).toBe("H122");
+ const original=store.rawOperations().at(-1)!;expect(original.evidence).toBe(packets[9999]!.evidence);expect(original.admission?.source.baseUrl).toBe(b.baseUrl);expect(original.evidence?.requestedHeadHash).toBeUndefined();
+ });

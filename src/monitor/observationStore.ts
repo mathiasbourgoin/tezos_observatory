@@ -49,6 +49,7 @@ export interface AcceptedPhase {
 }
 export interface AcceptedEvent {
   readonly identity:string;
+  readonly phaseIdentity:string;
   readonly kind:"crossing"|"observed-quorum";
   readonly phase:"pre"|"att";
   readonly level:number;
@@ -60,6 +61,33 @@ export interface AcceptedEvent {
   readonly power:number;
   readonly threshold:number;
   readonly evidence:ObservationEvidence;
+}
+
+/** Immutable accepted facts owned independently from LIVE indexes and raw retention. */
+export interface SessionSnapshot<T> {
+  readonly identity:string;
+  readonly record:ObservationTarget<T>;
+  readonly evidence:ObservationEvidence;
+  readonly candidates:readonly ObservationTarget<T>[];
+  readonly committee:readonly Readonly<DelegateRight>[];
+  readonly currentPre:readonly string[];
+  readonly currentAtt:readonly string[];
+  readonly phaseCommittees:{readonly pre?:readonly Readonly<DelegateRight>[];readonly att?:readonly Readonly<DelegateRight>[]};
+  readonly maximumCommittees:{readonly pre?:readonly Readonly<DelegateRight>[];readonly att?:readonly Readonly<DelegateRight>[]};
+  readonly pre:readonly string[];
+  readonly att:readonly string[];
+  readonly unknownSlots:readonly number[];
+  readonly conflicts:readonly string[];
+  readonly partial:boolean;
+  readonly acceptedSequence:number;
+}
+export interface SessionInspection<T> {
+  readonly mode:"follow"|"pin";
+  readonly snapshot?:SessionSnapshot<T>;
+  readonly selectedIdentity?:string;
+  readonly frozen:boolean;
+  readonly newer:number;
+  readonly newerPartial:boolean;
 }
 
 const instanceIdentity=(operation:MonitoredOperation,level:number,round:number,payload:string):string=>JSON.stringify(["instance",operation.evidence?.source.network??"unknown",operation.evidence?.source.baseUrl??"unknown",operation.evidence?.chainId??"unknown",operation.evidence?.observedHeadHash??"unknown",level,round,payload]);
@@ -82,6 +110,13 @@ export class ObservationStore<T> {
   private readonly phaseFacts=new Map<string,AcceptedPhase>();
   private readonly acceptedEventFacts:AcceptedEvent[]=[];
   private crossingHistoryUncertain=false;
+  private readonly sessionHistory=new Map<string,SessionSnapshot<T>>();
+  private selectedPin:{readonly instance:string;readonly identity:string;readonly baseline:number;readonly newer:number;readonly newerPartial:boolean}|undefined;
+  private frozenPin:SessionSnapshot<T>|undefined;
+  private acceptedSequence=0;
+  private historyIdentityUncertain=false;
+  private lastLiveSnapshot:SessionSnapshot<T>|undefined;
+  private readonly selectableUnits=new Map<string,number>();
 
   constructor(readonly network:NetworkName,sources:readonly RpcSource[]){this.configured=new Set(sources.filter(source=>source.network===network).map(source=>source.baseUrl));}
   private allowed(source:RpcSource|undefined):source is RpcSource {return source!==undefined && source.network===this.network && this.configured.has(source.baseUrl);}
@@ -121,13 +156,13 @@ export class ObservationStore<T> {
 
   addCandidate(candidate:CandidateObservation):ObservationTarget<T>|undefined {
     if(!this.allowed(candidate.evidence.source))return undefined;
-    const identity=candidate.identity,existing=this.find(identity);if(existing)return existing;
+    const identity=candidate.identity,existing=this.find(identity)??this.historicalTarget(identity);if(existing)return existing;
     const round=proposalRound(candidate.header.fitness,candidate.header.level),payload=candidate.header.payload_hash;
     if(round===undefined)return undefined;
     const observerHead=this.observerHead(candidate.evidence.source);
     const target:ReconciliationTarget=Object.freeze({...this.generation(candidate.evidence.source),source:candidate.evidence.source,level:candidate.header.level,round,...(payload?{payload}:{}),candidate,...(observerHead?{observerHead}:{})});
     const record:ObservationTarget<T>=Object.freeze({identity,target,evidence:candidate.evidence,contextInvalid:false});
-    this.unresolved.set(identity,record);this.tryAdmission(record);this.trim(this.unresolved,100);this.trim(this.acceptedCandidates,100);return this.find(identity);
+    this.unresolved.set(identity,record);this.tryAdmission(record);this.trim(this.unresolved,100);this.trim(this.acceptedCandidates,100);this.pruneSelectableUnits();return this.find(identity);
   }
 
   addOperations(batch:readonly MonitoredOperation[],snapshotContext?:TargetContext):readonly ObservationTarget<T>[] {
@@ -190,6 +225,7 @@ export class ObservationStore<T> {
     for(const key of this.bindings.keys())if(!retained.has(key))this.bindings.delete(key);
     for(const [identity,members] of this.membership){for(const key of members)if(!retained.has(key))members.delete(key);if(members.size===0)this.membership.delete(identity);}
     this.refreshAcceptedPhases(fresh.length>0);
+    this.pruneSelectableUnits();
     return created.map(record=>this.find(record.identity)).filter((record):record is ObservationTarget<T>=>record!==undefined);
   }
 
@@ -227,6 +263,7 @@ export class ObservationStore<T> {
       this.recheck(source,coverage);this.refreshAcceptedPhases(false);
     }
     if(admission.snapshotError)this.interrupt(source);
+    this.pruneSelectableUnits();
   }
 
   fail(identity:string,error:unknown):void {
@@ -238,6 +275,7 @@ export class ObservationStore<T> {
   private recheck(source:RpcSource,snapshot?:PendingCoverage):void {
     for(const record of [...this.unresolved.values(),...this.acceptedCandidates.values(),...this.instances.values()])if(record.target.source.baseUrl===source.baseUrl)this.tryAdmission(record,snapshot);
     this.trim(this.acceptedCandidates,100);this.trim(this.instances,150);
+    this.pruneSelectableUnits();
   }
 
   private tryAdmission(record:ObservationTarget<T>,snapshot?:PendingCoverage):boolean {
@@ -260,6 +298,7 @@ export class ObservationStore<T> {
     const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
     this.unresolved.delete(record.identity);
     const product=candidate?this.acceptedCandidates:this.instances;product.set(record.identity,updated);
+    this.captureHistory(updated);
     const instanceRecords=candidate?[...this.unresolved.values(),...this.instances.values()].filter(instance=>!instance.contextInvalid && (!instance.admission || instance.admission.context.key===admission.context.key) && instance.target.source.baseUrl===record.target.source.baseUrl && instance.target.level===record.target.level && instance.target.round===record.target.round && instance.target.payload===record.target.payload):[record];
     const members=new Set(instanceRecords.flatMap(instance=>[...(this.membership.get(instance.identity)??[])]));
     for(const operationKey of members){
@@ -276,7 +315,7 @@ export class ObservationStore<T> {
   }
 
   private find(identity:string):ObservationTarget<T>|undefined {return this.unresolved.get(identity)??this.acceptedCandidates.get(identity)??this.instances.get(identity);}
-  target(identity:string):ObservationTarget<T>|undefined {return this.find(identity);}
+  target(identity:string):ObservationTarget<T>|undefined {return this.find(identity)??this.historicalTarget(identity);}
   unresolvedTargets():readonly ObservationTarget<T>[] {return [...this.unresolved.values()];}
   acceptedTargets():readonly ObservationTarget<T>[] {return [...this.acceptedCandidates.values(),...this.instances.values()];}
   acceptedEvents():readonly AcceptedEvent[] {return [...this.acceptedEventFacts];}
@@ -288,17 +327,82 @@ export class ObservationStore<T> {
     for(const record of ordered.slice(0,product.size-maximum)){product.delete(record.identity);if(!this.find(record.identity)){this.membership.delete(record.identity);if(record.admission)this.crossingHistoryUncertain=true;}}
   }
 
+  private sessionIdentity(record:ObservationTarget<T>):string {return JSON.stringify([contextFacts(record.admission!.context),record.target.level,record.target.round,record.target.payload??null]);}
+  private historicalTarget(identity:string):ObservationTarget<T>|undefined {
+    for(const snapshot of [...this.sessionHistory.values(),...(this.frozenPin?[this.frozenPin]:[])]){if(snapshot.record.identity===identity)return snapshot.record;const candidate=snapshot.candidates.find(record=>record.identity===identity);if(candidate)return candidate;}
+    return undefined;
+  }
+  history():readonly SessionSnapshot<T>[] {return [...this.sessionHistory.values()].sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));}
+  pin(identity:string):boolean {
+    const snapshot=[...this.sessionHistory.values()].find(value=>value.identity===identity||value.record.identity===identity||value.candidates.some(candidate=>candidate.identity===identity));if(!snapshot)return false;
+    this.selectedPin=Object.freeze({instance:snapshot.identity,identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=undefined;return true;
+  }
+  followLive():void {this.selectedPin=undefined;this.frozenPin=undefined;}
+  latest():boolean {const live=this.liveSelection();if(!live){this.followLive();return false;}if(this.pin(live.record.identity))return true;this.selectedPin=Object.freeze({instance:live.snapshot.identity,identity:live.record.identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=live.snapshot;return true;}
+  private liveSelection():{readonly snapshot:SessionSnapshot<T>;readonly record:ObservationTarget<T>}|undefined {
+    const records=this.acceptedTargets().filter(record=>record.admission&&!record.contextInvalid&&this.contextAuthorized(record.admission.context)).sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
+    for(const record of records){const identity=this.sessionIdentity(record),snapshot=this.sessionHistory.get(identity)??(this.lastLiveSnapshot?.identity===identity?this.lastLiveSnapshot:undefined);if(snapshot)return {snapshot,record};}
+    return undefined;
+  }
+  inspection():SessionInspection<T> {
+    const pin=this.selectedPin;if(!pin){const live=this.liveSelection();return Object.freeze({mode:"follow",...(live?{snapshot:live.snapshot,selectedIdentity:live.record.identity}:{}),frozen:false,newer:0,newerPartial:false});}
+    const snapshot=this.frozenPin??this.sessionHistory.get(pin.instance);
+    return Object.freeze({mode:"pin",...(snapshot?{snapshot}:{}),selectedIdentity:pin.identity,frozen:this.frozenPin!==undefined||!this.sessionHistory.has(pin.instance),newer:pin.newer,newerPartial:pin.newerPartial});
+  }
+  private pruneSelectableUnits():void {
+    const retained=new Set([...this.sessionHistory.values()].flatMap(value=>value.candidates.length?value.candidates.map(candidate=>candidate.identity):[value.identity]));
+    for(const record of this.acceptedTargets())if(record.admission){if(record.target.candidate)retained.add(record.identity);else if(!this.sessionHistory.get(this.sessionIdentity(record))?.candidates.length)retained.add(this.sessionIdentity(record));}
+    for(const key of this.selectableUnits.keys())if(!retained.has(key)){this.selectableUnits.delete(key);this.historyIdentityUncertain=true;}
+    if(this.historyIdentityUncertain && this.selectedPin && !this.selectedPin.newerPartial)this.selectedPin=Object.freeze({...this.selectedPin,newerPartial:true});
+  }
+  private captureHistory(record:ObservationTarget<T>,group?:ReturnType<typeof groupsFor>[number]):void {
+    if(!record.admission || record.contextInvalid)return;
+    const identity=this.sessionIdentity(record),old=this.sessionHistory.get(identity);
+    const candidates=[...(old?.candidates??[])],candidate=record.target.candidate;
+    const candidateIndex=candidates.findIndex(value=>value.identity===record.identity);
+    if(candidate){if(candidateIndex<0)candidates.push(record);else candidates[candidateIndex]=record;}
+    let partial=old?.partial??false;
+    if(candidates.length>100){partial=true;candidates.sort((a,b)=>a.evidence.receivedMonotonic-b.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));const removable=candidates.findIndex(value=>value.identity!==this.selectedPin?.identity);candidates.splice(removable<0?0:removable,1);}
+    const unit=candidate?record.identity:identity;
+    if(!this.selectableUnits.has(unit) && candidateIndex<0 && (candidate || candidates.length===0)){
+      const represented=candidate?this.selectableUnits.get(identity):undefined;
+      if(candidate)this.selectableUnits.delete(identity);
+      const sequence=++this.acceptedSequence;this.selectableUnits.set(unit,sequence);
+      if(this.selectedPin && !this.historyIdentityUncertain && !(represented!==undefined&&represented>this.selectedPin.baseline))this.selectedPin=Object.freeze({...this.selectedPin,newer:this.selectedPin.newer+1});
+    }
+    const union=<V>(before:readonly V[]|undefined,after:Iterable<V>|undefined):readonly V[]=>{const facts=[...new Set([...(before??[]),...(after??[])])];if(facts.length>10000)partial=true;return Object.freeze(facts.slice(0,10000));};
+    const pre=union(old?.pre,group?.pre),att=union(old?.att,group?.att),unknownSlots=union(old?.unknownSlots,group?.unknownSlots),conflicts=union(old?.conflicts,group?.conflicts);
+    const phases=record.phases??old?.record.phases;
+    const phaseCommittees:{pre?:readonly Readonly<DelegateRight>[];att?:readonly Readonly<DelegateRight>[]}={};
+    for(const phase of ["pre","att"] as const)if(phases?.[phase])phaseCommittees[phase]=old?.record.phases?.[phase]?.basis===phases[phase].basis&&old.phaseCommittees[phase]?old.phaseCommittees[phase]:Object.freeze(record.admission.rights.map(right=>Object.freeze({...right})));
+    const currentPre=record.phases?.pre&&record.phases.pre!==old?.record.phases?.pre?Object.freeze([...(group?.pre??[])].slice(0,10000)):old?.currentPre??Object.freeze([]);
+    const currentAtt=record.phases?.att&&record.phases.att!==old?.record.phases?.att?Object.freeze([...(group?.att??[])].slice(0,10000)):old?.currentAtt??Object.freeze([]);
+    const maximumCommittees:{pre?:readonly Readonly<DelegateRight>[];att?:readonly Readonly<DelegateRight>[]}={};
+    for(const phase of ["pre","att"] as const)if(phases?.[phase])maximumCommittees[phase]=old?.record.phases?.[phase]?.maximumBasis===phases[phase].maximumBasis&&old.maximumCommittees[phase]?old.maximumCommittees[phase]:Object.freeze(record.admission.rights.map(right=>Object.freeze({...right})));
+    const capturedCoverage=record.coverage??old?.record.coverage,capturedCoverageStale=record.coverage?record.coverageStale:old?.record.coverageStale;
+    const representative=Object.freeze({...record,...(capturedCoverage?{coverage:capturedCoverage,...(capturedCoverageStale===undefined?{}:{coverageStale:capturedCoverageStale})}:{}),...(phases?{phases}:{}),...(partial&&capturedCoverage?{coverage:Object.freeze({...capturedCoverage,complete:false,reasons:Object.freeze([...new Set([...capturedCoverage.reasons,"Historical inspection facts partially retained"])])})}:{})});
+    if(partial)for(let index=0;index<candidates.length;index++){const value=candidates[index]!;if(value.coverage)candidates[index]=Object.freeze({...value,coverage:Object.freeze({...value.coverage,complete:false,reasons:Object.freeze([...new Set([...value.coverage.reasons,"Historical inspection facts partially retained"])])})});}
+    const snapshot:SessionSnapshot<T>=Object.freeze({identity,record:representative,evidence:old && old.evidence.receivedMonotonic<=record.evidence.receivedMonotonic?old.evidence:record.evidence,candidates:Object.freeze(candidates),maximumCommittees:Object.freeze(maximumCommittees),phaseCommittees:Object.freeze(phaseCommittees),currentPre,currentAtt,committee:Object.freeze(record.admission.rights.map(right=>Object.freeze({...right}))),pre,att,unknownSlots,conflicts,partial,acceptedSequence:old?.acceptedSequence??this.acceptedSequence});
+    this.sessionHistory.set(identity,snapshot);
+    if(partial)for(const product of [this.acceptedCandidates,this.instances])for(const [key,value] of product)if(value.coverage?.complete && value.admission && this.sessionIdentity(value)===identity)product.set(key,Object.freeze({...value,coverage:Object.freeze({...value.coverage,complete:false,reasons:Object.freeze([...new Set([...value.coverage.reasons,"Historical inspection facts partially retained"])])})}));
+    if(this.sessionHistory.size>150){const oldest=[...this.sessionHistory.values()].sort((a,b)=>a.evidence.receivedMonotonic-b.evidence.receivedMonotonic||a.identity.localeCompare(b.identity))[0]!;if(this.selectedPin?.instance===oldest.identity && !this.frozenPin)this.frozenPin=oldest;this.sessionHistory.delete(oldest.identity);}
+    const priorLive=this.lastLiveSnapshot?.record;
+    if(!priorLive || !this.find(priorLive.identity) || !priorLive.admission || !this.contextAuthorized(priorLive.admission.context) || record.evidence.receivedMonotonic>=priorLive.evidence.receivedMonotonic)this.lastLiveSnapshot=snapshot;
+  }
+
   /** Numerical facts change only at admitted observations, never from rendering. */
   private refreshAcceptedPhases(newVoteEvidence:boolean):void {
     const records=this.acceptedTargets(),operations=this.rawOperations();
     const key=(record:ObservationTarget<T>,phase:"pre"|"att")=>JSON.stringify([contextFacts(record.admission!.context),record.target.level,record.target.round,record.target.payload,"payload-shared",phase]);
     const retained=new Set(records.filter(record=>record.admission).flatMap(record=>[key(record,"pre"),key(record,"att")]));
     for(const identity of this.phaseFacts.keys())if(!retained.has(identity)){this.phaseFacts.delete(identity);this.crossingHistoryUncertain=true;}
-    const handled=new Set<string>();
+    const historicalPhases=new Map([...this.sessionHistory.values()].flatMap(snapshot=>[snapshot.record.phases?.pre,snapshot.record.phases?.att].filter((phase):phase is AcceptedPhase=>phase!==undefined).map(phase=>[phase.key,phase] as const)));
+    const handled=new Set<string>(),acceptedGroups=new Map<string,ReturnType<typeof groupsFor>[number]>();
     for(const admissions of this.contexts.values())for(const admission of admissions.values()){
       if(!this.contextAuthorized(admission.context))continue;
       const groups=groupsFor(operations,admission.rights,admission.context.level);
       const groupIndex=new Map(groups.map(group=>[JSON.stringify([group.round,group.payload,group.contextKey]),group]));
+      for(const group of groups)acceptedGroups.set(JSON.stringify([contextFacts(admission.context),admission.context.level,group.round,group.payload]),group);
       const owned=records.filter(record=>!record.contextInvalid && record.admission && contextFacts(record.admission.context)===contextFacts(admission.context));
       const basis=JSON.stringify([admission.constants.committee,admission.constants.quorum,admission.rights.map(right=>[right.address,right.slot,right.power])]);
       for(const record of owned){
@@ -310,15 +414,15 @@ export class ObservationStore<T> {
           if(!signers?.size && !complete)continue;
           const power=signerPower(signers??new Set(),admission.rights);if(power===undefined)continue;
           const evidence=(phase==="pre"?group?.preEvidence:group?.attEvidence)??snapshot?.evidence;if(!evidence)continue;
-          const old=this.phaseFacts.get(identity),sameBasis=old?.basis===basis;
+          const old=this.phaseFacts.get(identity)??historicalPhases.get(identity),sameBasis=old?.basis===basis;
           const crossing=!!old && sameBasis && newVoteEvidence && !old.uncertain && !old.quorumObserved && old.maximumPower<admission.constants.quorum && power>=admission.constants.quorum;
           const firstQuorum=power>=admission.constants.quorum && !old?.quorumObserved;
           const newMaximum=!old || power>old.maximumPower;
           const state:AcceptedPhase=Object.freeze({key:identity,phase,power,maximumPower:Math.max(old?.maximumPower??0,power),maximumTotal:newMaximum?admission.constants.committee:old.maximumTotal,maximumThreshold:newMaximum?admission.constants.quorum:old.maximumThreshold,maximumBasis:newMaximum?basis:old.maximumBasis,maximumEvidence:newMaximum?evidence:old.maximumEvidence,threshold:admission.constants.quorum,basis,quorumObserved:old?.quorumObserved===true||firstQuorum,crossed:old?.crossed===true||crossing,uncertain:old?.uncertain??this.crossingHistoryUncertain,evidence:old?.evidence??evidence});
           this.phaseFacts.set(identity,state);
           const eventIdentity=JSON.stringify([identity,crossing?"crossing":"observed-quorum"]);
-          if((crossing || (!old && firstQuorum)) && !this.acceptedEventFacts.some(event=>event.identity===eventIdentity)){
-            this.acceptedEventFacts.push(Object.freeze({identity:eventIdentity,kind:crossing?"crossing":"observed-quorum",phase,level:record.target.level,round:record.target.round,payload:record.target.payload!,contextKey:admission.context.key,chainId:admission.context.observer.chainId,attribution:"payload-shared",power,threshold:admission.constants.quorum,evidence}));
+          if((crossing || (!old && firstQuorum)) && !this.acceptedEventFacts.some(event=>event.phaseIdentity===identity)){
+            this.acceptedEventFacts.push(Object.freeze({identity:eventIdentity,phaseIdentity:identity,kind:crossing?"crossing":"observed-quorum",phase,level:record.target.level,round:record.target.round,payload:record.target.payload!,contextKey:admission.context.key,chainId:admission.context.observer.chainId,attribution:"payload-shared",power,threshold:admission.constants.quorum,evidence}));
             this.acceptedEventFacts.splice(0,Math.max(0,this.acceptedEventFacts.length-12));
           }
         }
@@ -327,7 +431,7 @@ export class ObservationStore<T> {
     if(this.phaseFacts.size>500){this.crossingHistoryUncertain=true;const ordered=[...this.phaseFacts.values()].sort((a,b)=>a.evidence.receivedMonotonic-b.evidence.receivedMonotonic||a.key.localeCompare(b.key));for(const state of ordered.slice(0,this.phaseFacts.size-500))this.phaseFacts.delete(state.key);}
     for(const product of [this.acceptedCandidates,this.instances])for(const [identity,record] of product)if(record.admission){
       const pre=this.phaseFacts.get(key(record,"pre")),att=this.phaseFacts.get(key(record,"att"));
-      if(pre || att)product.set(identity,Object.freeze({...record,phases:Object.freeze({...(pre?{pre}:{}),...(att?{att}:{})})}));
+      if(pre || att){const updated=Object.freeze({...record,phases:Object.freeze({...(pre?{pre}:{}),...(att?{att}:{})})});product.set(identity,updated);this.captureHistory(updated,acceptedGroups.get(this.sessionIdentity(updated)));}
     }
   }
 }

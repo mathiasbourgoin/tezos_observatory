@@ -5,7 +5,9 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
-const browserChecks=new Set(['AC-4','AC-8','AC-13','AC-20','AC-31']);
+const browserChecks=new Set(['AC-4','AC-5','AC-8','AC-13','AC-16','AC-17','AC-20','AC-22','AC-23','AC-24','AC-25','AC-31','AC-32']);
+// Preserve the contractual native command spelling while requiring production evidence too.
+const implicitBrowserChecks=new Set(['AC-16','AC-17','AC-23']);
 const implemented = new Set(['AC-1','AC-2','AC-3','AC-9','AC-10','AC-11','AC-12','AC-14','AC-18','AC-19',...browserChecks]);
 export function classifyBrowserReport(report,runnerStatus,criterion) {
   let completed=0;
@@ -44,7 +46,7 @@ try {
   const [criterion,...options] = process.argv.slice(2);
   if (!implemented.has(criterion)) throw new Error(`Incomplete or invalid check invocation: ${criterion}. Implemented interim checks: ${[...implemented].join(', ')}`);
   if (browserChecks.has(criterion)) {
-    if(options.length!==2 || options[0]!=='--browsers' || options[1]!=='chromium,firefox')throw new Error('Both required browsers must be explicitly requested: --browsers chromium,firefox');
+    if(!(implicitBrowserChecks.has(criterion)&&options.length===0) && (options.length!==2 || options[0]!=='--browsers' || options[1]!=='chromium,firefox'))throw new Error('Both required browsers must be explicitly requested: --browsers chromium,firefox');
     const child=spawnSync('rtk',['proxy',process.execPath,'node_modules/@playwright/test/cli.js','test','tests/e2e/dashboard.spec.ts','--grep',`foundations ${criterion} `,'--project','chromium','--project','firefox','--reporter=json'],{encoding:'utf8',maxBuffer:10_000_000,timeout:90_000});
     if(child.error || child.signal)throw child.error??new Error(`Browser workflow terminated: ${child.signal}`);
     let report;
@@ -69,7 +71,7 @@ try {
     return {observer,anchor:observer,level:120,protocolHash:'PFixture',key:JSON.stringify([observerSource.baseUrl,'NetFixture','Parent','Grandparent','PFixture',120])};
   };
   rights=[{address:'D1',slot:0,power:3,context:authorityContextFor(source)},{address:'D2',slot:1,power:2,context:authorityContextFor(source)}];
-  if(criterion==='AC-2' || criterion==='AC-14' || criterion==='AC-19' || criterion==='AC-31') {
+  if(['AC-2','AC-14','AC-16','AC-19','AC-22','AC-23','AC-24','AC-25','AC-31','AC-32'].includes(criterion)) {
     const {ObservationStore}=await server.ssrLoadModule('/monitor/observationStore.ts');
     const originalFetch=globalThis.fetch,completed=[],reads=[],signal=new AbortController().signal;
     const observer=sources.mainnet[0];let body={validated:[]},headReads=0,changeContext=false;
@@ -127,6 +129,80 @@ try {
           check(progress.evidence.source.baseUrl,observer.baseUrl,'Progress never borrows another observer identity');finish('independent-health',before);
         } finally {monitor?.stop();monitor=undefined;globalThis.window=originalWindow;}
         check(completed,['source-scoped-zero','missing-authority','positive-partial','independent-health'],'All complete AC2 clauses reached actual consumers');
+      } else if(['AC-16','AC-22','AC-23','AC-24','AC-25','AC-32'].includes(criterion)) {
+        let sequence=0;
+        const fact=(hash,payload='P',at=++sequence,slot=0,from=observer)=>({...packet(hash,payload),contents:[{kind:'preattestation',level:121,round:0,slot,block_payload_hash:payload}],evidence:{...receipt(from),receivedAt:at,receivedMonotonic:at}});
+        const candidate=(index,payload='P',at=index+2,from=observer)=>({identity:`history-${String(index).padStart(3,'0')}`,header:{...asBlockHeader(rawHead(121)),hash:`Candidate${index}`,payload_hash:payload},evidence:{...receipt(from),receivedAt:at,receivedMonotonic:at}});
+        const seeded=()=>{const store=new ObservationStore('mainnet',sources.mainnet),record=store.addOperations([fact('seed','P',1)])[0];if(!record)throw new Error('Missing actual retained history seed');store.accept({...proof,...store.generation(observer)});return {store,record};};
+        if(criterion==='AC-16') {
+          let before=assertions;const {store,record}=seeded();body=full([]);const snapshot=await pending();store.accept({...proof,...store.generation(observer),snapshot});check(store.pin(record.identity),true,'Actual source A history is locally inspectable');const original=store.inspection().snapshot;
+          check([original?.record.target.source.baseUrl,original?.record.admission.context.protocolHash,original?.record.admission.context.observer.header.hash,original?.record.admission.context.observer.header.predecessor],[observer.baseUrl,'PFixture','H120','H119'],'Retained history captures original source protocol head and parent');check(original?.record.coverage.evidence,snapshot.evidence,'Historical source snapshot retains original body receipt');finish('original-history-facts',before);
+          before=assertions;const b=sources.mainnet.find(value=>value.baseUrl!==observer.baseUrl);if(!b)throw new Error('Second configured historical observer missing');const other=store.addOperations([fact('new-provider','OtherPayload',2,0,b)])[0];if(!other)throw new Error('Provider-switch fixture target missing');
+          store.accept(await new NetworkData('mainnet').reconcile(other.target,signal));store.interrupt(observer);
+          check(store.target(record.identity)?.coverageStale,true,'Interrupted original source has stale live coverage');const retained=store.inspection().snapshot;
+          check([retained?.record.target.source.baseUrl,retained?.evidence.receivedAt,retained?.evidence.receivedMonotonic],[observer.baseUrl,1,1],'Provider switch cannot relabel or renew pinned historical observation');check(retained?.record.coverage.evidence,snapshot.evidence,'As-of historical source snapshot receipt stays immutable after interruption');
+          check(retained?.record.admission.rights[0].evidence.source.baseUrl,observer.baseUrl,'Historical helper responder is not rewritten to new provider');finish('provider-switch-and-stale',before);
+          before=assertions;const order=store.history().map(value=>value.identity),readsBefore=reads.length,realNow=Date.now;
+          try{Date.now=()=>Date.parse('2030-01-01T00:00:00Z');store.pin(record.identity);const readback=store.inspection().snapshot;check([readback?.evidence.receivedAt,readback?.evidence.receivedMonotonic,readback?.record.coverage.evidence.receivedAt,readback?.record.coverage.evidence.receivedMonotonic],[1,1,snapshot.evidence.receivedAt,snapshot.evidence.receivedMonotonic],'Wall-clock jump preserves original wall and monotonic historical receipts');check(store.history().map(value=>value.identity),order,'Wall-clock change cannot reorder first-receipt history');check(reads.length,readsBefore,'Actual local historical retrieval starts no source requests');}finally{Date.now=realNow;}finish('clock-and-local-readback',before);
+          check(completed,['original-history-facts','provider-switch-and-stale','clock-and-local-readback'],'All native AC16 provenance/age-order clauses completed with required browser age evidence');
+        } else if(criterion==='AC-22') {
+          let before=assertions;const {store,record}=seeded(),first=store.addCandidate(candidate(0));if(!first)throw new Error('Missing pin candidate');
+          check(store.pin(first.identity),true,'Actual history candidate can be pinned');const original=store.inspection().snapshot;
+          for(let index=1;index<101;index++)store.addCandidate(candidate(index));
+          check([store.acceptedTargets().some(value=>value.identity===first.identity),store.inspection().frozen],[false,false],'Active-index eviction neither loses historical candidate nor freezes pin');
+          check(store.inspection().snapshot?.candidates.some(value=>value.identity===first.identity),true,'Per-instance trimming protects selected candidate fact');
+          store.addOperations([fact('late-signer','P',200,1)]);const enriched=store.inspection();
+          check([enriched.selectedIdentity,enriched.snapshot?.record.phases?.pre?.maximumPower],[first.identity,5],'Later same-identity accepted evidence enriches retained pin');check(enriched.snapshot?.pre,['D1','D2'],'Historical reader retains actual signer facts');check(original?.record.phases?.pre?.maximumPower,3,'Earlier immutable snapshot is unchanged by enrichment');finish('retained-pin-enrichment',before);
+          before=assertions;for(let index=101;index<252;index++)store.addCandidate(candidate(index,`P${index}`));const frozen=store.inspection();
+          check([frozen.frozen,frozen.selectedIdentity,frozen.snapshot?.record.phases?.pre?.maximumPower],[true,first.identity,5],'History eviction freezes one separately retained enriched selection');
+          store.addOperations([fact('frozen-return','P',1000)]);check(store.inspection().snapshot,frozen.snapshot,'Later replay cannot mutate frozen history');check(store.inspection().snapshot===frozen.snapshot,true,'Frozen snapshot object stays static');
+          check(store.pin('history-251'),true,'New retained pin replaces frozen selection');check([store.inspection().frozen,store.inspection().snapshot===frozen.snapshot],[false,false],'Only the replacement pin remains selected');finish('history-eviction-freezes',before);
+          check(completed,['retained-pin-enrichment','history-eviction-freezes'],'All native AC22 clauses completed with required browser controls');
+        } else if(criterion==='AC-23') {
+          let before=assertions;const {store,record}=seeded();check(record.target.candidate,undefined,'Candidate-free raw identity has no invented hash');check(store.unresolvedTargets().length,0,'Successful admission removes quarantine duplicate');
+          store.addCandidate(candidate(1));store.addCandidate(candidate(2));const same=store.history().find(snapshot=>snapshot.candidates.length===2);check(same?.candidates.map(value=>value.target.candidate?.header.hash),['Candidate1','Candidate2'],'Shared payload retains distinct observed block hashes within one full instance');
+          const b=sources.mainnet.find(value=>value.baseUrl!==observer.baseUrl);if(!b)throw new Error('Second configured observer missing');
+          const separate=store.addOperations([fact('B-unresolved','P',10,0,b)])[0];check([store.unresolvedTargets().length,separate.target.candidate],[1,undefined],'Another observer stays separate and unresolved without a fabricated block');
+          const bProof=await new NetworkData('mainnet').reconcile(separate.target,signal);store.accept(bProof);
+          check([store.unresolvedTargets().length,store.history().length],[0,2],'Second observer promotion preserves separate full source-context instance and removes quarantine duplicate');
+          check(new Set(store.history().map(snapshot=>snapshot.record.target.source.baseUrl)).size,2,'Same coordinates and payload never merge across observers');finish('source-instance-candidate-identities',before);
+          check(completed,['source-instance-candidate-identities'],'All native AC23 identity/promotion clauses completed');
+        } else if(criterion==='AC-24') {
+          let before=assertions;const {store}=seeded();for(let index=0;index<151;index++)store.addCandidate(candidate(index,`P${index}`,2));
+          check([store.history().length,store.acceptedTargets().filter(value=>value.target.candidate).length],[150,100],'Full candidate-only history and active candidate products enforce independent bounds');
+          check([store.target('history-000'),store.target('history-001')?.target.candidate.header.hash],[undefined,'Candidate1'],'Equal monotonic first receipts use stable lexical identity ties');
+          const firstReceipt=store.target('history-001').evidence;store.addCandidate(candidate(1,'P1',999));check(store.target('history-001').evidence,firstReceipt,'Replay cannot refresh original receipt or retention order');
+          for(let index=0;index<101;index++){const value=candidate(1000+index,`Unknown${index}`,1000+index);store.addCandidate({...value,header:{...value.header,level:2147483647,fitness:['02','7fffffff','','ffffffff','00000000']}});}
+          check([store.history().length,store.acceptedTargets().filter(value=>value.target.candidate).length,store.unresolvedTargets().length],[150,100,100],'Unresolved enormous-level flood cannot evict accepted histories/candidates');finish('independent-bounds-and-ties',before);
+          before=assertions;const protectedHistory=seeded(),pinned=protectedHistory.store.addCandidate(candidate(0));protectedHistory.store.pin(pinned.identity);for(let index=1;index<101;index++)protectedHistory.store.addCandidate(candidate(index));
+          body=full([]);const snapshot=await pending();protectedHistory.store.accept({...proof,...protectedHistory.store.generation(observer),snapshot});const inspected=protectedHistory.store.inspection().snapshot;
+          check([inspected.candidates.length,inspected.partial,inspected.candidates.some(value=>value.identity===pinned.identity)],[100,true,true],'Candidate-fact cap protects pin and discloses partial retention');
+          check([inspected.record.coverage?.complete,inspected.candidates.some(value=>value.coverage?.complete===true)],[false,false],'Historical and candidate publication cannot bypass partial coverage');
+          for(let batch=0;batch<2;batch++)protectedHistory.store.addOperations(Array.from({length:10000},(_,index)=>fact(`unknown-${batch}-${index}`,'P',2000+batch*10000+index,index+2+batch*10000)));
+          const bounded=protectedHistory.store.inspection().snapshot;check([protectedHistory.store.rawOperations().length,bounded.unknownSlots.length<=10000,bounded.partial],[10000,true,true],'Actual raw turnover and unique historical facts stay bounded with partial disclosure');finish('candidate-and-unique-fact-bounds',before);
+          check(completed,['independent-bounds-and-ties','candidate-and-unique-fact-bounds'],'All native AC24 bounded-retention clauses completed');
+        } else if(criterion==='AC-25') {
+          let before=assertions;const {store,record}=seeded();store.pin(record.identity);store.addOperations([fact('seed','P',1),fact('same-instance-enrichment','P',2,1)]);check(store.inspection().newer,0,'Replay and late same-identity enrichment are not newer selectable items');
+          store.addOperations([fact('new-instance','Q',3)]);check(store.inspection().newer,1,'First accepted candidate-free instance counts once');
+          store.addCandidate(candidate(1,'Q',4));check(store.inspection().newer,1,'Candidate representation does not double count its newly accepted instance');store.addCandidate(candidate(2,'Q',5));check(store.inspection().newer,2,'Distinct second candidate is one new selectable unit');
+          store.addCandidate(candidate(2,'Q',999));check(store.inspection().newer,2,'Candidate replay cannot increase newer count');finish('newer-unit-accounting',before);
+          before=assertions;check(store.latest(),true,'Latest selects coherent current evidence');check(store.inspection().selectedIdentity,'history-002','Latest uses original receipt, never replay receipt or claimed height');store.followLive();check([store.inspection().mode,store.inspection().selectedIdentity],['follow','history-002'],'Follow enables coherent live selection independently from pin');
+          store.stop();store.pin(record.identity);check(store.inspection().mode,'pin','Paused local inspection does not resume collection');store.observeHead({...head,hash:'Fork120',evidence:receipt()});check(store.latest(),false,'Latest reports unavailable when no coherent live context exists');check([store.inspection().mode,store.inspection().snapshot],['follow',undefined],'Unavailable action never substitutes historical pin');finish('latest-follow-unavailable',before);
+          before=assertions;const lower=seeded();lower.store.pin(lower.record.identity);for(let index=0;index<151;index++)lower.store.addCandidate(candidate(index,`Retired${index}`));const count=lower.store.inspection().newer;lower.store.addCandidate(candidate(0,'Retired0',9999));
+          check([count>=150,lower.store.inspection().newer,lower.store.inspection().newerPartial],[true,count,true],'Bounded identity loss keeps an honest qualified newer lower bound without counting uncertain replay');finish('bounded-newer-uncertainty',before);
+          check(completed,['newer-unit-accounting','latest-follow-unavailable','bounded-newer-uncertainty'],'All native AC25 selection/count clauses completed');
+        } else {
+          let before=assertions;const {store,record}=seeded();for(let index=0;index<14;index++){store.addOperations([fact(`event-${index}-below`,`Event${index}`,10+index*2)]);store.addOperations([fact(`event-${index}-above`,`Event${index}`,11+index*2,1)]);}const events=store.acceptedEvents();
+          check([events.length,new Set(events.map(event=>event.identity)).size],[12,12],'Actual event owner retains at most twelve distinct attributed events');check(events.every(event=>event.evidence.source.baseUrl===observer.baseUrl&&event.chainId==='NetFixture'&&event.attribution==='payload-shared'),true,'Every retained event carries immutable precise source identity');finish('event-ownership',before);
+          before=assertions;store.pin(record.identity);for(let index=0;index<151;index++)store.addCandidate(candidate(index,`Evict${index}`,100+index));check([store.history().length,store.inspection().frozen],[150,true],'Actual history eviction occurs independently from event retention');check(store.acceptedEvents(),events,'History eviction cannot discard or rewrite retained events');
+          store.addOperations([fact('event-13-replay','Event13',999,1)]);store.stop();store.start();store.followLive();store.latest();store.inspection();check(store.acceptedEvents(),events,'Replay render-style reads resume and historical selection cannot duplicate crossings or invent progression');check(store.acceptedEvents().every((event,index)=>event===events[index]),true,'Original retained event facts and receipts remain the same immutable objects');finish('history-replay-event-independence',before);
+          before=assertions;store.addCandidate(candidate(999,'Event13',999));check(store.acceptedEvents(),events,'Candidate identity joining shared payload cannot duplicate its event');
+          const b=sources.mainnet.find(value=>value.baseUrl!==observer.baseUrl);if(!b)throw new Error('Second configured event observer missing');
+          const bTarget=store.addOperations([{...fact('B-first-quorum','Event13',1000,0,b),contents:[...fact('B-pre','Event13',1000,0,b).contents,...fact('B-threshold','Event13',1000,1,b).contents]}])[0];if(!bTarget)throw new Error('Second-source event target missing');
+          store.accept(await new NetworkData('mainnet').reconcile(bTarget.target,signal));check([store.acceptedEvents().at(-1)?.kind,store.acceptedEvents().at(-1)?.evidence.source.baseUrl],['observed-quorum',b.baseUrl],'Another source first at quorum cannot borrow a prior source below state into a crossing');
+          const afterSource=store.acceptedEvents();store.observeHead({...head,hash:'Fork120',evidence:receipt()});store.addOperations([{...fact('obsolete-context','Event13',1001,1),evidence:{...receipt(),observedHeadHash:'H120',observedHeadLevel:120}}]);check(store.acceptedEvents(),afterSource,'Changed context cannot fabricate an event from obsolete raw membership');finish('candidate-source-context-separation',before);
+          check(completed,['event-ownership','history-replay-event-independence','candidate-source-context-separation'],'All native AC32 event/history clauses completed');
+        }
       } else if(criterion==='AC-31') {
         let sequence=0;
         const vote=(slot,kind='preattestation',payload='P',at=++sequence,extra={})=>({...packet(`phase-${++sequence}`,payload),contents:[{kind,level:121,round:0,slot,block_payload_hash:payload}],evidence:{...receipt(),receivedMonotonic:at,...extra}});
@@ -372,10 +448,11 @@ try {
     check(retainedCandidates[0].evidence.source.baseUrl,source.baseUrl,'Immutable source attribution');
     check(retainedCandidates[0].evidence.requestedHeadHash,undefined,'Unpinned stream has no requested-head hash');
     check(retainedCandidates[0].evidence.observedHeadHash,'Parent','Only same-observer observed head context is captured');
-  // Scoped context assertions below remain partial until slice 6 uses the retained application store.
   } else if(criterion==='AC-17') {
     const originalFetch=globalThis.fetch;
     try {
+      const {ObservationStore}=await server.ssrLoadModule('/monitor/observationStore.ts');
+      const completed=[],finish=(id,before)=>{if(assertions<=before)throw new Error(`Incomplete execution: ${id} ran no assertions`);completed.push(id);};let before=assertions;
       const fixture=(hash,level,parent)=>({...header,hash,level,predecessor:parent,chainId:'NetFixture',fitness:['02',level.toString(16).padStart(8,'0'),'','ffffffff','00000000']});
       const h1=fixture('H1',120,'P1'),h2=fixture('H2',120,'P2');
       const headers=new Map([['H1',h1],['H2',h2],['P1',fixture('P1',119,'G1')],['P2',fixture('P2',119,'G2')]]);
@@ -396,25 +473,36 @@ try {
       check(historical.rights.get(120)[0].evidence.requestedHeadHash,'P1','Current rights anchored to exact predecessor');
       check(historical.rights.get(121)[0].evidence.requestedHeadHash,'H1','Successor rights anchored to observed head');
       const oldEvidence=historical.rights.get(120)[0].evidence;
+      const observerSource=historical.contexts.get(120).observer.source,historyStore=new ObservationStore('mainnet',sources.mainnet);
+      const oldReceipt={source:observerSource,observedHeadHash:'H1',receivedAt:1,receivedMonotonic:1};
+      historyStore.observeHead({...h1,evidence:oldReceipt});const oldRecord=historyStore.addOperations([{hash:'retained-H1',contents:[{kind:'preattestation',level:120,round:0,slot:0,block_payload_hash:'OldPayload'}],evidence:oldReceipt}])[0];if(!oldRecord)throw new Error('Actual historical H1 target missing');
+      const historyProof={head:h1,derived:historical,context:historical.contexts.get(120),rights:historical.rights.get(120),constants:historical.constantsByLevel.get(120),...historyStore.generation(observerSource)};
+      historyStore.accept(historyProof);check(historyStore.pin(oldRecord.identity),true,'Actual accepted H1 history can be selected before reorg');
+      check([historyStore.inspection().snapshot.pre,historyStore.inspection().snapshot.record.phases.pre.maximumPower],[['Old'],5],'Historical reader owns original H1 delegate and exact power');finish('original-retained-context',before);before=assertions;
       const data=new NetworkData('mainnet'),state=new HeadGeneration();
       const first=state.transition(h1);delayed=true;
       const oldWork=commitIfCurrent(state,first,signal=>data.derive(h1,signal));await starts;
       const second=state.transition(h2);check(state.snapshot().derived,null,'H1 authority withdrawn immediately on same-height H2');
+      historyStore.observeHead({...h2,evidence:{...oldReceipt,observedHeadHash:'H2',receivedAt:2,receivedMonotonic:2}});check(historyStore.target(oldRecord.identity).contextInvalid,true,'Actual store withdraws H1 live authority immediately at H2');
       const newWork=await commitIfCurrent(state,second,signal=>data.derive(h2,signal));check(newWork,true,'H2 commits its own coherent context');
       for(const finish of finishes)finish();check(await oldWork,false,'Late H1 responses cannot authorize H2');
+      assert.throws(()=>historyStore.accept(historyProof),/obsolete/);assertions++;
       check(state.snapshot().derived.rights.get(120)[0].address,'New','H2 never receives old fork committee');
       check(oldEvidence.requestedHeadHash,'P1','Historical requested context remains immutable');
       check(oldEvidence.contextHeadHash,'H1','Historical observed context remains immutable');
       check(historical.rights.get(120)[0].context.observer.header.predecessor,'P1','Historical raw predecessor remains attributable');
-      const observerSource=state.snapshot().derived.contexts.get(120).observer.source;
       const staleOperation={...individual('OldPayload',0),contents:[{kind:'preattestation',level:120,round:0,slot:0,block_payload_hash:'OldPayload'}],evidence:{source:observerSource,observedHeadHash:'H1',receivedAt:1,receivedMonotonic:1}};
       const uncounted=groupsFor([staleOperation],state.snapshot().derived.rights.get(120),120)[0];
       check(uncounted.pre.size,0,'Old-head raw evidence cannot authorize current numerical power');check(uncounted.unknownSlots,[0],'Old context raw signer remains inspectable');
+      const retained=historyStore.inspection().snapshot;
+      check([retained.record.admission.context.observer.header.hash,retained.record.admission.context.observer.header.predecessor,retained.record.admission.context.protocolHash,retained.evidence.source.baseUrl,retained.evidence.receivedAt],['H1','P1','PFixture',observerSource.baseUrl,1],'Actual history inspection preserves exact H1 parent protocol source and original receipt after reorg');
+      check(retained.record.admission.rights[0].evidence.requestedHeadHash,'P1','Historical helper requested anchor survives delayed obsolete response');check(retained.evidence.requestedHeadHash,undefined,'Unknown raw requested head remains explicit rather than inferred');finish('late-reorg-and-history',before);before=assertions;
       globalThis.fetch=async input=>String(input).endsWith('/protocols')?Response.json({proto:4}):Response.json({...h2,chain_id:'NetFixture'});
       const unknown=await new NetworkData('mainnet').derive(h2,new AbortController().signal);
       check(unknown.rights.size,0,'Shell protocol counter cannot replace proven protocol identity');check(unknown.constants,null,'Unknown context has no protocol authority');
       check(unknown.predecessor,null,'No inferred predecessor from level arithmetic');
       check(unknown.errors.some(error=>error.includes('context')),true,'Unknown context is explicit');
+      finish('unknown-protocol-no-inferred-parent',before);check(completed,['original-retained-context','late-reorg-and-history','unknown-protocol-no-inferred-parent'],'Complete native AC17 clauses read back actual application-store history');
     }finally{globalThis.fetch=originalFetch;}
   } else if (criterion === 'AC-10') {
     const groups=groupsFor(admit([individual('P',0),aggregate([0]),individual('Q',0),individual('Q',0)]),rights,120);
