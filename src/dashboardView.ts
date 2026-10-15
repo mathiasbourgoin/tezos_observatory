@@ -33,6 +33,7 @@ export interface NetworkViewModel {
   session?:{previous?:string;mode:"follow"|"pin";frozen:boolean;newer:number;newerPartial:boolean;selected?:string;canPin:boolean;accepted:number;unresolved:number;raw:number;instances:readonly {identity:string;label:string;level?:number;round?:number;source?:string;received?:number;receivedMonotonic?:number;partial?:boolean;candidates?:number}[]};
   retryIdentity?:string;
   canRetry?:boolean;
+  eligibilityLoading?:boolean;
   candidateEvidence?: string;
   contextEvidence?: string;
   recentConsensus?: RecentConsensusView[];
@@ -260,7 +261,7 @@ function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
   return {root:details,update(delegates:DelegateView[]|undefined,total:number|undefined,observations:readonly string[]=[]){current=delegates;currentTotal=total;unknownFacts=observations;render();}};
 }
 
-export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?:(network:Network)=>void;onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void;onPin?:(network:Network)=>void;onFollow?:(network:Network)=>void;onLatest?:(network:Network)=>void;onCompare?:(network:Network,url:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
+export function createDashboard(root: HTMLElement, options: {onReadEligibility?:(network:Network)=>void;onNetworkChange?:(network:Network)=>void;onRefreshIntervals?:(network:Network)=>void;onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void;onPin?:(network:Network)=>void;onFollow?:(network:Network)=>void;onLatest?:(network:Network)=>void;onCompare?:(network:Network,url:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
   root.classList.add('consensus-app');
   const header = el('header', 'masthead'), brand = el('div', 'header-brand');
   const mark = el('img', 'header-mark'); mark.src='./observatory-mark.svg'; mark.alt=''; mark.width=40; mark.height=40;
@@ -307,7 +308,7 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
     const tab = el('button', `network-tab ${network}`), tabName = el('span', '', name), tabStatus = el('span', 'tab-status', 'Connecting'); tab.append(tabName, tabStatus); tab.type = 'button';
     let selected = 'mainnet'; try {selected = localStorage.getItem('consensus-v2:network') ?? selected;} catch { /* Optional storage. */ }
     tab.setAttribute('aria-pressed', String(network === selected));
-    tab.addEventListener('click', () => {root.dataset.selected = network; try {localStorage.setItem('consensus-v2:network', network);} catch { /* Optional storage. */ } for (const button of tabs.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button === tab));}); tabs.append(tab);
+    tab.addEventListener('click', () => {root.dataset.selected = network; options.onNetworkChange?.(network); try {localStorage.setItem('consensus-v2:network', network);} catch { /* Optional storage. */ } for (const button of tabs.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button === tab));}); tabs.append(tab);
     const panel = el('article', `network-panel ${network}`); panel.setAttribute('aria-label', `${name} observation workspace`); panel.dataset.network = network; panel.dataset.status = 'loading';
     const panelHeader = el('div', 'panel-header'), heading = el('h2', '', name), status = el('span', 'status-chip', 'Connecting'); panelHeader.append(heading, status);
     const headline = el('div', 'headline'), level = field(headline, 'Consensus level'), round = field(headline, 'Current round');
@@ -357,6 +358,8 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
     const recent = recentConsensus();
     const missingPre = delegateList(network, 'Pre'), missingAtt = delegateList(network, 'Att'); missing.append(missingPre.root, missingAtt.root);
     const committee=delegateList(network,'Committee');
+    const readEligibility=el('button','eligibility-read','Read committee eligibility');readEligibility.type='button';
+    if(network==='shadownet'){readEligibility.addEventListener('click',()=>options.onReadEligibility?.(network));committee.root.querySelector('.disclosure-body')?.prepend(readEligibility);}
     const evidence = disclosure('Sources & observation evidence', `consensus-v2:${network}:evidence`);
     const metadata = el('dl', 'evidence-meta');
     const meta = new Map<string, HTMLElement>();
@@ -519,6 +522,8 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
       retryIdentity=model.retryIdentity;retry.hidden=retryIdentity===undefined;retry.disabled=!model.canRetry;
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
+      readEligibility.disabled = model.eligibilityLoading === true || !options.onReadEligibility;
+      set(readEligibility, model.eligibilityLoading ? 'Reading committee eligibility…' : 'Read committee eligibility');
       pre.update(model.preattestations, model.preattestations?.threshold??model.quorum); att.update(model.attestations, model.attestations?.threshold??model.quorum);
       missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);committee.update(model.committee,model.committeeTotal??model.committeePower,model.unknownConsensus);
       const bakers = model.opportunityFacts?model.opportunityFacts.map(fact=>({label:fact.branch==='same-level'?'Next round · same level':'Following level · round 0',alias:undefined,level:fact.level,round:fact.round,address:fact.proposer.state==='known'?fact.proposer.right.delegate:'',detail:fact})):model.nextBakers ?? [], bakerKeys = new Set<string>();
