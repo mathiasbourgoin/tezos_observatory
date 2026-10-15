@@ -207,6 +207,23 @@ export class NetworkData {
     if(!this.collecting || generation!==this.collectionGeneration || signal?.aborted || this.auxiliaryController.signal.aborted) throw new Error("Cancelled collection generation");
   }
 
+  private rememberHeader(header:BlockHeader,source:RpcSource):void {
+    if(!header.chainId)return;
+    this.receivedHeaders.set(JSON.stringify([source.network,source.baseUrl,header.hash,header.chainId]),header);
+    while(this.receivedHeaders.size>12)this.receivedHeaders.delete(this.receivedHeaders.keys().next().value!);
+  }
+
+  private async header(hash:string,source:RpcSource,signal:AbortSignal,expected?:BlockHeader):Promise<BlockHeader> {
+    const generation=this.collectionGeneration;this.assertCollecting(generation,signal);
+    const matches=[...this.receivedHeaders.values()].filter(header=>header.hash===hash&&header.evidence?.source.network===source.network&&header.evidence.source.baseUrl===source.baseUrl&&(!expected?.chainId||header.chainId===expected.chainId));
+    if(matches.length===1)return matches[0]!;
+    const receipt=await this.requestObserved(`/chains/main/blocks/${hash}/header`,signal,undefined,source),header=asBlockHeader(receipt.value);
+    if(header.hash!==hash||!header.chainId)throw new Error('Unproven observer header identity');
+    this.assertCollecting(generation,signal);
+    const received=Object.freeze({...header,fitness:Object.freeze([...header.fitness]),evidence:receipt.evidence});
+    this.rememberHeader(received,source);return received;
+  }
+
   private async context(hash:string,source:RpcSource,signal:AbortSignal,expected?:BlockHeader):Promise<RpcContext> {
     const generation=this.collectionGeneration;
     this.assertCollecting(generation,signal);
@@ -221,11 +238,11 @@ export class NetworkData {
     const existing=this.contextPending.get(key);
     if(existing?.signal===signal){const value=await existing.task;this.assertCollecting(generation,signal);return verify(value);}
     const task=(async()=>{
-      // A completed literal head RPC already delivered this immutable header.
-      // Stream messages and caller-supplied headers never populate this cache.
-      const received=expected?.chainId?this.receivedHeaders.get(JSON.stringify([source.network,source.baseUrl,hash,expected.chainId])):undefined;
+      // A fully received header already proves its source, hash and chain.
+      // Keep that receipt if its protocol partner is later cancelled; unfinished
+      // work remains exclusive to its original cancellation owner.
       const [header,protocolReceipt]=await Promise.all([
-        received?Promise.resolve(received):this.requestObserved(`/chains/main/blocks/${hash}/header`,signal,undefined,source).then(receipt=>asBlockHeader(receipt.value)),
+        this.header(hash,source,signal,expected),
         this.requestObserved(`/chains/main/blocks/${hash}/protocols`,signal,undefined,source),
       ]);
       const raw=protocolReceipt.value;
@@ -382,7 +399,7 @@ export class NetworkData {
         this.assertCollecting(generation,signal);
         if(!exactSource)this.source = source;
         const pinnedHead = head && path.includes(`/blocks/${head.hash}/`) ? head : undefined;
-        const sameObserverHead = head?.evidence?.source.baseUrl === source.baseUrl ? head : undefined;
+        const sameObserverHead = head?.evidence?.source.baseUrl === source.baseUrl && head.evidence.source.network===source.network && head.evidence.observedHeadHash===head.hash ? head : undefined;
         return {value:result,evidence:Object.freeze({
           source:Object.freeze({...source}),collectionGeneration:generation,receivedAt:Date.now(),receivedMonotonic:performance.now(),
           ...(pinnedHead ? {requestedHeadHash:pinnedHead.hash} : {}),
@@ -401,11 +418,7 @@ export class NetworkData {
     const header = asBlockHeader(observed.value);
     this.assertCollecting(generation,signal);
     const received=Object.freeze({...header,fitness:Object.freeze([...header.fitness]),evidence:Object.freeze({...observed.evidence,observedHeadHash:header.hash,observedBlockHash:header.hash,predecessor:header.predecessor,...(header.proto === undefined ? {} : {protocolLevel:header.proto})})});
-    if(header.chainId){
-      const source=observed.evidence.source;
-      this.receivedHeaders.set(JSON.stringify([source.network,source.baseUrl,header.hash,header.chainId]),received);
-      while(this.receivedHeaders.size>12)this.receivedHeaders.delete(this.receivedHeaders.keys().next().value!);
-    }
+    this.rememberHeader(received,observed.evidence.source);
     return received;
   }
 
