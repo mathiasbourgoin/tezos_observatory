@@ -34,6 +34,7 @@ export interface NetworkViewModel {
   retryIdentity?:string;
   canRetry?:boolean;
   eligibilityLoading?:boolean;
+  eligibilityAvailable?:boolean;
   candidateEvidence?: string;
   contextEvidence?: string;
   recentConsensus?: RecentConsensusView[];
@@ -522,7 +523,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       retryIdentity=model.retryIdentity;retry.hidden=retryIdentity===undefined;retry.disabled=!model.canRetry;
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
-      readEligibility.disabled = model.eligibilityLoading === true || !options.onReadEligibility;
+      readEligibility.disabled = model.eligibilityLoading === true || model.eligibilityAvailable === false || !options.onReadEligibility;
       set(readEligibility, model.eligibilityLoading ? 'Reading committee eligibility…' : 'Read committee eligibility');
       pre.update(model.preattestations, model.preattestations?.threshold??model.quorum); att.update(model.attestations, model.attestations?.threshold??model.quorum);
       missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);committee.update(model.committee,model.committeeTotal??model.committeePower,model.unknownConsensus);
