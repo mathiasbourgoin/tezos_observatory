@@ -12,5 +12,6 @@
   "pending": ["final-source ordinary production regression", "independent practical two-engine three-viewport light/dark capture review", "native touch and keyboard", "concrete publication result and maintainer approval", "remote CI", "GitHub Pages", "custom public deployment", "served asset identity", "qualified live data verification"],
   "deferred_not_passed": ["70x36 exhaustive matrix", "all95 official interfaces", "complete manualCHECK38", "full393-contract clearance"],
   "publication_go": false,
+  "workflow_delta": {"path": ".github/workflows/quality.yml", "change": "jobs.verify.timeout-minutes 15 -> 30 only", "independently_inspected": true, "verdict": "SCOPED_APPROVED", "actionlint": "PASS attributed to root", "commands_permissions_and_publication_conditions": "unchanged"},
   "delivery_complete": false
 }
