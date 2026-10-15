@@ -30,6 +30,7 @@ export async function send(page: Page, channel: Channel, value: unknown): Promis
     records?.set(observed.hash,observed);
     if(!records?.has(observed.predecessor))records?.set(observed.predecessor,{...head(observed.level-1),hash:observed.predecessor});
   }
+  if(channel.endsWith("-proposals")){const proposal=value as {hash:string;header:ReturnType<typeof head>};headers.get(page)?.set(proposal.hash,{...proposal.header,hash:proposal.hash});}
   await page.evaluate(({channel, value}) => {
     const stream = window.mockStreams[channel];
     if (!stream) throw new Error(`Missing stream ${channel}`);
@@ -94,8 +95,59 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
   }).catch(error=>Object.assign(window,{fixtureDomainTraceError:String(error)}));},{once:true});},inspectionModule());
   await page.goto('/');
   if(initiallyHidden||holdInitialHeads)return;
-  await expect(page.locator('.mainnet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
-  await expect(page.locator('.shadownet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
+  const selected=page.locator('.network-tab[aria-pressed="true"]');
+  const network=await selected.evaluate(tab=>tab.classList.contains('shadownet')?'shadownet':'mainnet');
+  await expect(page.locator(`.${network} .headline`)).toContainText(initialHead.level.toLocaleString('en-US'));
+}
+
+/** Select the network explicitly; send never starts or switches collection. */
+export async function selectNetwork(page:Page,network:'mainnet'|'shadownet'):Promise<void>{
+ const tab=page.locator(`.network-tab.${network}`);
+ if(await tab.getAttribute('aria-pressed')!=='true')await tab.click();
+ await expect(tab).toHaveAttribute('aria-pressed','true');
+ await expect.poll(()=>page.evaluate(network=>window.mockRequests.some(request=>request.url.includes('/monitor/heads/')&&request.url.includes('shadownet')===(network==='shadownet')&&!request.aborted),network)).toBe(true);
+ await expect.poll(()=>page.evaluate(network=>window.mockRequests.some(request=>request.url.includes('monitor_operations')&&request.url.includes('shadownet')===(network==='shadownet')&&!request.aborted),network)).toBe(true);
+}
+
+/** Open the voted-proposal disclosure before operating its exact supported identity. */
+export async function inspectSupported(panel:Locator,name:string):Promise<void>{
+ await openDetails(panel.locator('.observed-proposals'));
+ await panel.locator('.observed-proposals').getByRole('button',{name,exact:true}).click();
+}
+
+export const rawObservation=(panel:Locator,name:string):Locator=>panel.locator('.raw-observations').getByRole('button',{name,exact:true});
+
+/** Inspect unresolved facts in provenance without claiming validated participation. */
+export async function inspectRaw(panel:Locator,name:string):Promise<void>{
+ await openDetails(panel.getByText('Sources & observation evidence',{exact:true}).locator('..'));
+ await openDetails(panel.locator('.raw-observations'));
+ await rawObservation(panel,name).click();
+}
+
+/** Operate the existing retained-session choice by its complete payload label. */
+export async function inspectRetainedPayload(panel:Locator,payload:string,context?:{level:number;round:number;source?:string}):Promise<void>{
+ const control=panel.getByLabel('Retained session instance');
+ let option=control.locator('..').locator('.choice-option').filter({hasText:` · ${payload} · `});
+ if(context){option=option.filter({hasText:` · ${context.level}/${context.round} · `});if(context.source)option=option.filter({hasText:context.source});}
+ await expect(option).toHaveCount(1);
+ const identity=await option.getAttribute('data-value');
+ if(!identity)throw new Error(`Retained session identity unavailable for ${payload}`);
+ await choose(control,identity);
+}
+
+export const capturedCandidate=(panel:Locator,hash:string):Locator=>panel.locator('.captured-candidates').getByRole('button',{name:`Inspect candidate ${hash}`,exact:true});
+
+/** Pin the retained instance, then inspect its exact captured block without adding votes. */
+export async function inspectRetainedCandidate(panel:Locator,hash:string):Promise<void>{
+ const candidate=capturedCandidate(panel,hash);
+ if(await candidate.count()===0){
+  const observed=headers.get(panel.page())?.get(hash);
+  if(!observed)throw new Error(`Fixture header unavailable for retained candidate ${hash}`);
+  await inspectRetainedPayload(panel,observed.payload_hash,{level:observed.level,round:Number.parseInt(observed.fitness[4]??'0',16)});
+ }
+ await openDetails(panel.getByText('Selected identity & phase provenance',{exact:true}).locator('..'));
+ await openDetails(panel.locator('.captured-candidates'));
+ await candidate.click();
 }
 
 /** Operate the production disclosure and native radio, preserving its keyboard close path. */
