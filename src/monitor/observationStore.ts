@@ -130,13 +130,18 @@ export class ObservationStore<T> {
     this.unresolved.set(identity,record);this.tryAdmission(record);this.trim(this.unresolved,100);this.trim(this.acceptedCandidates,100);return this.find(identity);
   }
 
-  addOperations(batch:readonly MonitoredOperation[]):readonly ObservationTarget<T>[] {
+  addOperations(batch:readonly MonitoredOperation[],snapshotContext?:TargetContext):readonly ObservationTarget<T>[] {
+    if(snapshotContext && !this.contextAuthorized(snapshotContext))throw new Error("Unproven snapshot replay context");
     const replayIdentity=(operation:MonitoredOperation):string=>JSON.stringify([operation.evidence?.source.network,operation.evidence?.source.baseUrl,operation.hash,operation.branch??null,operation.contents]);
     const replayIndex=new Map<string,MonitoredOperation[]>();
     for(const operation of this.raw.values()){const key=replayIdentity(operation),members=replayIndex.get(key)??[];members.push(operation);replayIndex.set(key,members);}
     const fresh=batch.filter(operation=>{
       if(!this.allowed(operation.evidence?.source) || this.raw.get(operation))return false;
       const evidence=operation.evidence;
+      if(snapshotContext && (replayIndex.get(replayIdentity(operation))??[]).some(original=>{
+        const proof=this.bindings.get(operationIdentity(original))?.get(snapshotContext.key);
+        return proof!==undefined && proof.source.baseUrl===evidence.source.baseUrl && proof.chainId===snapshotContext.observer.chainId && proof.headHash===snapshotContext.observer.header.hash && proof.protocolHash===snapshotContext.protocolHash && (evidence.chainId===undefined || evidence.chainId===proof.chainId) && (evidence.observedHeadHash===undefined || evidence.observedHeadHash===proof.headHash);
+      }))return false;
       if(evidence.observedHeadHash===undefined)return true;
       return !(replayIndex.get(replayIdentity(operation))??[]).some(original=>{
         const proofs=this.bindings.get(operationIdentity(original));
@@ -145,7 +150,7 @@ export class ObservationStore<T> {
         return proofs && [...proofs.values()].some(proof=>proof.headHash===evidence.observedHeadHash && (evidence.chainId===undefined || evidence.chainId===proof.chainId) && (evidence.requestedHeadHash===undefined || evidence.requestedHeadHash===proof.headHash));
       });
     });
-    const priorRaw=new Set(this.raw.values().map(operationIdentity));this.raw.add(fresh);
+    const priorOperations=this.raw.values(),priorRaw=new Set(priorOperations.map(operationIdentity));this.raw.add(fresh);
     const created:ObservationTarget<T>[]=[],visited=new Set<string>(),touched=new Set<string>();
     for(const submitted of fresh){
       const operation=this.raw.get(submitted);if(!operation)continue;
@@ -170,6 +175,17 @@ export class ObservationStore<T> {
     for(const identity of touched){const record=this.find(identity);if(record)this.tryAdmission(record);}
     this.trim(this.unresolved,100);this.trim(this.instances,150);
     const retained=new Set(this.raw.values().map(operationIdentity));if([...priorRaw].some(key=>!retained.has(key)))this.crossingHistoryUncertain=true;
+    const lostSupport=new Set<string>();
+    for(const operation of priorOperations){
+      const operationKey=operationIdentity(operation);if(retained.has(operationKey))continue;
+      for(const proof of this.bindings.get(operationKey)?.values()??[])for(const content of operation.contents)if(content.level===proof.targetLevel && content.block_payload_hash)lostSupport.add(JSON.stringify([proof.contextKey,content.level,content.round,content.block_payload_hash]));
+    }
+    // Compact coverage still depends on its retained consensus facts. Losing
+    // those facts cannot turn an earlier positive snapshot into a fresh zero.
+    for(const product of [this.acceptedCandidates,this.instances])for(const [identity,record] of product){
+      if(!record.coverage || !record.admission || !lostSupport.has(JSON.stringify([record.admission.context.key,record.target.level,record.target.round,record.target.payload])))continue;
+      product.set(identity,Object.freeze({...record,coverageStale:true,coverage:Object.freeze({...record.coverage,complete:false,reasons:Object.freeze([...record.coverage.reasons,"Supporting snapshot consensus facts evicted"])})}));
+    }
     for(const key of this.bindings.keys())if(!retained.has(key))this.bindings.delete(key);
     for(const [identity,members] of this.membership){for(const key of members)if(!retained.has(key))members.delete(key);if(members.size===0)this.membership.delete(identity);}
     this.refreshAcceptedPhases(fresh.length>0);
@@ -201,7 +217,7 @@ export class ObservationStore<T> {
     contexts.set(context.level,Object.freeze(retainedAdmission));this.recheck(source);
     this.refreshAcceptedPhases(false);
     if(snapshot){
-      this.addOperations(snapshot.operations);
+      this.addOperations(snapshot.operations,context);
       const operationKey=(operation:MonitoredOperation)=>JSON.stringify([operation.hash,operation.branch??null,operation.contents]);
       const retained=new Set(this.raw.values().filter(operation=>this.bindings.get(operationIdentity(operation))?.has(context.key)).map(operationKey));
       const truncated=snapshot.operations.some(operation=>operation.contents.some(content=>content.level===context.level) && !retained.has(operationKey(operation)));
@@ -299,8 +315,9 @@ export class ObservationStore<T> {
           const newMaximum=!old || power>old.maximumPower;
           const state:AcceptedPhase=Object.freeze({key:identity,phase,power,maximumPower:Math.max(old?.maximumPower??0,power),maximumTotal:newMaximum?admission.constants.committee:old.maximumTotal,maximumThreshold:newMaximum?admission.constants.quorum:old.maximumThreshold,maximumBasis:newMaximum?basis:old.maximumBasis,maximumEvidence:newMaximum?evidence:old.maximumEvidence,threshold:admission.constants.quorum,basis,quorumObserved:old?.quorumObserved===true||firstQuorum,crossed:old?.crossed===true||crossing,uncertain:old?.uncertain??this.crossingHistoryUncertain,evidence:old?.evidence??evidence});
           this.phaseFacts.set(identity,state);
-          if(crossing || (!old && firstQuorum)){
-            this.acceptedEventFacts.push(Object.freeze({identity:JSON.stringify([identity,crossing?"crossing":"observed-quorum"]),kind:crossing?"crossing":"observed-quorum",phase,level:record.target.level,round:record.target.round,payload:record.target.payload!,contextKey:admission.context.key,chainId:admission.context.observer.chainId,attribution:"payload-shared",power,threshold:admission.constants.quorum,evidence}));
+          const eventIdentity=JSON.stringify([identity,crossing?"crossing":"observed-quorum"]);
+          if((crossing || (!old && firstQuorum)) && !this.acceptedEventFacts.some(event=>event.identity===eventIdentity)){
+            this.acceptedEventFacts.push(Object.freeze({identity:eventIdentity,kind:crossing?"crossing":"observed-quorum",phase,level:record.target.level,round:record.target.round,payload:record.target.payload!,contextKey:admission.context.key,chainId:admission.context.observer.chainId,attribution:"payload-shared",power,threshold:admission.constants.quorum,evidence}));
             this.acceptedEventFacts.splice(0,Math.max(0,this.acceptedEventFacts.length-12));
           }
         }

@@ -1,6 +1,7 @@
 import {afterEach,expect,it,vi} from "vitest";
 import {ObservationStore} from "../../src/monitor/observationStore";
 import {NetworkData,sources,type Derived} from "../../src/rpc/networkData";
+import {asOperationBatch} from "../../src/rpc/guards";
 import {groupsFor,signerPower} from "../../src/consensus/phaseEvidence";
 import type {BlockHeader,ObservationEvidence,RpcSource} from "../../src/rpc/models";
 const a=sources.mainnet[0]!,b=sources.mainnet[1]!;
@@ -269,4 +270,37 @@ it("uses complete-body receipt rather than request start to order a coherent pos
  installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0];if(!record)throw new Error("Fixture missing");
  const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:0,operations:[],complete:true,reasons:[]};store.accept({...proof,snapshot});
  expect(store.target(record.identity)?.coverage?.complete).toBe(true);expect(store.target(record.identity)?.coverage?.startedMonotonic).toBe(0);expect(store.target(record.identity)?.coverage?.evidence.receivedMonotonic).toBe(2);expect(store.target(record.identity)?.phases?.att?.power).toBe(0);
+});
+
+
+it("withdraws complete coverage when its supporting raw vote is evicted",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0]!;
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),packet={...operation(),evidence:evidence(b,2)};
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:packet.evidence,startedMonotonic:2,operations:[packet],complete:true,reasons:[]};
+ store.accept({...proof,snapshot});expect(store.target(record.identity)?.coverage?.complete).toBe(true);expect(store.target(record.identity)?.phases?.pre?.power).toBe(3);
+ store.addOperations(Array.from({length:10000},(_,index)=>({hash:`unrelated-${index}`,evidence:evidence(b,index+3),contents:[]})));
+ expect(store.rawOperations().some(value=>value.hash==="op")).toBe(false);const retained=store.target(record.identity)!;
+ expect(retained.coverageStale===true||retained.coverage?.complete===false).toBe(true);expect(retained.coverage?.evidence).toBe(snapshot.evidence);expect(retained.phases?.pre?.maximumPower).toBe(3);expect(retained.phases?.pre?.power).not.toBe(0);
+});
+
+it("does not duplicate a retained observed-quorum event after its phase owner retires",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation("first-quorum"),initial={...base,contents:[...base.contents,{...base.contents[0]!,slot:1}]};
+ const record=store.addOperations([initial])[0]!;store.accept(await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal));const original=store.acceptedEvents()[0]!;expect(original.kind).toBe("observed-quorum");
+ store.addOperations(Array.from({length:151},(_,index)=>({...operation(`retire-${index}`),contents:[{...base.contents[0]!,block_payload_hash:`Retire${index}`}]})));expect(store.acceptedEvents()).toEqual([original]);
+ store.addOperations([{...initial,hash:"return-quorum",evidence:{...evidence(b,200),observedHeadHash:"H122",observedHeadLevel:122}}]);
+ expect(store.acceptedEvents().filter(event=>event.identity===original.identity)).toHaveLength(1);expect(store.acceptedEvents()[0]).toBe(original);
+});
+
+it("reuses the canonical first receipt when a coherent unpinned snapshot repeats a proven observed packet",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);store.observeHead({...head(122),evidence:evidence(b)});
+ const original={...operation(),evidence:{...evidence(b),observedHeadHash:"H122",observedHeadLevel:122}},record=store.addOperations([original])[0]!;
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);store.accept(proof);
+ const packet={...operation(),evidence:evidence(b,2)},snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:packet.evidence,startedMonotonic:2,operations:[packet],complete:true,reasons:[]};
+ store.accept({...proof,...store.generation(b),snapshot});expect(store.rawOperations()).toHaveLength(1);expect(store.rawOperations()[0]?.evidence).toBe(original.evidence);expect(store.target(record.identity)?.coverage?.evidence.requestedHeadHash).toBeUndefined();expect(store.target(record.identity)?.coverage?.complete).toBe(true);
+});
+
+it("retains a malformed mixed operation raw identity without admitting its otherwise-quorate valid portion",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),seed=store.addOperations([operation("seed")])[0]!;const proof=await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal);store.accept(proof);
+ for(const payload of [undefined,""]){const packet=asOperationBatch([{hash:`malformed-${String(payload)}`,branch:"OriginalBranch",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"Other"},{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"Other"},{kind:"attestation",level:123,round:0,slot:1,...(payload===undefined?{}:{block_payload_hash:payload})}]}]).map(value=>({...value,evidence:evidence(b)}));store.addOperations(packet);}
+ expect(store.rawOperations().filter(value=>value.hash.startsWith("malformed-")).every(value=>value.branch==="OriginalBranch"&&value.contents.length===0)).toBe(true);expect(groupsFor(store.rawOperations(),proof.rights,123).some(group=>group.payload==="Other")).toBe(false);expect(store.acceptedEvents()).toHaveLength(0);
 });

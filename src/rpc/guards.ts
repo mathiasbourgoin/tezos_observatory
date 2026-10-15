@@ -81,7 +81,7 @@ function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
   ) {
     throw new Error("Invalid operation from mempool monitor");
   }
-  let invalid = false;
+  let invalid = value.contents.length===0;
   const contents: ConsensusContent[] = value.contents.flatMap(
     (content): ConsensusContent[] => {
       if (!record(content)) {invalid = true; return [];}
@@ -128,7 +128,7 @@ function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
         typeof content.block_payload_hash === "string"
           ? { block_payload_hash: content.block_payload_hash }
           : {};
-      if(!("block_payload_hash" in payload) || payload.block_payload_hash.length===0)onUnusable?.();
+      if(!("block_payload_hash" in payload) || payload.block_payload_hash.length===0){invalid=true;return [];}
       return [
         {
           kind: content.kind,
