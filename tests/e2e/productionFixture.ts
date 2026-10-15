@@ -23,11 +23,13 @@ export const vote = (slot: number, level = 101, round = 0) => ({
 export async function openDetails(details:Locator):Promise<void>{if(await details.getAttribute('open')===null)await details.locator(':scope > summary').click();}
 
 export const headers=new WeakMap<Page,Map<string,ReturnType<typeof head>>>();
+const appliedHeads=new WeakMap<Page,Map<string,ReturnType<typeof head>>>();
 export async function send(page: Page, channel: Channel, value: unknown): Promise<void> {
   if(channel.endsWith("-head")){
     let observed=value as ReturnType<typeof head>;const records=headers.get(page),parent=records?.get(observed.predecessor);
     if(parent){const parentRound=Number.parseInt(parent.fitness[4]??"0",16);observed={...observed,fitness:[...observed.fitness.slice(0,3),(0xffffffff-parentRound).toString(16).padStart(8,"0"),observed.fitness[4]??"00000000"]};value=observed;}
     records?.set(observed.hash,observed);
+    appliedHeads.get(page)?.set(channel.startsWith('shadownet')?'shadownet':'mainnet',observed);
     if(!records?.has(observed.predecessor))records?.set(observed.predecessor,{...head(observed.level-1),hash:observed.predecessor});
   }
   if(channel.endsWith("-proposals")){const proposal=value as {hash:string;header:ReturnType<typeof head>};headers.get(page)?.set(proposal.hash,{...proposal.header,hash:proposal.hash});}
@@ -40,6 +42,7 @@ export async function send(page: Page, channel: Channel, value: unknown): Promis
 
 export async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false,sourceB=false,rpcCommittee?:{total:number;quorum:number;powers:readonly number[]},aliases?:readonly {address:string;alias:string}[],protocol='PFixture',holdInitialHeads=false): Promise<void> {
   headers.set(page,new Map([[initialHead.hash,initialHead],[initialHead.predecessor,{...head(initialHead.level-1),hash:initialHead.predecessor}]]));
+  appliedHeads.set(page,new Map([['mainnet',initialHead],['shadownet',initialHead]]));
   await page.addInitScript(({initialOperations, initialHead, initiallyHidden,sourceB,holdInitialHeads}) => {
     window.mockHidden=initiallyHidden;window.mockRequests=[];
     Object.defineProperty(document,"hidden",{configurable:true,get:()=>window.mockHidden});
@@ -54,10 +57,10 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
       if (!monitoring) return originalFetch(input, options);
       const network = url.hostname.includes('shadownet') ? 'shadownet' : 'mainnet';
       const kind = url.pathname.includes('/monitor/heads/') ? 'head' : url.pathname.includes('/monitor/validated_blocks') ? 'proposals' : 'operations';
-      if(sourceB && network==="mainnet" && kind==="operations" && url.hostname==="rpc.tzkt.io")return new Response("Unavailable A operations",{status:503});
+      if(sourceB && network==="shadownet" && kind==="operations" && url.hostname==="rpc.shadownet.teztnets.com")return new Response("Unavailable A operations",{status:503});
       const body = new ReadableStream<Uint8Array>({start(controller) {
         window.mockStreams[`${network}-${kind}`] = controller;
-        options?.signal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')), {once: true});
+        options?.signal?.addEventListener('abort', () => {if(window.mockStreams[`${network}-${kind}`]===controller)delete window.mockStreams[`${network}-${kind}`];controller.error(new DOMException('Aborted', 'AbortError'));}, {once: true});
         if (kind === 'head'&&!holdInitialHeads) controller.enqueue(new TextEncoder().encode(`${JSON.stringify(initialHead)}\n`));
         else if (kind === 'operations' && initialOperations) controller.enqueue(new TextEncoder().encode('[]\n'));
       }});
@@ -80,7 +83,7 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
     else if (url.pathname.endsWith('/protocols')) result={protocol,next_protocol:protocol};
     else if (url.pathname.endsWith('/header')) {
       const hash=url.pathname.split('/blocks/')[1]?.split('/')[0]??'';
-      const observed=headers.get(page)?.get(hash);
+      const observed=hash==='head'?appliedHeads.get(page)?.get(url.hostname.includes('shadownet')?'shadownet':'mainnet'):headers.get(page)?.get(hash);
       if(!observed){await route.fulfill({status:404,json:{error:'Unobserved fixture header'}});return;}
       result={...observed,chain_id:'NetFixture'};
     }
@@ -91,7 +94,7 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
   });
   await page.addInitScript(path=>{document.addEventListener('DOMContentLoaded',()=>{void import(path).then(module=>{
     const trace:unknown[]=[];Object.assign(window,{fixtureDomainTrace:trace});const original=module.NetworkMonitor.prototype.emit;
-    module.NetworkMonitor.prototype.emit=function(){const snapshot=this.state.snapshot();trace.push({at:performance.now(),network:this.options.network,networkIdentity:this.observations.networkIdentity(),provenHead:this.provenHead,generation:snapshot?.generation,rawHead:snapshot?.header,derivedErrors:snapshot?.derived?.errors,contexts:snapshot?.derived?.contexts?[...snapshot.derived.contexts]:[],progression:this.progression,headStatus:this.headStatus,operationStatus:this.operationStatus});if(trace.length>80)trace.shift();return original.call(this);};
+    module.NetworkMonitor.prototype.emit=function(){const snapshot=this.state.snapshot();trace.push({at:performance.now(),network:this.options.network,networkIdentity:this.observations.networkIdentity(),provenHead:this.provenHead,generation:snapshot?.generation,rawHead:snapshot?.header,derivedErrors:snapshot?.derived?.errors,targets:[...this.observations.acceptedTargets(),...this.observations.unresolvedTargets()].slice(-4).map((record:import('../../src/monitor/observationStore').ObservationTarget<unknown>)=>({identity:record.identity,source:record.target.source.baseUrl,level:record.target.level,round:record.target.round,admitted:record.admission!==undefined,contextInvalid:record.contextInvalid,error:record.error,pre:record.phases?.pre?.power,att:record.phases?.att?.power})),contexts:snapshot?.derived?.contexts?[...snapshot.derived.contexts]:[],progression:this.progression,headStatus:this.headStatus,operationStatus:this.operationStatus});if(trace.length>80)trace.shift();return original.call(this);};
   }).catch(error=>Object.assign(window,{fixtureDomainTraceError:String(error)}));},{once:true});},inspectionModule());
   await page.goto('/');
   if(initiallyHidden||holdInitialHeads)return;
@@ -105,14 +108,9 @@ export async function selectNetwork(page:Page,network:'mainnet'|'shadownet'):Pro
  const tab=page.locator(`.network-tab.${network}`);
  if(await tab.getAttribute('aria-pressed')!=='true')await tab.click();
  await expect(tab).toHaveAttribute('aria-pressed','true');
+ await expect.poll(()=>page.evaluate(network=>Boolean(window.mockStreams[`${network}-operations`]),network)).toBe(true);
  await expect.poll(()=>page.evaluate(network=>window.mockRequests.some(request=>request.url.includes('/monitor/heads/')&&request.url.includes('shadownet')===(network==='shadownet')&&!request.aborted),network)).toBe(true);
  await expect.poll(()=>page.evaluate(network=>window.mockRequests.some(request=>request.url.includes('monitor_operations')&&request.url.includes('shadownet')===(network==='shadownet')&&!request.aborted),network)).toBe(true);
-}
-
-/** Open the voted-proposal disclosure before operating its exact supported identity. */
-export async function inspectSupported(panel:Locator,name:string):Promise<void>{
- await openDetails(panel.locator('.observed-proposals'));
- await panel.locator('.observed-proposals').getByRole('button',{name,exact:true}).click();
 }
 
 export const rawObservation=(panel:Locator,name:string):Locator=>panel.locator('.raw-observations').getByRole('button',{name,exact:true});
@@ -130,12 +128,13 @@ export async function inspectRetainedPayload(panel:Locator,payload:string,contex
  let option=control.locator('..').locator('.choice-option').filter({hasText:` · ${payload} · `});
  if(context){option=option.filter({hasText:` · ${context.level}/${context.round} · `});if(context.source)option=option.filter({hasText:context.source});}
  await expect(option).toHaveCount(1);
- const identity=await option.getAttribute('data-value');
- if(!identity)throw new Error(`Retained session identity unavailable for ${payload}`);
- await choose(control,identity);
+ const label=await option.textContent();
+ if(!label)throw new Error(`Retained session label unavailable for ${payload}`);
+ const prefix=`Inspect retained instance ${label.slice(0,label.lastIndexOf(' · '))} · `;
+ await panel.getByRole('button',{name:new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\d+ candidates$`)}).click();
 }
 
-export const capturedCandidate=(panel:Locator,hash:string):Locator=>panel.locator('.captured-candidates').getByRole('button',{name:`Inspect candidate ${hash}`,exact:true});
+export const capturedCandidate=(panel:Locator,hash:string):Locator=>panel.locator('.captured-candidates').getByRole('button',{name:`Inspect candidate ${hash}`,exact:true,includeHidden:true});
 
 /** Pin the retained instance, then inspect its exact captured block without adding votes. */
 export async function inspectRetainedCandidate(panel:Locator,hash:string):Promise<void>{
