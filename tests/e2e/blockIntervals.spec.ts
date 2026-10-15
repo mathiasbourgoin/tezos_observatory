@@ -49,7 +49,7 @@ test('block intervals evidence keeps readable metadata at the actual product roo
 
 test('block intervals production reader contract preserves bounded independent refresh lifecycle and inspection',async({page},info)=>{
  await metricFixture(page);await prepare(page,false);const panel=page.locator('.mainnet'),region=panel.locator('.block-intervals'),refresh=region.getByRole('button',{name:'Refresh block intervals for Mainnet',exact:true});
- await expect(means(page)).toHaveText(['7200.29 s','3601.00 s','906.00 s']);expect(await calls(page)).toBe(5);expect(await calls(page,'shadownet')).toBe(5);
+ await expect(means(page)).toHaveText(['7200.29 s','3601.00 s','906.00 s']);expect(await calls(page)).toBe(5);expect(await calls(page,'shadownet')).toBe(0);
  await expect(region).toContainText('Indexer lag 5 levels');await expect(region.locator('.interval-note')).toContainText('intermediate ancestry and completeness are not independently verified');
  expect(await page.evaluate(()=>window.metricFixture.calls.every(call=>call.credentials==='omit'&&call.cache==='no-store'&&call.redirect==='error'))).toBe(true);
  await choose(page.getByLabel('Appearance'),'dark');await choose(page.getByLabel('Appearance'),'light');expect(await calls(page)).toBe(5);
@@ -64,7 +64,7 @@ test('block intervals production reader contract preserves bounded independent r
  await page.clock.runFor(60000);await refresh.click();await expect(region).toContainText('As-of evidence');await expect(region).not.toContainText('Stale retained evidence');
  const after=await calls(page),asof=await region.locator('.interval-note').textContent();await page.clock.runFor(119999);await expect(region).not.toContainText('Stale retained evidence');await page.clock.runFor(1);await expect(region).toContainText('Stale retained evidence');expect(await calls(page)).toBe(after);
  await page.clock.setFixedTime(new Date('2026-01-01T00:00:00Z'));await page.clock.runFor(1000);await expect(means(page)).toHaveText(['7200.29 s','3601.00 s','906.00 s']);expect(await region.locator('.interval-note').textContent()).toBe(asof);await expect(region).toContainText('selected indexed-endpoint age');
- await page.clock.setFixedTime(new Date('2026-10-15T12:10:00Z'));const priorShad=await calls(page,'shadownet');await page.locator('.network-tab.shadownet').click();expect(await calls(page,'shadownet')).toBe(priorShad);await page.locator('.shadownet .block-intervals').getByRole('button',{name:'Refresh block intervals for Shadownet',exact:true}).click();await expect.poll(()=>calls(page,'shadownet')).toBe(priorShad+5);expect(await calls(page)).toBe(after);
+ await page.clock.setFixedTime(new Date('2026-10-15T12:10:00Z'));const priorShad=await calls(page,'shadownet');await page.locator('.network-tab.shadownet').click();await expect.poll(()=>calls(page,'shadownet')).toBe(priorShad+5);await expect(page.locator('.shadownet .block-intervals').getByRole('button',{name:'Refresh block intervals for Shadownet',exact:true})).toBeDisabled();expect(await calls(page)).toBe(after);
  info.annotations.push({type:'block-interval-verified',description:'reader-contract'});
 });
 
