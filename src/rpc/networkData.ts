@@ -160,13 +160,13 @@ export class NetworkData {
   source: RpcSource;
   private readonly constantCache = new Map<string,Constants>();
   private readonly contextCache = new Map<string,RpcContext>();
-  private readonly contextPending = new Map<string,Promise<RpcContext>>();
+  private readonly contextPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<RpcContext>}>();
   private auxiliaryController = new AbortController();
   private collecting = true;
   private collectionGeneration = 0;
   private aliasesLoading = false;
   private readonly committees = new Map<string,readonly DelegateRight[]>();
-  private readonly committeesPending = new Map<string,Promise<readonly DelegateRight[]>>();
+  private readonly committeesPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<readonly DelegateRight[]>}>();
   private readonly aliases = new Map<string, string>();
   private aliasesLoaded = false;
   private readonly rightCache = new Map<string, readonly BakingRight[]>();
@@ -196,6 +196,8 @@ export class NetworkData {
   }
 
   private async context(hash:string,source:RpcSource,signal:AbortSignal,expected?:BlockHeader):Promise<RpcContext> {
+    const generation=this.collectionGeneration;
+    this.assertCollecting(generation,signal);
     const key=JSON.stringify([source.baseUrl,hash]);
     const verify=(context:RpcContext):RpcContext=>{
       const header=context.header;
@@ -203,8 +205,9 @@ export class NetworkData {
       return context;
     };
     const cached=this.contextCache.get(key);if(cached)return verify(cached);
-    const existing=this.contextPending.get(key);if(existing)return verify(await existing);
-    const generation=this.collectionGeneration;
+    // Only readers with the same cancellation owner may share unfinished work.
+    const existing=this.contextPending.get(key);
+    if(existing?.signal===signal){const value=await existing.task;this.assertCollecting(generation,signal);return verify(value);}
     const task=(async()=>{
       const [headerReceipt,protocolReceipt]=await Promise.all([
         this.requestObserved(`/chains/main/blocks/${hash}/header`,signal,undefined,source),
@@ -218,8 +221,10 @@ export class NetworkData {
       while(this.contextCache.size>12)this.contextCache.delete(this.contextCache.keys().next().value!);
       return value;
     })();
-    this.contextPending.set(key,task);
-    try{return verify(await task);}finally{if(this.contextPending.get(key)===task)this.contextPending.delete(key);}
+    const pending={signal,task};
+    this.contextPending.set(key,pending);
+    while(this.contextPending.size>12)this.contextPending.delete(this.contextPending.keys().next().value!);
+    try{const value=await task;this.assertCollecting(generation,signal);return verify(value);}finally{if(this.contextPending.get(key)===pending)this.contextPending.delete(key);}
   }
 
   private async targetContext(head:BlockHeader,level:number,signal:AbortSignal,allowFollowingLevel=false):Promise<TargetContext> {
@@ -242,9 +247,12 @@ export class NetworkData {
   }
 
   private async committee(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<readonly DelegateRight[]> {
+    const generation=this.collectionGeneration;
+    this.assertCollecting(generation,signal);
     const key=exactSource?JSON.stringify([context.key,exactSource.baseUrl]):context.key,level=context.level;
     const cached=this.committees.get(key);if(cached)return cached;
-    const pending=this.committeesPending.get(key);if(pending)return pending;
+    const existing=this.committeesPending.get(key);
+    if(existing?.signal===signal){const value=await existing.task;this.assertCollecting(generation,signal);return value;}
     const task=(async()=>{
       const generation=this.collectionGeneration;
       const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/helpers/attestation_rights?level=${level}`,context,signal,exactSource);
@@ -264,8 +272,10 @@ export class NetworkData {
       while(this.committees.size>12)this.committees.delete(this.committees.keys().next().value!);
       this.onChange?.();return values;
     })();
-    this.committeesPending.set(key,task);
-    try{return await task;}finally{if(this.committeesPending.get(key)===task)this.committeesPending.delete(key);}
+    const pending={signal,task};
+    this.committeesPending.set(key,pending);
+    while(this.committeesPending.size>12)this.committeesPending.delete(this.committeesPending.keys().next().value!);
+    try{const value=await task;this.assertCollecting(generation,signal);return value;}finally{if(this.committeesPending.get(key)===pending)this.committeesPending.delete(key);}
   }
 
   private async protocolConstants(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<Constants> {
@@ -371,14 +381,17 @@ export class NetworkData {
   }
 
   async derive(head: BlockHeader, signal: AbortSignal): Promise<Derived> {
+    const generation=this.collectionGeneration;
     this.observeHead(head);
     const rights=new Map<number,readonly DelegateRight[]>(),contexts=new Map<number,TargetContext>(),constantsByLevel=new Map<number,Constants>();
     const errors:string[]=[];
     await Promise.all([head.level,head.level+1].map(async level=>{
       try {
-        const context=await this.targetContext(head,level,signal);contexts.set(level,context);
+        const context=await this.targetContext(head,level,signal);
+        this.assertCollecting(generation,signal);contexts.set(level,context);
         const [committee,constants]=await Promise.all([this.committee(context,signal),this.protocolConstants(context,signal)]);
         if(!committeeAuthority(committee,constants.committee,constants.quorum).usable)throw new Error("Committee contradicts protocol constants");
+        this.assertCollecting(generation,signal);
         rights.set(level,committee);constantsByLevel.set(level,constants);
       }catch(error){errors.push(`Target context ${level}: ${String(error)}`);}
     }));
