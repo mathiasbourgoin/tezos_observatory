@@ -91,3 +91,7 @@ Saved origin811c7f6 evidence was read in full and independently recomputed, not 
 The review checkout was restored after the final run: temporary port configuration and generated screenshots reverted, original tests retained, exactHEAD89f1 confirmed, working-tree status clean, app/tests/checker/config equality with a2be reconfirmed. The only authorized new root write is this uncommitted final report. No app fix, subagent, automated QA/parent GO ledger event, push or deployment was performed.
 
 **Final disposition: GO, whole accepted foundations at89f1bd102089e41cef3c597b8be9048322b35953.** Root may now dispatch NEW independent QA under its separate assignment. Astra production and its visual/accessibility/motion matrix, publication and deployment remain later gates.
+
+## Root evidence-label qualification
+
+The aggregate140 browser count above comprises134 actual production `/` cases and6 legacy fixture cases, as independently identified during QA and verified by root navigation-target inspection. Earlier wording calling all140 production cases is too broad. See [the exact evidence split](observatory-browser-evidence-scope.md). The30 original browser-required criteria and independent original-defect repros did execute actual `/` in both engines; no fixture-only result substitutes for them. This correction changes no source, test result or review revision and does not claim a new reviewer execution.
