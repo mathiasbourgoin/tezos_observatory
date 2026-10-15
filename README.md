@@ -46,6 +46,8 @@ the display selects the strongest by combined voting power and reports alternati
 Recent consensus rows retain peak power observed during this browser session:
 they are historical observations, not current-round participation or a chain archive.
 
+Adjacent observed block and round changes use 600ms motion, with an 800ms total settlement budget after the final accepted update. This slower timing was requested on 15 October 2026. Delayed rendering consumes the existing movement budget; bursts coalesce, and reduced motion or observation gaps use a static destination.
+
 Each gauge sums committee voting power once per delegate, using attestation
 rights pinned to the observed head hash. A signer count is not an operation count
 or a token balance. The quorum marker comes from the protocol constants.
