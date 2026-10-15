@@ -24,6 +24,7 @@ test('supported alternatives stay closed, rank within the current tuple and pres
  await expect(choices.getByRole('button',{name:`Inspect candidate ${zero.hash}`,exact:true})).toHaveCount(0);
  await choices.getByRole('button',{name:'Inspect payload Weak',exact:true}).click();await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');
  await emit(packet(0,'Strong','attestation'));await expect(panel.locator('.selected-payload')).toContainText('Weak');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+ await expect(choices.getByRole('button',{name:`Inspect candidate ${strong.hash}`,exact:true})).toHaveCount(0);
  const history=panel.getByLabel('Retained session instance'),zeroOption=history.locator('..').locator('.choice-option').filter({hasText:'Zero'});
  await expect(zeroOption).toHaveCount(1);await choose(history,(await zeroOption.getAttribute('data-value'))!);
  await panel.getByText('Selected identity & phase provenance',{exact:true}).click();await openDetails(panel.locator('.captured-candidates'));
