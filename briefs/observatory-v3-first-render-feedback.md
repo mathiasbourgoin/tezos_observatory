@@ -18,3 +18,7 @@ Feedback was sent to the native Astra implementation owner. Owner acknowledged t
 
 - `/home/mathias/.cache/observatory-v3/first-chromium-390-dark.png`: SHA256 `01e4d01ce45f651a9bc4b4a89172a2325155f547746a24ce2e02e89e7172d9c7`.
 - `/home/mathias/.cache/observatory-v3/first-chromium-3440-light.png`: SHA256 `b55971d6851039ba67089ba502e414998ce3226e35ba12080bf821df06191c2e`.
+
+## Immutable checkpoint d8afff901549, 05:37 UTC
+
+Root inspected actual Chromium1440light and390dark from /home/mathias/.cache/observatory-v3/checkpoints/d8afff901549/, which retains source.json and source.patch. Connectors now express the crossroads, and committee labels no longer fragment into narrow columns at1440. However, its stacked participant rows consume about200px each and show only two complete delegates in the local viewport. This needs a denser useful desktop composition: consider giving committee full width at the intermediate breakpoint rather than applying the ultrawide side-by-side grid at1440. Phone still delays primary participation evidence with excessive preceding vertical space; author independently acknowledged and is compacting it without shrinking text. Feedback sent directly to Astra. These remain interim observations, not manual CHECK-38 acceptance.
