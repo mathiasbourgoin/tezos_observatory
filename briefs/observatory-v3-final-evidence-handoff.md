@@ -23,6 +23,12 @@ Avoid circular dependencies by recording actual independent sub-results before t
 
 Manual CHECK-38 remains a separate mandatory judgment by the fresh reviewer and QA. Actual hierarchy, readability, meaningful use of wide space, action density, consistency, originality, long-value/dense states, composed contrast and applicable native surfaces must be inspected. Numerical overflow checks, screenshot counts or a source-hash receipt alone are insufficient.
 
+## Shared final evidence interface for interval metrics
+
+The interval-metrics AC-15 guard must reuse the V3 product-local evidence consumer (`loadV3Evidence` / `requireIndependentReceipt`) and the root-selected immutable bundle at `V3_RELEASE_EVIDENCE`, rather than introduce a second receipt framework. The current consumer is still implementation work, not an accepted verifier. Missing helper, bundle, required independent receipts or complete evidence remains ERROR; lazy loading for AC-15 must not prevent the other nineteen metric criteria from executing.
+
+For the combined source, AC-15 must additionally require the interval-metrics contract hash and its actual applicable state/viewport/theme/engine and inherited-surface evidence. A V3-only matrix cannot certify the metrics region. Root and Astra coordinate the combined explicit variant inventory without removing any of the original 323 obligations. Real independent sub-results bind source/contract combined hashes, role/actor, kind, covered criteria, outcome, reasoned report and nonempty hashed evidence references. Structural actor inequality and file hashes do not prove independence: root must also verify the actual separate fresh role history and executions before adopting receipts. No author-generated independent approval is permitted.
+
 ## Root visual observations to adjudicate
 
 Root viewed development captures at 1440×900 light, 390×844 dark and 3440×1440 light in `workstation-matrix-development-01`. The side-by-side timeline/participation layout and wide simultaneous history/timeline/participation/table composition address earlier wasted space. The upper navigation band still deserves inspection for useful density; Astra is tightening spacing without reducing targets. These observations are preliminary root feedback, not independent manual approval or full-matrix verification.
