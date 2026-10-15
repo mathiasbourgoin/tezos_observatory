@@ -362,10 +362,11 @@ function render(runtime: Runtime): void {
   model.events=capturedEvents(runtime);
   const progress=view.progression;
   model.note+=progress?` Last source transition: ${progress.kind==="next-level"?"Observed next-level advance":progress.kind==="same-level-round"?"Observed same-level round advance":progress.kind==="same-height-reorg"?"Observed same-height reorg":progress.kind==="skipped-levels"?"Skipped delivered levels; intermediate path unobserved":"Observed head change; ancestry unavailable"} · source ${progress.evidence.source.baseUrl} · ${progress.from.header.hash} → ${progress.to.header.hash} · received ${new Date(progress.evidence.receivedAt).toISOString()}.`:" Source progress unknown.";
-  if(runtime.followLiveSelection&&!view.inspection.snapshot)model.note+=" Live unavailable: no coherent current selection.";
+  const liveUnavailable=runtime.followLiveSelection&&!view.inspection.snapshot?" Live unavailable: no coherent current selection.":"";
+  model.note+=liveUnavailable;
   if(view.crossingHistoryPartial)model.note+=" Crossing history partial after bounded fact retirement; uncertain histories cannot emit a new crossing.";
   if (degraded)
-    model.error = `Heads connection interrupted: ${view.headStream.error}. Retaining the last coherent observation.`;
+    model.error = `Heads connection interrupted: ${view.headStream.error}. Retaining the last coherent observation.${liveUnavailable}`;
   if (authority.usable && constants) model.quorum = authority.threshold;
   if (total !== undefined) model.committeePower = total;
   if (

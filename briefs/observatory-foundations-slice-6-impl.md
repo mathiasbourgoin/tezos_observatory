@@ -55,3 +55,9 @@ Independent review of1843e57 obtained77PASS/1FAIL in the original78-browser run:
 The existing Latest facade already returns whether it selected a coherent record. The page now synchronizes Follow intent to that result: unsuccessful Latest stays Follow with explicit unavailable context; successful Latest pins once. No request, resume or numerical authority is added. The original AC25 test now waits for its actual render before checking unavailable status. Strengthened exact AC25 passes15groups including both engines; TypeScript/build pass. S7 source/tests remain saved outside this correction. Final unit/full-browser results follow.
 
 Final failed-Latest correction:158unit/17files PASS; immobile78/78browser PASS43.6s; TypeScript/build/scope/diffcheck PASS; strengthened exact originalAC25 PASS15groups with Chromium and Firefox. Original PNG artifacts restored.
+
+## Narrow error-coexistence qualification
+
+The related transport-error watchpoint was tested on the actual original AC25 consumer. A first test polled interruption and unavailable separately and passed by seeing different renders; it did not prove coexistence. Capturing one rendered notice reproduced a genuine failure in both engines: the interruption text was present while selected live-unavailable was absent. The same explicit unavailable qualification now accompanies the transport error, preserving its full interruption attribution. Error precedence is not globally suppressed or changed. The strengthened test asserts both facts on one captured notice, then exercises paused failed Latest and local Follow with the same no-read assertions. Original AC25 passes15groups including both engines after correction. Final gates follow.
+
+Final error-coexistence correction:158unit/17files PASS; immobile78/78browser PASS45.1s; TypeScript/build/scope/diffcheck PASS; exactoriginalAC25 PASS15groups across bothengines. Original PNG artifacts restored.
