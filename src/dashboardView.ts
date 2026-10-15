@@ -1,4 +1,5 @@
-import {cameraElapsed,CAMERA_DURATION_MS} from './cameraTiming';
+import {CAMERA_DURATION_MS} from './cameraTiming';
+import {navigatorDirection,retainNavigator} from './navigatorMotion';
 import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockIntervals';
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
@@ -17,6 +18,7 @@ export interface ObservedNavigatorView {
 export interface NetworkViewModel {
   /** UI admission-to-render budget; not an observation receipt. */
   cameraAcceptedMonotonic?:number;
+  navigatorDiscontinuity?:string;
   blockIntervals?:IntervalView;
   observation?:ObservedNavigatorView;
   selectedRelationship?:'applied-block'|'applied-tuple'|'different-block'|'next-level'|'other';
@@ -421,28 +423,26 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     let observedCard:{key:string;presentation:ReturnType<typeof cardPresentation>}|undefined;
     const cancelCamera=():void=>{cameraAnimation?.cancel();cameraAnimation=undefined;departures?.remove();departures=undefined;previousNode.style.opacity='';};
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cancelCamera();set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
-    const moveCamera=(model:NetworkViewModel):void=>{
-      const before=cameraAnchor,after=model.observation;
+    const moveCamera=(model:NetworkViewModel,retained:boolean,reset:boolean):void=>{
+      const before=reset?undefined:cameraAnchor,after=model.observation;
+      if(reset){cameraAnchor=undefined;observedCard=undefined;}
+      if(retained&&before){cancelCamera();junction.dataset.direction='static';junction.dataset.awaitingProof='true';set(navigatorStatus,`Last coherent ${number(before.level)} · r${before.round} · as of ${new Date(before.receivedAt).toISOString()} · awaiting current proof. Dotted: context only · no current authority implied.`);return;}
+      const wasAwaiting=junction.dataset.awaitingProof==='true';junction.dataset.awaitingProof='false';
       const sameMode=current?.session?.mode===model.session?.mode;
       const enriched=before&&after&&before.coherent&&after.coherent&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol&&before.level===after.level&&before.round===after.round&&before.contextParent===after.contextParent&&(!!before.hash&&before.hash===after.hash||!!before.payload&&before.payload===after.payload&&(!before.hash||!after.hash));
       // Vote/power enrichment and hash discovery for the same observed tuple do not interrupt travel.
-      if(sameMode&&(before?.identity===after?.identity&&current?.observation?.coherent===after?.coherent||enriched)){if(after?.coherent)cameraAnchor=after;return;}
+      if(sameMode&&(before?.identity===after?.identity&&after?.coherent||enriched)){if(after?.coherent)cameraAnchor=after;if(wasAwaiting)set(navigatorStatus,'Coherent destination restored · stationary. Solid: verified ancestry · dotted: context only · dashed: conditional.');return;}
       cancelCamera();
-      if(after?.coherent)cameraAnchor=after;
+      cameraAnchor=after?.coherent?after:undefined;
       let direction='static',reason=model.session?.mode==='pin'?'Pinned observation · stationary':!after?.coherent?'Context unavailable · stationary':!before?'Observed anchor':before.source!==after.source?'Observer changed · recentered':before.level===after.level&&before.round===after.round?'Candidate changed · recentered':after.level>before.level+1||after.round>before.round+1?'Observation gap · recentered without inferred steps':'Observed context changed · recentered';
-      const continuity=before&&after&&before.coherent&&after.coherent&&current?.session?.mode==='follow'&&model.session?.mode==='follow'&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol;
-      if(continuity&&after.receivedMonotonic>=before.receivedMonotonic){
-        if(after.level===before.level&&after.round===before.round+1&&after.contextParent===before.contextParent)direction='up';
-        else if(after.level===before.level+1&&after.predecessor&&(before.hash?after.predecessor.hash===before.hash:!!before.payload&&after.predecessor.payload===before.payload&&after.predecessor.round===before.round&&after.predecessor.parentHash===before.contextParent))direction='right';
-      }
+      if(before&&after&&current?.session?.mode==='follow'&&model.session?.mode==='follow')direction=navigatorDirection(before,after);
       if(direction==='up'){cameraY-=1;reason='Observed adjacent round · camera UP';}
       if(direction==='right'){cameraX+=1;reason='Observed adjacent level · camera RIGHT';}
       set(navigatorStatus,`${reason}${reducedMotion.matches?' · reduced motion, static destination':''}. Solid: verified ancestry · dotted: context only · dashed: conditional.`);
       // Local coordinates are descriptive, never proportional to absolute network rounds.
       junction.dataset.direction=direction;junction.dataset.cameraX=String(cameraX);junction.dataset.cameraY=String(cameraY);
-      const elapsed=cameraElapsed(model.cameraAcceptedMonotonic,performance.now());
       const coherentCard=before&&observedCard?.key===anchorKey(before)?observedCard.presentation:undefined;
-      if(direction!=='static'&&!reducedMotion.matches&&elapsed!==undefined&&coherentCard){
+      if(direction!=='static'&&!reducedMotion.matches&&coherentCard){
         const origin=junction.querySelector<HTMLElement>(direction==='up'?'[data-branch=same-level]':'[data-branch=next-level]');
         if(!origin)return;
         const frame=stage.getBoundingClientRect(),destination=currentNode.getBoundingClientRect(),slot=origin.getBoundingClientRect();
@@ -465,7 +465,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
           departing.append(copy);
         }
         stage.append(departing);departures=departing;if(direction==='right')previousNode.style.opacity='0';for(const scroll of scrolls){scroll.node.scrollTop=scroll.top;scroll.node.scrollLeft=scroll.left;}
-        // Begin a complete visible journey. Receipt age only fences stale work.
+        // This is the latest coherent rendered destination, not a queued receipt replay.
         const animation=stage.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],{duration:CAMERA_DURATION_MS,easing:'linear'});
         cameraAnimation=animation;
         animation.onfinish=()=>{if(cameraAnimation===animation){departing.remove();departures=undefined;cameraAnimation=undefined;previousNode.style.opacity='';}};
@@ -488,11 +488,14 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     };
     states.set(network, {tick, update(model) {
       intervals.update(model.blockIntervals);
-      moveCamera(model);current = model; panel.dataset.status = model.status;
+      const reset=model.navigatorDiscontinuity!==undefined&&model.navigatorDiscontinuity!==current?.navigatorDiscontinuity;
+      const retained=!reset&&retainNavigator(cameraAnchor,current,model);
+      moveCamera(model,retained,reset);current = model; panel.dataset.status = model.status;
       const anchor=model.observation;
+      set(contextFields.get('Observer')!,anchor?.source??'Unavailable');set(contextFields.get('Chain')!,anchor?.chain??'Unknown');set(contextFields.get('Context head')!,anchor?.contextHead??'Unknown');set(contextFields.get('Execution protocol')!,anchor?.protocol??'Unknown');set(contextFields.get('Received')!,anchor?new Date(anchor.receivedAt).toISOString():'Unavailable');
+      if(!retained){
       set(currentTarget,anchor?`${number(anchor.level)} · r${anchor.round}`:'Observation unavailable');
       set(currentKind,anchor?anchor.hash?'Observed block':'Votes only':'Live unavailable');
-      set(contextFields.get('Observer')!,anchor?.source??'Unavailable');set(contextFields.get('Chain')!,anchor?.chain??'Unknown');set(contextFields.get('Context head')!,anchor?.contextHead??'Unknown');set(contextFields.get('Execution protocol')!,anchor?.protocol??'Unknown');set(contextFields.get('Received')!,anchor?new Date(anchor.receivedAt).toISOString():'Unavailable');
       observedHash=anchor?.hash;copyHash.disabled=!observedHash;
       set(currentHash,anchor?.hash?short(anchor.hash):'Proposal hash unavailable');currentHash.title=anchor?.hash??'No proposal hash observed';
       currentNode.dataset.identity=anchor?.identity??'';
@@ -503,6 +506,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       set(previousHash,parent?short(parent.hash):'Ancestry unknown');previousHash.title=parent?.hash??'';
       set(previousRelation,parent?.relation==='ancestry'?'Verified ancestry':parent?'Context only · not ancestry':'Observation gap');
       junction.dataset.relationship=parent?.relation??'unknown';
+      }
       const observed = model.roundSource === 'observed';
       set(selectedTitle, observed ? `${number(model.consensusLevel ?? model.level)} / r${number(model.round)}` : 'Observation unavailable');
       const relationshipLabels={'applied-block':'Votes for the already-applied block','applied-tuple':'Votes match the already-applied head tuple · block hash unproven','different-block':'Votes match the applied tuple; selected block hash differs','next-level':'Observed consensus for the next level · not yet applied','other':'Other retained observation · not current applied progress'};set(selectedRelationship,model.selectedRelationship?relationshipLabels[model.selectedRelationship]:'Relationship to applied head unknown');set(nextProposalObservation,model.nextProposalObservation?`${model.nextProposalObservation.observed?'Coherent next-level proposal observed':'No coherent next-level proposal observed'} in retained session · ${model.nextProposalObservation.source}`:'Next-level proposal observation unavailable');
@@ -594,6 +598,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       set(readEligibility, model.eligibilityLoading ? 'Reading committee eligibility…' : 'Read committee eligibility');
       pre.update(model.preattestations, model.preattestations?.threshold??model.quorum); att.update(model.attestations, model.attestations?.threshold??model.quorum);
       missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);committee.update(model.committee,model.committeeTotal??model.committeePower,model.unknownConsensus);
+      if(!retained){
       const bakers = model.opportunityFacts?model.opportunityFacts.map(fact=>({label:fact.branch==='same-level'?'Next round · same level':'Following level · round 0',alias:undefined,level:fact.level,round:fact.round,address:fact.proposer.state==='known'?fact.proposer.right.delegate:'',detail:fact})):model.nextBakers ?? [], bakerKeys = new Set<string>();
       for (const [index, baker] of bakers.entries()) {
         const key = `${baker.label}`; bakerKeys.add(key);
@@ -613,6 +618,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       }
       if (bakers.length) for (const placeholder of bakerRows.querySelectorAll('.empty-state')) placeholder.remove();
       else for(const placeholder of bakerRows.querySelectorAll<HTMLElement>('.empty-state')){const same=placeholder.dataset.branch==='same-level',target=placeholder.querySelector<HTMLElement>('.branch-target');if(target)set(target,anchor?`Level ${number(anchor.level+(same?0:1))} · round ${same?anchor.round+1:0}`:'Level — · round —');}
+      }
       set(meta.get('Primary source')!, model.source ?? 'Unavailable'); set(meta.get('Block hash')!, model.hash ?? 'Unavailable');
       set(meta.get('Applied head')!, model.appliedLevel === undefined ? 'Unavailable' : `Level ${number(model.appliedLevel)} · round ${number(model.appliedRound)}`);
       set(meta.get('Last successful head')!, clock(model.observedAt)); set(meta.get('Last operation')!, clock(model.lastOperationAt));
