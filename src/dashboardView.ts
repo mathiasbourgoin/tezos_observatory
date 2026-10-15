@@ -324,7 +324,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     sectionTitle.append(el('h3', '', 'Committee participation')); const activity = el('span', 'subtle', 'Activity round —'); sectionTitle.append(activity);
     const selection = el('p', 'selection-label', 'Level — · payload unavailable');
     const candidateControls = el('div', 'candidate-controls'); candidateControls.setAttribute('aria-label','Observed candidates and payloads');
-    const alternatives=el('details','observed-proposals'),alternativesSummary=el('summary','','Other observed proposals (0)');
+    const alternatives=el('details','observed-proposals'),alternativesSummary=el('summary','','Proposals with observed votes (0)');
     const alternativesNote=el('p','table-note','Same level, round and source context, with received voting power. Strongest phase support first; inspect to pin an instance. Payload signatures can be shared by several block hashes.');
     alternatives.append(alternativesSummary,alternativesNote,candidateControls);
     const candidateEvidence = el('p','candidate-evidence table-note');
@@ -535,7 +535,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
         if(position!==button){const focused=document.activeElement===button;candidateControls.insertBefore(button,position);if(focused)button.focus({preventScroll:true});}
       }
       for (const [key,button] of candidateButtons) if (!candidateKeys.has(key)) {button.remove();candidateButtons.delete(key);}
-      set(alternativesSummary,`Other observed proposals (${candidateKeys.size})`);
+      set(alternativesSummary,`Proposals with observed votes (${candidateKeys.size})`);
       set(alternativesNote,`Same level, round and source context${model.candidates?.[0]?.source?` · ${model.candidates[0].source}`:''}, with received voting power. Strongest phase support first; inspect to pin an instance. Payload signatures can be shared by several block hashes.`);
       const capturedKeys=new Set<string>();
       for(const candidate of model.provenanceCandidates??[]){
