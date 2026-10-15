@@ -1,0 +1,1717 @@
+{
+  "startedAt": "2026-10-15T03:57:55.588Z",
+  "origin": "https://mathiasbourgoin.fr/tezos_consensus/",
+  "limits": {
+    "browsers": 2,
+    "workers": 3,
+    "readTimeoutMs": 10000,
+    "bodyBytes": 1048576,
+    "maxRpcReads": 26,
+    "retries": 0
+  },
+  "runs": [
+    {
+      "engine": "chromium",
+      "at": "2026-10-15T03:57:55.755Z",
+      "documentStatus": 200,
+      "actualOrigin": "https://mathiasbourgoin.fr",
+      "heads": [
+        {
+          "network": "mainnet",
+          "base": "https://tezos-mainnet.octez.io",
+          "url": "https://tezos-mainnet.octez.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:55.759Z",
+          "receivedAt": "2026-10-15T03:57:55.900Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        },
+        {
+          "network": "mainnet",
+          "base": "https://rpc.tzkt.io/mainnet",
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:55.758Z",
+          "receivedAt": "2026-10-15T03:57:55.910Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        },
+        {
+          "network": "mainnet",
+          "base": "https://octez-mainnet-archive.octez.io",
+          "url": "https://octez-mainnet-archive.octez.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:55.901Z",
+          "receivedAt": "2026-10-15T03:57:56.081Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        },
+        {
+          "network": "shadownet",
+          "base": "https://tezos-shadownet.octez.io",
+          "url": "https://tezos-shadownet.octez.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:56.081Z",
+          "receivedAt": "2026-10-15T03:57:56.129Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 824,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXsqzbfFenSTS",
+            "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+            "level": 5489251,
+            "proto": 4,
+            "predecessor": "BKjoj7HJESWW4RL949TqYmyTyAFPSRtQXFFQ6xayYCeCEk6mrNi",
+            "timestamp": "2026-10-15T03:51:18Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoZoM4moBFx8py7skWigiCBUWVpPWEMN4zG77sLcDD8R3p3D1aYA",
+            "fitness": [
+              "02",
+              "0053c263",
+              "",
+              "ffffffff",
+              "000000b6"
+            ],
+            "context": "CoVjuWfwo6BwZrkAeWx5f3vkP9kg6asej18CtypLXqfbYjDUN58Q",
+            "payload_hash": "vh1sMhQLpvc9bUZeBmfD89JDvoFnMUr22jtckfEjMCzKT6UmfDqd",
+            "payload_round": 182,
+            "proof_of_work_nonce": "f606285372300000",
+            "liquidity_baking_toggle_vote": "pass",
+            "signature": "BLsigAHBQ4ihAVLNCgEaCo9hXMmU9Ts2UUgMBD98k1a6b1HddDs9jSxMKWcY1wTdVt41Q1kwZhN7SQw8AuRULzv2xEXYuKdY42JagW96ejLon9HafLCnDjFuCKHLUXRfQoDusnUM8BBcbb"
+          }
+        },
+        {
+          "network": "shadownet",
+          "base": "https://shadownet.smartpy.io",
+          "url": "https://shadownet.smartpy.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:56.130Z",
+          "receivedAt": "2026-10-15T03:57:56.189Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 824,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXsqzbfFenSTS",
+            "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+            "level": 5489251,
+            "proto": 4,
+            "predecessor": "BKjoj7HJESWW4RL949TqYmyTyAFPSRtQXFFQ6xayYCeCEk6mrNi",
+            "timestamp": "2026-10-15T03:51:18Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoZoM4moBFx8py7skWigiCBUWVpPWEMN4zG77sLcDD8R3p3D1aYA",
+            "fitness": [
+              "02",
+              "0053c263",
+              "",
+              "ffffffff",
+              "000000b6"
+            ],
+            "context": "CoVjuWfwo6BwZrkAeWx5f3vkP9kg6asej18CtypLXqfbYjDUN58Q",
+            "payload_hash": "vh1sMhQLpvc9bUZeBmfD89JDvoFnMUr22jtckfEjMCzKT6UmfDqd",
+            "payload_round": 182,
+            "proof_of_work_nonce": "f606285372300000",
+            "liquidity_baking_toggle_vote": "pass",
+            "signature": "BLsigAHBQ4ihAVLNCgEaCo9hXMmU9Ts2UUgMBD98k1a6b1HddDs9jSxMKWcY1wTdVt41Q1kwZhN7SQw8AuRULzv2xEXYuKdY42JagW96ejLon9HafLCnDjFuCKHLUXRfQoDusnUM8BBcbb"
+          }
+        },
+        {
+          "network": "shadownet",
+          "base": "https://rpc.shadownet.teztnets.com",
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:55.911Z",
+          "receivedAt": "2026-10-15T03:57:56.282Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 824,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXsqzbfFenSTS",
+            "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+            "level": 5489251,
+            "proto": 4,
+            "predecessor": "BKjoj7HJESWW4RL949TqYmyTyAFPSRtQXFFQ6xayYCeCEk6mrNi",
+            "timestamp": "2026-10-15T03:51:18Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoZoM4moBFx8py7skWigiCBUWVpPWEMN4zG77sLcDD8R3p3D1aYA",
+            "fitness": [
+              "02",
+              "0053c263",
+              "",
+              "ffffffff",
+              "000000b6"
+            ],
+            "context": "CoVjuWfwo6BwZrkAeWx5f3vkP9kg6asej18CtypLXqfbYjDUN58Q",
+            "payload_hash": "vh1sMhQLpvc9bUZeBmfD89JDvoFnMUr22jtckfEjMCzKT6UmfDqd",
+            "payload_round": 182,
+            "proof_of_work_nonce": "f606285372300000",
+            "liquidity_baking_toggle_vote": "pass",
+            "signature": "BLsigAHBQ4ihAVLNCgEaCo9hXMmU9Ts2UUgMBD98k1a6b1HddDs9jSxMKWcY1wTdVt41Q1kwZhN7SQw8AuRULzv2xEXYuKdY42JagW96ejLon9HafLCnDjFuCKHLUXRfQoDusnUM8BBcbb"
+          }
+        },
+        {
+          "network": "mainnet",
+          "base": "https://mainnet.smartpy.io",
+          "url": "https://mainnet.smartpy.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:55.759Z",
+          "receivedAt": "2026-10-15T03:57:56.299Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        }
+      ],
+      "helpers": [
+        {
+          "network": "mainnet",
+          "selectedHash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "selectedLevel": 15378860,
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/protocols",
+          "startedAt": "2026-10-15T03:57:56.300Z",
+          "receivedAt": "2026-10-15T03:57:56.419Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 137,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "next_protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY"
+          }
+        },
+        {
+          "network": "mainnet",
+          "selectedHash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "selectedLevel": 15378860,
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/context/constants",
+          "startedAt": "2026-10-15T03:57:56.420Z",
+          "receivedAt": "2026-10-15T03:57:57.069Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 4453,
+          "body": {
+            "proof_of_work_nonce_size": 8,
+            "nonce_length": 32,
+            "max_anon_ops_per_block": 132,
+            "max_operation_data_length": 32768,
+            "max_proposals_per_delegate": 20,
+            "max_micheline_node_count": 50000,
+            "max_micheline_bytes_limit": 50000,
+            "max_allowed_global_constants_depth": 10000,
+            "cache_layout_size": 5,
+            "michelson_maximum_type_size": 2001,
+            "denunciation_period": 1,
+            "slashing_delay": 1,
+            "smart_rollup_max_wrapped_proof_binary_size": 30000,
+            "smart_rollup_message_size_limit": 4096,
+            "smart_rollup_max_number_of_messages_per_level": "1000000",
+            "consensus_rights_delay": 2,
+            "blocks_preservation_cycles": 1,
+            "delegate_parameters_activation_delay": 5,
+            "tolerated_inactivity_period": 2,
+            "blocks_per_cycle": 14400,
+            "blocks_per_commitment": 112,
+            "nonce_revelation_threshold": 400,
+            "cycles_per_voting_period": 14,
+            "hard_gas_limit_per_operation": "1040000",
+            "hard_gas_limit_per_block": "1040000",
+            "proof_of_work_threshold": "281474976710655",
+            "minimal_stake": "6000000000",
+            "minimal_frozen_stake": "600000000",
+            "vdf_difficulty": "2400000000",
+            "origination_size": 257,
+            "issuance_weights": {
+              "base_total_issued_per_minute": "80007812",
+              "baking_reward_fixed_portion_weight": 5120,
+              "baking_reward_bonus_weight": 5120,
+              "attesting_reward_weight": 10240,
+              "seed_nonce_revelation_tip_weight": 1,
+              "vdf_revelation_tip_weight": 1,
+              "dal_rewards_weight": 2275
+            },
+            "cost_per_byte": "250",
+            "hard_storage_limit_per_operation": "60000",
+            "quorum_min": 2000,
+            "quorum_max": 7000,
+            "min_proposal_quorum": 500,
+            "liquidity_baking_subsidy": "5000000",
+            "liquidity_baking_toggle_ema_threshold": 1000000000,
+            "max_operations_time_to_live": 600,
+            "minimal_block_delay": "6",
+            "delay_increment_per_round": "3",
+            "consensus_committee_size": 7000,
+            "consensus_threshold_size": 4667,
+            "minimal_participation_ratio": {
+              "numerator": 2,
+              "denominator": 3
+            },
+            "limit_of_delegation_over_baking": 9,
+            "percentage_of_frozen_deposits_slashed_per_double_baking": 500,
+            "max_slashing_per_block": 10000,
+            "max_slashing_threshold": {
+              "numerator": 1,
+              "denominator": 3
+            },
+            "cache_script_size": 100000000,
+            "cache_stake_distribution_cycles": 5,
+            "cache_sampler_state_cycles": 5,
+            "cache_stake_info_cycles": 5,
+            "cache_swrr_selected_distribution_cycles": 5,
+            "dal_parametric": {
+              "feature_enable": true,
+              "incentives_enable": true,
+              "dynamic_lag_enable": true,
+              "number_of_slots": 160,
+              "attestation_lag": 5,
+              "attestation_lags": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "attestation_threshold": 66,
+              "minimal_participation_ratio": {
+                "numerator": "16",
+                "denominator": "25"
+              },
+              "rewards_ratio": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "traps_fraction": {
+                "numerator": "1",
+                "denominator": "2000"
+              },
+              "redundancy_factor": 8,
+              "page_size": 3967,
+              "slot_size": 380832,
+              "number_of_shards": 512
+            },
+            "smart_rollup_arith_pvm_enable": false,
+            "smart_rollup_origination_size": 6314,
+            "smart_rollup_challenge_window_in_blocks": 201600,
+            "smart_rollup_stake_amount": "10000000000",
+            "smart_rollup_commitment_period_in_blocks": 150,
+            "smart_rollup_max_lookahead_in_blocks": 432000,
+            "smart_rollup_max_active_outbox_levels": 151200,
+            "smart_rollup_max_outbox_messages_per_level": 100,
+            "smart_rollup_number_of_sections_in_dissection": 32,
+            "smart_rollup_timeout_period_in_blocks": 100800,
+            "smart_rollup_max_number_of_cemented_commitments": 5,
+            "smart_rollup_max_number_of_parallel_games": 32,
+            "smart_rollup_reveal_activation_level": {
+              "raw_data": {
+                "Blake2B": 0
+              },
+              "metadata": 0,
+              "dal_page": 5726209,
+              "dal_parameters": 5726209,
+              "dal_attested_slots_validity_lag": 241920
+            },
+            "smart_rollup_private_enable": true,
+            "smart_rollup_riscv_pvm_enable": false,
+            "smart_rollup_canonical_rollup_address": "sr1Ghq66tYK9y3r8CC1Tf8i8m5nxh8nTvZEf",
+            "zk_rollup_enable": false,
+            "zk_rollup_origination_size": 4000,
+            "zk_rollup_min_pending_to_process": 10,
+            "zk_rollup_max_ticket_payload_size": 2048,
+            "global_limit_of_staking_over_baking": 9,
+            "edge_of_staking_over_delegation": 3,
+            "adaptive_rewards_params": {
+              "issuance_ratio_final_min": {
+                "numerator": "1",
+                "denominator": "400"
+              },
+              "issuance_ratio_final_max": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "issuance_ratio_initial_min": {
+                "numerator": "9",
+                "denominator": "200"
+              },
+              "issuance_ratio_initial_max": {
+                "numerator": "11",
+                "denominator": "200"
+              },
+              "initial_period": 10,
+              "transition_period": 50,
+              "max_bonus": "50000000000000",
+              "growth_rate": {
+                "numerator": "1",
+                "denominator": "100"
+              },
+              "center_dz": {
+                "numerator": "1",
+                "denominator": "2"
+              },
+              "radius_dz": {
+                "numerator": "1",
+                "denominator": "50"
+              }
+            },
+            "direct_ticket_spending_enable": false,
+            "aggregate_attestation": true,
+            "allow_tz4_delegate_enable": true,
+            "all_bakers_attest_activation_threshold": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "native_contracts_enable": false,
+            "swrr_new_baker_lottery_enable": false,
+            "tz5_account_enable": false,
+            "issuance_modification_delay": 2,
+            "consensus_key_activation_delay": 2,
+            "unstake_finalization_delay": 3
+          }
+        },
+        {
+          "network": "mainnet",
+          "selectedHash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "selectedLevel": 15378860,
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/helpers/attestation_rights?level=15378861",
+          "startedAt": "2026-10-15T03:57:57.071Z",
+          "receivedAt": "2026-10-15T03:57:57.100Z",
+          "status": 403,
+          "ok": false,
+          "bytes": 548,
+          "body": {
+            "invalidJson": true
+          }
+        },
+        {
+          "network": "shadownet",
+          "selectedHash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "selectedLevel": 5489251,
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/protocols",
+          "startedAt": "2026-10-15T03:57:57.100Z",
+          "receivedAt": "2026-10-15T03:57:57.221Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 137,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "next_protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY"
+          }
+        },
+        {
+          "network": "shadownet",
+          "selectedHash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "selectedLevel": 5489251,
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/context/constants",
+          "startedAt": "2026-10-15T03:57:57.222Z",
+          "receivedAt": "2026-10-15T03:57:57.341Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 4510,
+          "body": {
+            "proof_of_work_nonce_size": 8,
+            "nonce_length": 32,
+            "max_anon_ops_per_block": 132,
+            "max_operation_data_length": 32768,
+            "max_proposals_per_delegate": 20,
+            "max_micheline_node_count": 50000,
+            "max_micheline_bytes_limit": 50000,
+            "max_allowed_global_constants_depth": 10000,
+            "cache_layout_size": 5,
+            "michelson_maximum_type_size": 2001,
+            "denunciation_period": 1,
+            "slashing_delay": 1,
+            "smart_rollup_max_wrapped_proof_binary_size": 30000,
+            "smart_rollup_message_size_limit": 4096,
+            "smart_rollup_max_number_of_messages_per_level": "1000000",
+            "consensus_rights_delay": 2,
+            "blocks_preservation_cycles": 1,
+            "delegate_parameters_activation_delay": 5,
+            "tolerated_inactivity_period": 2,
+            "blocks_per_cycle": 14400,
+            "blocks_per_commitment": 112,
+            "nonce_revelation_threshold": 400,
+            "cycles_per_voting_period": 1,
+            "hard_gas_limit_per_operation": "1040000",
+            "hard_gas_limit_per_block": "1040000",
+            "proof_of_work_threshold": "281474976710655",
+            "minimal_stake": "6000000000",
+            "minimal_frozen_stake": "600000000",
+            "vdf_difficulty": "2400000000",
+            "origination_size": 257,
+            "issuance_weights": {
+              "base_total_issued_per_minute": "80007812",
+              "baking_reward_fixed_portion_weight": 5120,
+              "baking_reward_bonus_weight": 5120,
+              "attesting_reward_weight": 10240,
+              "seed_nonce_revelation_tip_weight": 1,
+              "vdf_revelation_tip_weight": 1,
+              "dal_rewards_weight": 2275
+            },
+            "cost_per_byte": "250",
+            "hard_storage_limit_per_operation": "60000",
+            "quorum_min": 2000,
+            "quorum_max": 7000,
+            "min_proposal_quorum": 500,
+            "liquidity_baking_subsidy": "5000000",
+            "liquidity_baking_toggle_ema_threshold": 1000000000,
+            "max_operations_time_to_live": 600,
+            "minimal_block_delay": "6",
+            "delay_increment_per_round": "3",
+            "consensus_committee_size": 7000,
+            "consensus_threshold_size": 4667,
+            "minimal_participation_ratio": {
+              "numerator": 2,
+              "denominator": 3
+            },
+            "limit_of_delegation_over_baking": 9,
+            "percentage_of_frozen_deposits_slashed_per_double_baking": 500,
+            "max_slashing_per_block": 10000,
+            "max_slashing_threshold": {
+              "numerator": 1,
+              "denominator": 3
+            },
+            "testnet_dictator": "tz1e1TX7KghsqWUBXWmBTAAtPK3W6JTbNc82",
+            "cache_script_size": 100000000,
+            "cache_stake_distribution_cycles": 5,
+            "cache_sampler_state_cycles": 5,
+            "cache_stake_info_cycles": 5,
+            "cache_swrr_selected_distribution_cycles": 5,
+            "dal_parametric": {
+              "feature_enable": true,
+              "incentives_enable": true,
+              "dynamic_lag_enable": true,
+              "number_of_slots": 160,
+              "attestation_lag": 5,
+              "attestation_lags": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "attestation_threshold": 66,
+              "minimal_participation_ratio": {
+                "numerator": "16",
+                "denominator": "25"
+              },
+              "rewards_ratio": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "traps_fraction": {
+                "numerator": "1",
+                "denominator": "2000"
+              },
+              "redundancy_factor": 8,
+              "page_size": 3967,
+              "slot_size": 380832,
+              "number_of_shards": 512
+            },
+            "smart_rollup_arith_pvm_enable": false,
+            "smart_rollup_origination_size": 6314,
+            "smart_rollup_challenge_window_in_blocks": 201600,
+            "smart_rollup_stake_amount": "10000000000",
+            "smart_rollup_commitment_period_in_blocks": 150,
+            "smart_rollup_max_lookahead_in_blocks": 432000,
+            "smart_rollup_max_active_outbox_levels": 151200,
+            "smart_rollup_max_outbox_messages_per_level": 100,
+            "smart_rollup_number_of_sections_in_dissection": 32,
+            "smart_rollup_timeout_period_in_blocks": 100800,
+            "smart_rollup_max_number_of_cemented_commitments": 5,
+            "smart_rollup_max_number_of_parallel_games": 32,
+            "smart_rollup_reveal_activation_level": {
+              "raw_data": {
+                "Blake2B": 0
+              },
+              "metadata": 0,
+              "dal_page": 5726209,
+              "dal_parameters": 5726209,
+              "dal_attested_slots_validity_lag": 241920
+            },
+            "smart_rollup_private_enable": true,
+            "smart_rollup_riscv_pvm_enable": false,
+            "smart_rollup_canonical_rollup_address": "sr19fMYrr5C4qqvQqQrDSjtP31GcrWjodzvg",
+            "zk_rollup_enable": false,
+            "zk_rollup_origination_size": 4000,
+            "zk_rollup_min_pending_to_process": 10,
+            "zk_rollup_max_ticket_payload_size": 2048,
+            "global_limit_of_staking_over_baking": 9,
+            "edge_of_staking_over_delegation": 3,
+            "adaptive_rewards_params": {
+              "issuance_ratio_final_min": {
+                "numerator": "1",
+                "denominator": "400"
+              },
+              "issuance_ratio_final_max": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "issuance_ratio_initial_min": {
+                "numerator": "9",
+                "denominator": "200"
+              },
+              "issuance_ratio_initial_max": {
+                "numerator": "11",
+                "denominator": "200"
+              },
+              "initial_period": 10,
+              "transition_period": 50,
+              "max_bonus": "50000000000000",
+              "growth_rate": {
+                "numerator": "1",
+                "denominator": "100"
+              },
+              "center_dz": {
+                "numerator": "1",
+                "denominator": "2"
+              },
+              "radius_dz": {
+                "numerator": "1",
+                "denominator": "50"
+              }
+            },
+            "direct_ticket_spending_enable": false,
+            "aggregate_attestation": true,
+            "allow_tz4_delegate_enable": true,
+            "all_bakers_attest_activation_threshold": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "native_contracts_enable": false,
+            "swrr_new_baker_lottery_enable": false,
+            "tz5_account_enable": false,
+            "issuance_modification_delay": 2,
+            "consensus_key_activation_delay": 2,
+            "unstake_finalization_delay": 3
+          }
+        },
+        {
+          "network": "shadownet",
+          "selectedHash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "selectedLevel": 5489251,
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/helpers/attestation_rights?level=5489252",
+          "startedAt": "2026-10-15T03:57:57.342Z",
+          "receivedAt": "2026-10-15T03:57:57.492Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 3666,
+          "body": [
+            {
+              "level": 5489252,
+              "delegates": [
+                {
+                  "delegate": "tz4L1EYEo1PcTCeAtuLTQ6iX8kPkcW7p4Kj6",
+                  "first_slot": 24,
+                  "attesting_power": 5,
+                  "consensus_key": "tz4L1EYEo1PcTCeAtuLTQ6iX8kPkcW7p4Kj6"
+                },
+                {
+                  "delegate": "tz3iRVQmTjCuZP7ewsUdtxgUWCs7G2HHWzw6",
+                  "first_slot": 23,
+                  "attesting_power": 1,
+                  "consensus_key": "tz3ZMMXjiMSLnqfRDaZmXJwTjnLSrqHvWR7P"
+                },
+                {
+                  "delegate": "tz3ghnjLnUSqtQC29Q6tKy5Tpdwz52BpiZuf",
+                  "first_slot": 22,
+                  "attesting_power": 4,
+                  "consensus_key": "tz3RtcGP6G6DFUWMXbdsNvRVe9UuyQoQ1T5b"
+                },
+                {
+                  "delegate": "tz3bzRAYNfzZ9oTrStppPS2Y4jBDqSHMwGKN",
+                  "first_slot": 21,
+                  "attesting_power": 4,
+                  "consensus_key": "tz3PCcdoqnh7BFNXvoo52tLdFqzbrYAcoMNz"
+                },
+                {
+                  "delegate": "tz3aLeXRee2XiqkeGncdD6kuYxzcS2sCMCzd",
+                  "first_slot": 20,
+                  "attesting_power": 17,
+                  "consensus_key": "tz4SRRtCTkftKYafKdDu23cmMPuvBZ61v9rf"
+                },
+                {
+                  "delegate": "tz3Y7WcwvrwaCuMPhDHL7iDVgKoJntYmTLLo",
+                  "first_slot": 19,
+                  "attesting_power": 119,
+                  "consensus_key": "tz3QX61U4LRMxvZf6chDrNNpVvP5p6RUCywZ"
+                },
+                {
+                  "delegate": "tz3TfagWmuZPTYLqbj7pNnyENjqJSEANQDdv",
+                  "first_slot": 18,
+                  "attesting_power": 1,
+                  "consensus_key": "tz3bqiV6sRKd6NLaC9zf79makonFHxfiZhKK"
+                },
+                {
+                  "delegate": "tz3Q67aMz7gSMiQRcW729sXSfuMtkyAHYfqc",
+                  "first_slot": 17,
+                  "attesting_power": 1341,
+                  "consensus_key": "tz4K5GHm3eThF5A8HCXMZtGC9wLM5GuYdHKp"
+                },
+                {
+                  "delegate": "tz1ikovWRwNJ7KHUox3rgNB1LCPhUsf5SGFN",
+                  "first_slot": 16,
+                  "attesting_power": 9,
+                  "consensus_key": "tz4BuQqTyQ5ExN9kqgzjcKtKUNpK9cAk37QP"
+                },
+                {
+                  "delegate": "tz1ha7kscNYSgJ76k5gZD8mhBueCv3gqfMsA",
+                  "first_slot": 15,
+                  "attesting_power": 43,
+                  "consensus_key": "tz4GqDfPc6tTcf1SrrsxFC4WQx945BFevPei"
+                },
+                {
+                  "delegate": "tz1eop37r13zgJncsMBrir1M3bu3g3HV6oXY",
+                  "first_slot": 14,
+                  "attesting_power": 11,
+                  "consensus_key": "tz4Bh99SEU34h2h7ktD2Jzpj6YTRboboecsL"
+                },
+                {
+                  "delegate": "tz1c5fGeD2S6iwx2wvEP993LUwAx9CEyfnBK",
+                  "first_slot": 13,
+                  "attesting_power": 1,
+                  "consensus_key": "tz1c5fGeD2S6iwx2wvEP993LUwAx9CEyfnBK"
+                },
+                {
+                  "delegate": "tz1Y35ruDY44PSxe4MCfDh2a19yD9BvW4TiM",
+                  "first_slot": 12,
+                  "attesting_power": 0,
+                  "consensus_key": "tz4Gp64yTmgc7hVR9KG3Y3XQkAjdornkwyQ5"
+                },
+                {
+                  "delegate": "tz1XYYToEbZ8LT1nph8n14BV35vTd43chM57",
+                  "first_slot": 11,
+                  "attesting_power": 472,
+                  "consensus_key": "tz4ViCkrhnjqseJwRDeWbuGDRTUK1Nc2pxq8"
+                },
+                {
+                  "delegate": "tz1X2jPbN1V6Yae7gf1NcbR4DgMKrouHrrrA",
+                  "first_slot": 10,
+                  "attesting_power": 606,
+                  "consensus_key": "tz4V2rc3wNqNRyEncQsksYaEq3mQ94fqMXVB"
+                },
+                {
+                  "delegate": "tz1TnEtqDV9mZyts2pfMy6Jw1BTPs4LMjL8M",
+                  "first_slot": 9,
+                  "attesting_power": 1979,
+                  "consensus_key": "tz4Eis3WVYGQZLsTq2TY71q3zEFWWfWHk8Gb"
+                },
+                {
+                  "delegate": "tz1TVWtNCrJ2GHtGLNwxbQPHb1tBLXcgxfi8",
+                  "first_slot": 8,
+                  "attesting_power": 69,
+                  "consensus_key": "tz4ViCkxDnhyEBf4FHYWRPhisyYsMewwo8wK"
+                },
+                {
+                  "delegate": "tz1SKzac24nukxk4LivnLLqZxRNoRtJLv7k4",
+                  "first_slot": 7,
+                  "attesting_power": 237,
+                  "consensus_key": "tz4VicKf81z139XoKAN2cVJ7Wb25iRNAn4ei"
+                },
+                {
+                  "delegate": "tz1RAD5Fa9i6SmkvRkcBZRdeS1HbsZin1Ny9",
+                  "first_slot": 6,
+                  "attesting_power": 87,
+                  "consensus_key": "tz4ViCkA619biK4r36t8CY5y4UhjmD3Lk2BB"
+                },
+                {
+                  "delegate": "tz1QLwg3Q4MVfa5CyK4HZA7C6nNhuffSgDZb",
+                  "first_slot": 5,
+                  "attesting_power": 5,
+                  "consensus_key": "tz4Wm3Eurw1MR81yscDWTc5GXE4QukawbmFP"
+                },
+                {
+                  "delegate": "tz1PJfk1LPgKUz8rhkKUYYmzAhqCaQFHhbn2",
+                  "first_slot": 4,
+                  "attesting_power": 311,
+                  "consensus_key": "tz4CsViQwTTARmH8FzjJdgmhdNYK5HLzwQnh"
+                },
+                {
+                  "delegate": "tz1NQze1hyYH86rzFxoAmb5vQvVdZwfDaQzL",
+                  "first_slot": 3,
+                  "attesting_power": 8,
+                  "consensus_key": "tz4BArzS6noVoDtxFEiAfVizKbLw6EsgRwvC"
+                },
+                {
+                  "delegate": "tz1N29q5T3jJ2i1JEWHax7q1NRkDMADj6fof",
+                  "first_slot": 2,
+                  "attesting_power": 290,
+                  "consensus_key": "tz4GgcwTZyUWLyvNssWnZSzLYCSzm4b7ZWS8"
+                },
+                {
+                  "delegate": "tz1LzoYN1gZt2RjLanisU3mYYKcWk8RJmWwo",
+                  "first_slot": 1,
+                  "attesting_power": 632,
+                  "consensus_key": "tz4Cj1kNasKDYk1tpeDKP2bj9CS1AYJBSyYF"
+                },
+                {
+                  "delegate": "tz1LHvQWc46rtzVvpKq5QdTcLdzAH1o6YCmU",
+                  "first_slot": 0,
+                  "attesting_power": 748,
+                  "consensus_key": "tz4A5A1sMvSw8WwB9UchiCujw2MhiCJz3ZkE"
+                }
+              ],
+              "estimated_time": "2026-10-15T04:00:30Z"
+            }
+          ]
+        }
+      ],
+      "ledger": [
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",
+        "https://mainnet.smartpy.io/chains/main/blocks/head/header",
+        "https://tezos-mainnet.octez.io/chains/main/blocks/head/header",
+        "https://octez-mainnet-archive.octez.io/chains/main/blocks/head/header",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header",
+        "https://tezos-shadownet.octez.io/chains/main/blocks/head/header",
+        "https://shadownet.smartpy.io/chains/main/blocks/head/header",
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/protocols",
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/context/constants",
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/helpers/attestation_rights?level=15378861",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/protocols",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/context/constants",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/helpers/attestation_rights?level=5489252"
+      ]
+    },
+    {
+      "engine": "firefox",
+      "at": "2026-10-15T03:57:58.327Z",
+      "documentStatus": 200,
+      "actualOrigin": "https://mathiasbourgoin.fr",
+      "heads": [
+        {
+          "network": "mainnet",
+          "base": "https://tezos-mainnet.octez.io",
+          "url": "https://tezos-mainnet.octez.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:58.334Z",
+          "receivedAt": "2026-10-15T03:57:58.482Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        },
+        {
+          "network": "mainnet",
+          "base": "https://rpc.tzkt.io/mainnet",
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:58.333Z",
+          "receivedAt": "2026-10-15T03:57:58.491Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        },
+        {
+          "network": "mainnet",
+          "base": "https://mainnet.smartpy.io",
+          "url": "https://mainnet.smartpy.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:58.334Z",
+          "receivedAt": "2026-10-15T03:57:58.500Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        },
+        {
+          "network": "shadownet",
+          "base": "https://tezos-shadownet.octez.io",
+          "url": "https://tezos-shadownet.octez.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:58.501Z",
+          "receivedAt": "2026-10-15T03:57:58.530Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 824,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXsqzbfFenSTS",
+            "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+            "level": 5489251,
+            "proto": 4,
+            "predecessor": "BKjoj7HJESWW4RL949TqYmyTyAFPSRtQXFFQ6xayYCeCEk6mrNi",
+            "timestamp": "2026-10-15T03:51:18Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoZoM4moBFx8py7skWigiCBUWVpPWEMN4zG77sLcDD8R3p3D1aYA",
+            "fitness": [
+              "02",
+              "0053c263",
+              "",
+              "ffffffff",
+              "000000b6"
+            ],
+            "context": "CoVjuWfwo6BwZrkAeWx5f3vkP9kg6asej18CtypLXqfbYjDUN58Q",
+            "payload_hash": "vh1sMhQLpvc9bUZeBmfD89JDvoFnMUr22jtckfEjMCzKT6UmfDqd",
+            "payload_round": 182,
+            "proof_of_work_nonce": "f606285372300000",
+            "liquidity_baking_toggle_vote": "pass",
+            "signature": "BLsigAHBQ4ihAVLNCgEaCo9hXMmU9Ts2UUgMBD98k1a6b1HddDs9jSxMKWcY1wTdVt41Q1kwZhN7SQw8AuRULzv2xEXYuKdY42JagW96ejLon9HafLCnDjFuCKHLUXRfQoDusnUM8BBcbb"
+          }
+        },
+        {
+          "network": "shadownet",
+          "base": "https://shadownet.smartpy.io",
+          "url": "https://shadownet.smartpy.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:58.531Z",
+          "receivedAt": "2026-10-15T03:57:58.590Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 824,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXsqzbfFenSTS",
+            "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+            "level": 5489251,
+            "proto": 4,
+            "predecessor": "BKjoj7HJESWW4RL949TqYmyTyAFPSRtQXFFQ6xayYCeCEk6mrNi",
+            "timestamp": "2026-10-15T03:51:18Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoZoM4moBFx8py7skWigiCBUWVpPWEMN4zG77sLcDD8R3p3D1aYA",
+            "fitness": [
+              "02",
+              "0053c263",
+              "",
+              "ffffffff",
+              "000000b6"
+            ],
+            "context": "CoVjuWfwo6BwZrkAeWx5f3vkP9kg6asej18CtypLXqfbYjDUN58Q",
+            "payload_hash": "vh1sMhQLpvc9bUZeBmfD89JDvoFnMUr22jtckfEjMCzKT6UmfDqd",
+            "payload_round": 182,
+            "proof_of_work_nonce": "f606285372300000",
+            "liquidity_baking_toggle_vote": "pass",
+            "signature": "BLsigAHBQ4ihAVLNCgEaCo9hXMmU9Ts2UUgMBD98k1a6b1HddDs9jSxMKWcY1wTdVt41Q1kwZhN7SQw8AuRULzv2xEXYuKdY42JagW96ejLon9HafLCnDjFuCKHLUXRfQoDusnUM8BBcbb"
+          }
+        },
+        {
+          "network": "mainnet",
+          "base": "https://octez-mainnet-archive.octez.io",
+          "url": "https://octez-mainnet-archive.octez.io/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:58.483Z",
+          "receivedAt": "2026-10-15T03:57:58.612Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 822,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXdQprcVkpaWU",
+            "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+            "level": 15378860,
+            "proto": 25,
+            "predecessor": "BL4aDPR4J6CYqERwnyG288E8RLaUhYW6MqHkAN8fxwQbAsfhuq5",
+            "timestamp": "2026-10-15T03:57:52Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoabbkeLsGWkVeDfsRdWxoiZYBJ6nAs6NqiFdU9v8AXzV1aQwskY",
+            "fitness": [
+              "02",
+              "00eaa9ac",
+              "",
+              "ffffffff",
+              "00000000"
+            ],
+            "context": "CoUrKRT3a4zwk5LYLKBpsqG7McbyuJpr7KKGT9wU9LTG9K9qwwvB",
+            "payload_hash": "vh2V3LJz6sbviM8wtBo5YoJwsxqab1YKGKpdc9LQ5r4bbQjFFH16",
+            "payload_round": 0,
+            "proof_of_work_nonce": "04d849eb7aca0100",
+            "liquidity_baking_toggle_vote": "on",
+            "signature": "BLsigA7xyFdBVQbcgkEJeyLvxdXPuwQp97WKSsDwgiH3m8E7f9HXe1WeFFJUqsesE7WJ1H3AHXWJBwWuD4kmg5EDdr1FuNuC7i9Va4hP5oGeZigEtqX1whaALperS45XUnJishHxrTWmFD"
+          }
+        },
+        {
+          "network": "shadownet",
+          "base": "https://rpc.shadownet.teztnets.com",
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header",
+          "startedAt": "2026-10-15T03:57:58.494Z",
+          "receivedAt": "2026-10-15T03:57:58.890Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 824,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "chain_id": "NetXsqzbfFenSTS",
+            "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+            "level": 5489251,
+            "proto": 4,
+            "predecessor": "BKjoj7HJESWW4RL949TqYmyTyAFPSRtQXFFQ6xayYCeCEk6mrNi",
+            "timestamp": "2026-10-15T03:51:18Z",
+            "validation_pass": 4,
+            "operations_hash": "LLoZoM4moBFx8py7skWigiCBUWVpPWEMN4zG77sLcDD8R3p3D1aYA",
+            "fitness": [
+              "02",
+              "0053c263",
+              "",
+              "ffffffff",
+              "000000b6"
+            ],
+            "context": "CoVjuWfwo6BwZrkAeWx5f3vkP9kg6asej18CtypLXqfbYjDUN58Q",
+            "payload_hash": "vh1sMhQLpvc9bUZeBmfD89JDvoFnMUr22jtckfEjMCzKT6UmfDqd",
+            "payload_round": 182,
+            "proof_of_work_nonce": "f606285372300000",
+            "liquidity_baking_toggle_vote": "pass",
+            "signature": "BLsigAHBQ4ihAVLNCgEaCo9hXMmU9Ts2UUgMBD98k1a6b1HddDs9jSxMKWcY1wTdVt41Q1kwZhN7SQw8AuRULzv2xEXYuKdY42JagW96ejLon9HafLCnDjFuCKHLUXRfQoDusnUM8BBcbb"
+          }
+        }
+      ],
+      "helpers": [
+        {
+          "network": "mainnet",
+          "selectedHash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "selectedLevel": 15378860,
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/protocols",
+          "startedAt": "2026-10-15T03:57:58.892Z",
+          "receivedAt": "2026-10-15T03:57:59.410Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 137,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "next_protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY"
+          }
+        },
+        {
+          "network": "mainnet",
+          "selectedHash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "selectedLevel": 15378860,
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/context/constants",
+          "startedAt": "2026-10-15T03:57:59.412Z",
+          "receivedAt": "2026-10-15T03:57:59.881Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 4453,
+          "body": {
+            "proof_of_work_nonce_size": 8,
+            "nonce_length": 32,
+            "max_anon_ops_per_block": 132,
+            "max_operation_data_length": 32768,
+            "max_proposals_per_delegate": 20,
+            "max_micheline_node_count": 50000,
+            "max_micheline_bytes_limit": 50000,
+            "max_allowed_global_constants_depth": 10000,
+            "cache_layout_size": 5,
+            "michelson_maximum_type_size": 2001,
+            "denunciation_period": 1,
+            "slashing_delay": 1,
+            "smart_rollup_max_wrapped_proof_binary_size": 30000,
+            "smart_rollup_message_size_limit": 4096,
+            "smart_rollup_max_number_of_messages_per_level": "1000000",
+            "consensus_rights_delay": 2,
+            "blocks_preservation_cycles": 1,
+            "delegate_parameters_activation_delay": 5,
+            "tolerated_inactivity_period": 2,
+            "blocks_per_cycle": 14400,
+            "blocks_per_commitment": 112,
+            "nonce_revelation_threshold": 400,
+            "cycles_per_voting_period": 14,
+            "hard_gas_limit_per_operation": "1040000",
+            "hard_gas_limit_per_block": "1040000",
+            "proof_of_work_threshold": "281474976710655",
+            "minimal_stake": "6000000000",
+            "minimal_frozen_stake": "600000000",
+            "vdf_difficulty": "2400000000",
+            "origination_size": 257,
+            "issuance_weights": {
+              "base_total_issued_per_minute": "80007812",
+              "baking_reward_fixed_portion_weight": 5120,
+              "baking_reward_bonus_weight": 5120,
+              "attesting_reward_weight": 10240,
+              "seed_nonce_revelation_tip_weight": 1,
+              "vdf_revelation_tip_weight": 1,
+              "dal_rewards_weight": 2275
+            },
+            "cost_per_byte": "250",
+            "hard_storage_limit_per_operation": "60000",
+            "quorum_min": 2000,
+            "quorum_max": 7000,
+            "min_proposal_quorum": 500,
+            "liquidity_baking_subsidy": "5000000",
+            "liquidity_baking_toggle_ema_threshold": 1000000000,
+            "max_operations_time_to_live": 600,
+            "minimal_block_delay": "6",
+            "delay_increment_per_round": "3",
+            "consensus_committee_size": 7000,
+            "consensus_threshold_size": 4667,
+            "minimal_participation_ratio": {
+              "numerator": 2,
+              "denominator": 3
+            },
+            "limit_of_delegation_over_baking": 9,
+            "percentage_of_frozen_deposits_slashed_per_double_baking": 500,
+            "max_slashing_per_block": 10000,
+            "max_slashing_threshold": {
+              "numerator": 1,
+              "denominator": 3
+            },
+            "cache_script_size": 100000000,
+            "cache_stake_distribution_cycles": 5,
+            "cache_sampler_state_cycles": 5,
+            "cache_stake_info_cycles": 5,
+            "cache_swrr_selected_distribution_cycles": 5,
+            "dal_parametric": {
+              "feature_enable": true,
+              "incentives_enable": true,
+              "dynamic_lag_enable": true,
+              "number_of_slots": 160,
+              "attestation_lag": 5,
+              "attestation_lags": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "attestation_threshold": 66,
+              "minimal_participation_ratio": {
+                "numerator": "16",
+                "denominator": "25"
+              },
+              "rewards_ratio": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "traps_fraction": {
+                "numerator": "1",
+                "denominator": "2000"
+              },
+              "redundancy_factor": 8,
+              "page_size": 3967,
+              "slot_size": 380832,
+              "number_of_shards": 512
+            },
+            "smart_rollup_arith_pvm_enable": false,
+            "smart_rollup_origination_size": 6314,
+            "smart_rollup_challenge_window_in_blocks": 201600,
+            "smart_rollup_stake_amount": "10000000000",
+            "smart_rollup_commitment_period_in_blocks": 150,
+            "smart_rollup_max_lookahead_in_blocks": 432000,
+            "smart_rollup_max_active_outbox_levels": 151200,
+            "smart_rollup_max_outbox_messages_per_level": 100,
+            "smart_rollup_number_of_sections_in_dissection": 32,
+            "smart_rollup_timeout_period_in_blocks": 100800,
+            "smart_rollup_max_number_of_cemented_commitments": 5,
+            "smart_rollup_max_number_of_parallel_games": 32,
+            "smart_rollup_reveal_activation_level": {
+              "raw_data": {
+                "Blake2B": 0
+              },
+              "metadata": 0,
+              "dal_page": 5726209,
+              "dal_parameters": 5726209,
+              "dal_attested_slots_validity_lag": 241920
+            },
+            "smart_rollup_private_enable": true,
+            "smart_rollup_riscv_pvm_enable": false,
+            "smart_rollup_canonical_rollup_address": "sr1Ghq66tYK9y3r8CC1Tf8i8m5nxh8nTvZEf",
+            "zk_rollup_enable": false,
+            "zk_rollup_origination_size": 4000,
+            "zk_rollup_min_pending_to_process": 10,
+            "zk_rollup_max_ticket_payload_size": 2048,
+            "global_limit_of_staking_over_baking": 9,
+            "edge_of_staking_over_delegation": 3,
+            "adaptive_rewards_params": {
+              "issuance_ratio_final_min": {
+                "numerator": "1",
+                "denominator": "400"
+              },
+              "issuance_ratio_final_max": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "issuance_ratio_initial_min": {
+                "numerator": "9",
+                "denominator": "200"
+              },
+              "issuance_ratio_initial_max": {
+                "numerator": "11",
+                "denominator": "200"
+              },
+              "initial_period": 10,
+              "transition_period": 50,
+              "max_bonus": "50000000000000",
+              "growth_rate": {
+                "numerator": "1",
+                "denominator": "100"
+              },
+              "center_dz": {
+                "numerator": "1",
+                "denominator": "2"
+              },
+              "radius_dz": {
+                "numerator": "1",
+                "denominator": "50"
+              }
+            },
+            "direct_ticket_spending_enable": false,
+            "aggregate_attestation": true,
+            "allow_tz4_delegate_enable": true,
+            "all_bakers_attest_activation_threshold": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "native_contracts_enable": false,
+            "swrr_new_baker_lottery_enable": false,
+            "tz5_account_enable": false,
+            "issuance_modification_delay": 2,
+            "consensus_key_activation_delay": 2,
+            "unstake_finalization_delay": 3
+          }
+        },
+        {
+          "network": "mainnet",
+          "selectedHash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "selectedLevel": 15378860,
+          "url": "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/helpers/attestation_rights?level=15378861",
+          "startedAt": "2026-10-15T03:57:59.885Z",
+          "receivedAt": "2026-10-15T03:57:59.910Z",
+          "status": 403,
+          "ok": false,
+          "bytes": 146,
+          "body": {
+            "invalidJson": true
+          }
+        },
+        {
+          "network": "shadownet",
+          "selectedHash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "selectedLevel": 5489251,
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/protocols",
+          "startedAt": "2026-10-15T03:57:59.911Z",
+          "receivedAt": "2026-10-15T03:58:00.050Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 137,
+          "body": {
+            "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+            "next_protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY"
+          }
+        },
+        {
+          "network": "shadownet",
+          "selectedHash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "selectedLevel": 5489251,
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/context/constants",
+          "startedAt": "2026-10-15T03:58:00.051Z",
+          "receivedAt": "2026-10-15T03:58:00.172Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 4510,
+          "body": {
+            "proof_of_work_nonce_size": 8,
+            "nonce_length": 32,
+            "max_anon_ops_per_block": 132,
+            "max_operation_data_length": 32768,
+            "max_proposals_per_delegate": 20,
+            "max_micheline_node_count": 50000,
+            "max_micheline_bytes_limit": 50000,
+            "max_allowed_global_constants_depth": 10000,
+            "cache_layout_size": 5,
+            "michelson_maximum_type_size": 2001,
+            "denunciation_period": 1,
+            "slashing_delay": 1,
+            "smart_rollup_max_wrapped_proof_binary_size": 30000,
+            "smart_rollup_message_size_limit": 4096,
+            "smart_rollup_max_number_of_messages_per_level": "1000000",
+            "consensus_rights_delay": 2,
+            "blocks_preservation_cycles": 1,
+            "delegate_parameters_activation_delay": 5,
+            "tolerated_inactivity_period": 2,
+            "blocks_per_cycle": 14400,
+            "blocks_per_commitment": 112,
+            "nonce_revelation_threshold": 400,
+            "cycles_per_voting_period": 1,
+            "hard_gas_limit_per_operation": "1040000",
+            "hard_gas_limit_per_block": "1040000",
+            "proof_of_work_threshold": "281474976710655",
+            "minimal_stake": "6000000000",
+            "minimal_frozen_stake": "600000000",
+            "vdf_difficulty": "2400000000",
+            "origination_size": 257,
+            "issuance_weights": {
+              "base_total_issued_per_minute": "80007812",
+              "baking_reward_fixed_portion_weight": 5120,
+              "baking_reward_bonus_weight": 5120,
+              "attesting_reward_weight": 10240,
+              "seed_nonce_revelation_tip_weight": 1,
+              "vdf_revelation_tip_weight": 1,
+              "dal_rewards_weight": 2275
+            },
+            "cost_per_byte": "250",
+            "hard_storage_limit_per_operation": "60000",
+            "quorum_min": 2000,
+            "quorum_max": 7000,
+            "min_proposal_quorum": 500,
+            "liquidity_baking_subsidy": "5000000",
+            "liquidity_baking_toggle_ema_threshold": 1000000000,
+            "max_operations_time_to_live": 600,
+            "minimal_block_delay": "6",
+            "delay_increment_per_round": "3",
+            "consensus_committee_size": 7000,
+            "consensus_threshold_size": 4667,
+            "minimal_participation_ratio": {
+              "numerator": 2,
+              "denominator": 3
+            },
+            "limit_of_delegation_over_baking": 9,
+            "percentage_of_frozen_deposits_slashed_per_double_baking": 500,
+            "max_slashing_per_block": 10000,
+            "max_slashing_threshold": {
+              "numerator": 1,
+              "denominator": 3
+            },
+            "testnet_dictator": "tz1e1TX7KghsqWUBXWmBTAAtPK3W6JTbNc82",
+            "cache_script_size": 100000000,
+            "cache_stake_distribution_cycles": 5,
+            "cache_sampler_state_cycles": 5,
+            "cache_stake_info_cycles": 5,
+            "cache_swrr_selected_distribution_cycles": 5,
+            "dal_parametric": {
+              "feature_enable": true,
+              "incentives_enable": true,
+              "dynamic_lag_enable": true,
+              "number_of_slots": 160,
+              "attestation_lag": 5,
+              "attestation_lags": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "attestation_threshold": 66,
+              "minimal_participation_ratio": {
+                "numerator": "16",
+                "denominator": "25"
+              },
+              "rewards_ratio": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "traps_fraction": {
+                "numerator": "1",
+                "denominator": "2000"
+              },
+              "redundancy_factor": 8,
+              "page_size": 3967,
+              "slot_size": 380832,
+              "number_of_shards": 512
+            },
+            "smart_rollup_arith_pvm_enable": false,
+            "smart_rollup_origination_size": 6314,
+            "smart_rollup_challenge_window_in_blocks": 201600,
+            "smart_rollup_stake_amount": "10000000000",
+            "smart_rollup_commitment_period_in_blocks": 150,
+            "smart_rollup_max_lookahead_in_blocks": 432000,
+            "smart_rollup_max_active_outbox_levels": 151200,
+            "smart_rollup_max_outbox_messages_per_level": 100,
+            "smart_rollup_number_of_sections_in_dissection": 32,
+            "smart_rollup_timeout_period_in_blocks": 100800,
+            "smart_rollup_max_number_of_cemented_commitments": 5,
+            "smart_rollup_max_number_of_parallel_games": 32,
+            "smart_rollup_reveal_activation_level": {
+              "raw_data": {
+                "Blake2B": 0
+              },
+              "metadata": 0,
+              "dal_page": 5726209,
+              "dal_parameters": 5726209,
+              "dal_attested_slots_validity_lag": 241920
+            },
+            "smart_rollup_private_enable": true,
+            "smart_rollup_riscv_pvm_enable": false,
+            "smart_rollup_canonical_rollup_address": "sr19fMYrr5C4qqvQqQrDSjtP31GcrWjodzvg",
+            "zk_rollup_enable": false,
+            "zk_rollup_origination_size": 4000,
+            "zk_rollup_min_pending_to_process": 10,
+            "zk_rollup_max_ticket_payload_size": 2048,
+            "global_limit_of_staking_over_baking": 9,
+            "edge_of_staking_over_delegation": 3,
+            "adaptive_rewards_params": {
+              "issuance_ratio_final_min": {
+                "numerator": "1",
+                "denominator": "400"
+              },
+              "issuance_ratio_final_max": {
+                "numerator": "1",
+                "denominator": "10"
+              },
+              "issuance_ratio_initial_min": {
+                "numerator": "9",
+                "denominator": "200"
+              },
+              "issuance_ratio_initial_max": {
+                "numerator": "11",
+                "denominator": "200"
+              },
+              "initial_period": 10,
+              "transition_period": 50,
+              "max_bonus": "50000000000000",
+              "growth_rate": {
+                "numerator": "1",
+                "denominator": "100"
+              },
+              "center_dz": {
+                "numerator": "1",
+                "denominator": "2"
+              },
+              "radius_dz": {
+                "numerator": "1",
+                "denominator": "50"
+              }
+            },
+            "direct_ticket_spending_enable": false,
+            "aggregate_attestation": true,
+            "allow_tz4_delegate_enable": true,
+            "all_bakers_attest_activation_threshold": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "native_contracts_enable": false,
+            "swrr_new_baker_lottery_enable": false,
+            "tz5_account_enable": false,
+            "issuance_modification_delay": 2,
+            "consensus_key_activation_delay": 2,
+            "unstake_finalization_delay": 3
+          }
+        },
+        {
+          "network": "shadownet",
+          "selectedHash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "selectedLevel": 5489251,
+          "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/helpers/attestation_rights?level=5489252",
+          "startedAt": "2026-10-15T03:58:00.175Z",
+          "receivedAt": "2026-10-15T03:58:00.300Z",
+          "status": 200,
+          "ok": true,
+          "bytes": 3666,
+          "body": [
+            {
+              "level": 5489252,
+              "delegates": [
+                {
+                  "delegate": "tz4L1EYEo1PcTCeAtuLTQ6iX8kPkcW7p4Kj6",
+                  "first_slot": 24,
+                  "attesting_power": 5,
+                  "consensus_key": "tz4L1EYEo1PcTCeAtuLTQ6iX8kPkcW7p4Kj6"
+                },
+                {
+                  "delegate": "tz3iRVQmTjCuZP7ewsUdtxgUWCs7G2HHWzw6",
+                  "first_slot": 23,
+                  "attesting_power": 1,
+                  "consensus_key": "tz3ZMMXjiMSLnqfRDaZmXJwTjnLSrqHvWR7P"
+                },
+                {
+                  "delegate": "tz3ghnjLnUSqtQC29Q6tKy5Tpdwz52BpiZuf",
+                  "first_slot": 22,
+                  "attesting_power": 4,
+                  "consensus_key": "tz3RtcGP6G6DFUWMXbdsNvRVe9UuyQoQ1T5b"
+                },
+                {
+                  "delegate": "tz3bzRAYNfzZ9oTrStppPS2Y4jBDqSHMwGKN",
+                  "first_slot": 21,
+                  "attesting_power": 4,
+                  "consensus_key": "tz3PCcdoqnh7BFNXvoo52tLdFqzbrYAcoMNz"
+                },
+                {
+                  "delegate": "tz3aLeXRee2XiqkeGncdD6kuYxzcS2sCMCzd",
+                  "first_slot": 20,
+                  "attesting_power": 17,
+                  "consensus_key": "tz4SRRtCTkftKYafKdDu23cmMPuvBZ61v9rf"
+                },
+                {
+                  "delegate": "tz3Y7WcwvrwaCuMPhDHL7iDVgKoJntYmTLLo",
+                  "first_slot": 19,
+                  "attesting_power": 119,
+                  "consensus_key": "tz3QX61U4LRMxvZf6chDrNNpVvP5p6RUCywZ"
+                },
+                {
+                  "delegate": "tz3TfagWmuZPTYLqbj7pNnyENjqJSEANQDdv",
+                  "first_slot": 18,
+                  "attesting_power": 1,
+                  "consensus_key": "tz3bqiV6sRKd6NLaC9zf79makonFHxfiZhKK"
+                },
+                {
+                  "delegate": "tz3Q67aMz7gSMiQRcW729sXSfuMtkyAHYfqc",
+                  "first_slot": 17,
+                  "attesting_power": 1341,
+                  "consensus_key": "tz4K5GHm3eThF5A8HCXMZtGC9wLM5GuYdHKp"
+                },
+                {
+                  "delegate": "tz1ikovWRwNJ7KHUox3rgNB1LCPhUsf5SGFN",
+                  "first_slot": 16,
+                  "attesting_power": 9,
+                  "consensus_key": "tz4BuQqTyQ5ExN9kqgzjcKtKUNpK9cAk37QP"
+                },
+                {
+                  "delegate": "tz1ha7kscNYSgJ76k5gZD8mhBueCv3gqfMsA",
+                  "first_slot": 15,
+                  "attesting_power": 43,
+                  "consensus_key": "tz4GqDfPc6tTcf1SrrsxFC4WQx945BFevPei"
+                },
+                {
+                  "delegate": "tz1eop37r13zgJncsMBrir1M3bu3g3HV6oXY",
+                  "first_slot": 14,
+                  "attesting_power": 11,
+                  "consensus_key": "tz4Bh99SEU34h2h7ktD2Jzpj6YTRboboecsL"
+                },
+                {
+                  "delegate": "tz1c5fGeD2S6iwx2wvEP993LUwAx9CEyfnBK",
+                  "first_slot": 13,
+                  "attesting_power": 1,
+                  "consensus_key": "tz1c5fGeD2S6iwx2wvEP993LUwAx9CEyfnBK"
+                },
+                {
+                  "delegate": "tz1Y35ruDY44PSxe4MCfDh2a19yD9BvW4TiM",
+                  "first_slot": 12,
+                  "attesting_power": 0,
+                  "consensus_key": "tz4Gp64yTmgc7hVR9KG3Y3XQkAjdornkwyQ5"
+                },
+                {
+                  "delegate": "tz1XYYToEbZ8LT1nph8n14BV35vTd43chM57",
+                  "first_slot": 11,
+                  "attesting_power": 472,
+                  "consensus_key": "tz4ViCkrhnjqseJwRDeWbuGDRTUK1Nc2pxq8"
+                },
+                {
+                  "delegate": "tz1X2jPbN1V6Yae7gf1NcbR4DgMKrouHrrrA",
+                  "first_slot": 10,
+                  "attesting_power": 606,
+                  "consensus_key": "tz4V2rc3wNqNRyEncQsksYaEq3mQ94fqMXVB"
+                },
+                {
+                  "delegate": "tz1TnEtqDV9mZyts2pfMy6Jw1BTPs4LMjL8M",
+                  "first_slot": 9,
+                  "attesting_power": 1979,
+                  "consensus_key": "tz4Eis3WVYGQZLsTq2TY71q3zEFWWfWHk8Gb"
+                },
+                {
+                  "delegate": "tz1TVWtNCrJ2GHtGLNwxbQPHb1tBLXcgxfi8",
+                  "first_slot": 8,
+                  "attesting_power": 69,
+                  "consensus_key": "tz4ViCkxDnhyEBf4FHYWRPhisyYsMewwo8wK"
+                },
+                {
+                  "delegate": "tz1SKzac24nukxk4LivnLLqZxRNoRtJLv7k4",
+                  "first_slot": 7,
+                  "attesting_power": 237,
+                  "consensus_key": "tz4VicKf81z139XoKAN2cVJ7Wb25iRNAn4ei"
+                },
+                {
+                  "delegate": "tz1RAD5Fa9i6SmkvRkcBZRdeS1HbsZin1Ny9",
+                  "first_slot": 6,
+                  "attesting_power": 87,
+                  "consensus_key": "tz4ViCkA619biK4r36t8CY5y4UhjmD3Lk2BB"
+                },
+                {
+                  "delegate": "tz1QLwg3Q4MVfa5CyK4HZA7C6nNhuffSgDZb",
+                  "first_slot": 5,
+                  "attesting_power": 5,
+                  "consensus_key": "tz4Wm3Eurw1MR81yscDWTc5GXE4QukawbmFP"
+                },
+                {
+                  "delegate": "tz1PJfk1LPgKUz8rhkKUYYmzAhqCaQFHhbn2",
+                  "first_slot": 4,
+                  "attesting_power": 311,
+                  "consensus_key": "tz4CsViQwTTARmH8FzjJdgmhdNYK5HLzwQnh"
+                },
+                {
+                  "delegate": "tz1NQze1hyYH86rzFxoAmb5vQvVdZwfDaQzL",
+                  "first_slot": 3,
+                  "attesting_power": 8,
+                  "consensus_key": "tz4BArzS6noVoDtxFEiAfVizKbLw6EsgRwvC"
+                },
+                {
+                  "delegate": "tz1N29q5T3jJ2i1JEWHax7q1NRkDMADj6fof",
+                  "first_slot": 2,
+                  "attesting_power": 290,
+                  "consensus_key": "tz4GgcwTZyUWLyvNssWnZSzLYCSzm4b7ZWS8"
+                },
+                {
+                  "delegate": "tz1LzoYN1gZt2RjLanisU3mYYKcWk8RJmWwo",
+                  "first_slot": 1,
+                  "attesting_power": 632,
+                  "consensus_key": "tz4Cj1kNasKDYk1tpeDKP2bj9CS1AYJBSyYF"
+                },
+                {
+                  "delegate": "tz1LHvQWc46rtzVvpKq5QdTcLdzAH1o6YCmU",
+                  "first_slot": 0,
+                  "attesting_power": 748,
+                  "consensus_key": "tz4A5A1sMvSw8WwB9UchiCujw2MhiCJz3ZkE"
+                }
+              ],
+              "estimated_time": "2026-10-15T04:00:30Z"
+            }
+          ]
+        }
+      ],
+      "ledger": [
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",
+        "https://mainnet.smartpy.io/chains/main/blocks/head/header",
+        "https://tezos-mainnet.octez.io/chains/main/blocks/head/header",
+        "https://octez-mainnet-archive.octez.io/chains/main/blocks/head/header",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header",
+        "https://tezos-shadownet.octez.io/chains/main/blocks/head/header",
+        "https://shadownet.smartpy.io/chains/main/blocks/head/header",
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/protocols",
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/context/constants",
+        "https://rpc.tzkt.io/mainnet/chains/main/blocks/BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd/helpers/attestation_rights?level=15378861",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/protocols",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/context/constants",
+        "https://rpc.shadownet.teztnets.com/chains/main/blocks/BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8/helpers/attestation_rights?level=5489252"
+      ]
+    }
+  ],
+  "finishedAt": "2026-10-15T03:58:00.553Z"
+}
