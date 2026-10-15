@@ -1108,7 +1108,7 @@ test('V3 AC-37 proven next level preserves camera Y after high round',async({pag
  const next={...head(102,0),hash:'V3Next102',predecessor:candidate.hash};headers.get(page)!.set(next.hash,next);
  await send(page,'shadownet-head',candidate);await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});
  await expect(panel.locator('.navigator-current')).toContainText('102 · r0');await expect(scene).toHaveAttribute('data-direction','right');await expect(scene).toHaveAttribute('data-camera-y',y??'0');
- await page.waitForTimeout(360);expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
+ await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
  const coords=await scene.evaluate(node=>[node.getAttribute('data-camera-x'),node.getAttribute('data-camera-y')]);await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});expect(await scene.evaluate(node=>[node.getAttribute('data-camera-x'),node.getAttribute('data-camera-y')])).toEqual(coords);
 });
 
