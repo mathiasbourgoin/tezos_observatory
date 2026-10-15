@@ -1,6 +1,6 @@
 import {attachFailureTrace} from './productionFixture';
 import {annotateV3} from './v3Verification';
-import {choose,inspectionModule,inspectRetainedCandidate,inspectRaw} from './productionFixture';
+import {choose,inspectionModule,inspectRetainedCandidate,inspectRaw,selectNetwork} from './productionFixture';
 import {test,expect} from '@playwright/test';
 import {head,vote,prepare,send,headers} from './productionFixture';
 import {captureMatrix} from './v3Evidence';
@@ -152,7 +152,8 @@ test.afterEach(async({page},info)=>attachFailureTrace(page,info));
 
 for(const variant of ['conditional-rights-known-timing-unknown','conditional-timing-known-rights-unknown','successor-migration-timing-unknown'] as const)test(`V3 AC-35 ${variant} remains independently qualified throughout the matrix`,async({page},info)=>{
  test.setTimeout(120000);await prepare(page,false);const panel=page.locator('.network-panel.mainnet'),rows=panel.locator('.baker-opportunity'),candidate={...head(101,2),hash:`MatrixBranch-${variant}`};headers.get(page)?.set(candidate.hash,candidate);
- if(variant==='conditional-rights-known-timing-unknown')await page.route('**/context/constants',route=>route.fulfill({status:503,body:'Timing unavailable'}));
+ // The immutable parent constants still prove admission. Fail only the opportunity consumer.
+ if(variant==='conditional-rights-known-timing-unknown')await page.evaluate(async({path,hash})=>{const module=await import(path),original=module.NetworkData.prototype.opportunityConstants;module.NetworkData.prototype.opportunityConstants=function(head: {hash:string},...args:unknown[]){if(head.hash===hash)return Promise.reject(new Error('Projected timing unavailable'));return original.call(this,head,...args);};},{path:inspectionModule(),hash:candidate.hash});
  if(variant==='conditional-timing-known-rights-unknown')await page.route('**/helpers/baking_rights?*',route=>route.fulfill({json:[]}));
  if(variant==='successor-migration-timing-unknown'){
   await page.route(`**/${candidate.hash}/protocols`,route=>route.fulfill({json:{protocol:'PFixture',next_protocol:'PSuccessor'}}));
@@ -167,8 +168,8 @@ for(const variant of ['conditional-rights-known-timing-unknown','conditional-tim
 
 
 test('V3 AC-01 applied tuple relationship and next-level observation remain qualified throughout the matrix',async({page},info)=>{
- test.setTimeout(240000);const initial=head(100,209);await prepare(page,false,initial);await send(page,'mainnet-operations',[vote(0,100,209)]);const panel=page.locator('.network-panel.mainnet');
+ test.setTimeout(240000);const initial=head(100,209);await prepare(page,false,initial);await selectNetwork(page,'shadownet');await send(page,'shadownet-operations',[vote(0,100,209)]);const panel=page.locator('.network-panel.shadownet');
  await expect(panel.locator('.selected-relationship')).toContainText('already-applied');await expect(panel.locator('.pre .gauge-exact')).toHaveText('600 / 30,000');await captureMatrix(page,info,'already-applied-tuple-qualified-votes');
- const fork={...initial,hash:'SameTupleDifferentBlock100'};headers.get(page)?.set(fork.hash,fork);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:fork.hash,header:fork});await inspectRetainedCandidate(panel,'SameTupleDifferentBlock100');await expect(panel.locator('.selected-relationship')).toContainText('selected block hash differs');await captureMatrix(page,info,'applied-tuple-different-known-block');
- const next={...head(101),hash:'NextObserved101'};next.fitness[3]=(0xffffffff-209).toString(16).padStart(8,'0');headers.get(page)?.set(next.hash,next);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await panel.getByRole('button',{name:'Follow live',exact:true}).click();await expect(panel.locator('.selected-relationship')).toContainText('next level');await expect(panel.locator('.next-proposal-observation')).toContainText('Coherent next-level proposal observed');await captureMatrix(page,info,'coherent-next-level-proposal-observed');
+ const fork={...initial,hash:'SameTupleDifferentBlock100'};headers.get(page)?.set(fork.hash,fork);await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:fork.hash,header:fork});await inspectRetainedCandidate(panel,'SameTupleDifferentBlock100');await expect(panel.locator('.selected-relationship')).toContainText('selected block hash differs');await captureMatrix(page,info,'applied-tuple-different-known-block');
+ const next={...head(101),hash:'NextObserved101'};next.fitness[3]=(0xffffffff-209).toString(16).padStart(8,'0');headers.get(page)?.set(next.hash,next);await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await panel.getByRole('button',{name:'Follow live',exact:true}).click();await expect(panel.locator('.selected-relationship')).toContainText('next level');await expect(panel.locator('.next-proposal-observation')).toContainText('Coherent next-level proposal observed');await captureMatrix(page,info,'coherent-next-level-proposal-observed');
 });

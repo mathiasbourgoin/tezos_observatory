@@ -11,13 +11,15 @@ if(typeof evidenceModule!=='object'||evidenceModule===null||!('sourceBindings' i
 export const getBinding=evidenceModule.sourceBindings;
 /** Actual production DOM and composed colors; native popup/tooltips remain separately named surfaces. */
 export async function captureMatrix(page:Page,info:TestInfo,state:string,interaction?:(page:Page)=>Promise<void>,surface?:{theme:string;preserveViewport?:boolean;name?:string}):Promise<void>{
+ const network=await page.locator('.consensus-app').getAttribute('data-selected')??'mainnet';
  const binding=getBinding(),{revision,sourceCombined:diffHash}=binding;
  const directory=process.env['V3_EVIDENCE_DIR']??info.outputPath('matrix');await mkdir(directory,{recursive:true});await writeFile(join(directory,'source.json'),JSON.stringify(binding,null,2));
  const cells=surface?[{viewport:surface.preserveViewport?await page.evaluate(()=>({width:innerWidth,height:innerHeight})):page.viewportSize()??bases[3],theme:surface.theme}]:bases.flatMap(viewport=>['light','dark'].map(theme=>({viewport,theme})));
  for(const {viewport,theme} of cells){
   if(!surface){await page.setViewportSize(viewport);await choose(page.getByLabel('Appearance'),theme);}if(!surface)await page.evaluate(()=>scrollTo(0,0));if(interaction)await interaction(page);
-  await expect.poll(()=>page.locator('.mainnet .navigator-junction').evaluate(node=>node.getAnimations().length)).toBe(0);
-  const measurement=await page.evaluate(()=>{
+  await expect.poll(()=>page.locator(`.network-panel.${network} .navigator-junction`).evaluate(node=>node.getAnimations().length)).toBe(0);
+  const measurement=await page.evaluate(network=>{
+   const panel=`.network-panel.${network}`;
    type Color=[number,number,number,number];
    const parse=(value:string):Color=>{const parts=value.match(/[\d.]+/g)?.map(Number);if(!parts||parts.length<3)throw new Error(`Unsupported rendered color ${value}`);return [parts[0]??0,parts[1]??0,parts[2]??0,parts[3]??1];};
    const over=(front:Color,back:Color):Color=>{const alpha=front[3]+back[3]*(1-front[3]);return [0,1,2].map(index=>((front[index]??0)*front[3]+(back[index]??0)*back[3]*(1-front[3]))/(alpha||1)).concat(alpha) as Color;};
@@ -28,10 +30,10 @@ export async function captureMatrix(page:Page,info:TestInfo,state:string,interac
    const texts:{selector:string;text:string;foreground:Color;background:Color;ratio:number;required:number;fontSize:number;minimum:number}[]=[];
    const walker=document.createTreeWalker(document.querySelector('.consensus-app')??document.body,NodeFilter.SHOW_TEXT);
    let node:Node|null;while((node=walker.nextNode())){const text=node.textContent?.trim(),element=node.parentElement;if(!text||!element||element.closest('.sr-only,option,svg,script,style'))continue;const range=document.createRange();range.selectNodeContents(node);const box=range.getBoundingClientRect();if(!visible(element,box))continue;const style=getComputedStyle(element),size=parseFloat(style.fontSize),weight=parseFloat(style.fontWeight),bg=background(element),fg=over(parse(style.color),bg);texts.push({selector:`${element.tagName.toLowerCase()}.${element.className}`,text:text.slice(0,100),foreground:fg,background:bg,ratio:ratio(fg,bg),required:size>=24||size>=18.6667&&weight>=700?3:4.5,fontSize:size,minimum:element.closest('.branch-target,.branch-critical,.baker-opportunity>strong,.gauge-exact,.gauge-counts,.quorum-caption')?14:12});}
-   const regions=Object.fromEntries(['.consensus-app','.masthead','.network-tabs','.mainnet .observer-summary','.mainnet .navigator-junction','.mainnet .navigator-current','.mainnet .baker-opportunity[data-branch=same-level]','.mainnet .baker-opportunity[data-branch=next-level]','.mainnet .selected-inspector','.mainnet .committee-evidence','.mainnet .session-rail','.mainnet .source-pane'].map(selector=>{const element=document.querySelector(selector);if(!element)throw new Error(`Required region missing ${selector}`);const box=element.getBoundingClientRect();return [selector,{x:box.x,y:box.y,width:box.width,height:box.height,right:box.right,bottom:box.bottom}];}));
+   const regions=Object.fromEntries(['.consensus-app','.masthead','.network-tabs',`${panel} .observer-summary`,`${panel} .navigator-junction`,`${panel} .navigator-current`,`${panel} .baker-opportunity[data-branch=same-level]`,`${panel} .baker-opportunity[data-branch=next-level]`,`${panel} .selected-inspector`,`${panel} .committee-evidence`,`${panel} .session-rail`,`${panel} .source-pane`].map(selector=>{const element=document.querySelector(selector);if(!element)throw new Error(`Required region missing ${selector}`);const box=element.getBoundingClientRect();return [selector,{x:box.x,y:box.y,width:box.width,height:box.height,right:box.right,bottom:box.bottom}];}));
    const controls=[...document.querySelectorAll<HTMLElement>('button,select,input,summary')].filter(element=>visible(element,element.getBoundingClientRect())).map(element=>{const target=element instanceof HTMLInputElement&&element.type==='radio'?element.closest('label')??element:element;const box=target.getBoundingClientRect();const minimum=element.matches('.control-button,.network-tabs button,.candidate-controls button')||element.closest('.appearance')?44:24;return {tag:element.tagName,minimum,name:element.getAttribute('aria-label')??element.textContent?.trim().slice(0,80),width:box.width,height:box.height,disabled:element.hasAttribute('disabled')};});
    const graphics:{selector:string;surface:string;ratio:number;required:number}[]=[];
-   for(const element of document.querySelectorAll<HTMLElement>('.mainnet .quorum-marker')){
+   for(const element of document.querySelectorAll<HTMLElement>(`${panel} .quorum-marker`)){
     const track=element.parentElement,fill=track?.querySelector('.gauge-fill');if(!track||!fill||!visible(element,element.getBoundingClientRect()))continue;
     const style=getComputedStyle(element),body=parse(style.backgroundColor),border=parse(style.borderLeftColor);
     for(const [surface,bg] of [['empty',background(track)],['filled',background(fill)]] as const)graphics.push({selector:'.quorum-marker',surface,ratio:Math.max(ratio(over(body,bg),bg),ratio(over(border,bg),bg)),required:3});
@@ -46,12 +48,12 @@ export async function captureMatrix(page:Page,info:TestInfo,state:string,interac
    const geometryFailures:string[]=[];
    for(const [name,box] of Object.entries(regions))if(box.width<=0||box.x< -1||box.right>innerWidth+1)geometryFailures.push(`${name}: clipped or absent`);
    const app=regions['.consensus-app'];if(app&&innerWidth>=1440&&app.width<innerWidth*.9)geometryFailures.push('Workspace capped below 90% of viewport');
-   for(const names of [['.mainnet .selected-inspector','.mainnet .committee-evidence','.mainnet .session-rail','.mainnet .source-pane'],['.mainnet .navigator-current','.mainnet .baker-opportunity[data-branch=same-level]','.mainnet .baker-opportunity[data-branch=next-level]']])for(let a=0;a<names.length;a++)for(let b=a+1;b<names.length;b++){const left=regions[names[a]??''],right=regions[names[b]??''];if(left&&right&&Math.min(left.right,right.right)-Math.max(left.x,right.x)>1&&Math.min(left.bottom,right.bottom)-Math.max(left.y,right.y)>1)geometryFailures.push(`${names[a]} overlaps ${names[b]}`);}
+   for(const names of [[`${panel} .selected-inspector`,`${panel} .committee-evidence`,`${panel} .session-rail`,`${panel} .source-pane`],[`${panel} .navigator-current`,`${panel} .baker-opportunity[data-branch=same-level]`,`${panel} .baker-opportunity[data-branch=next-level]`]])for(let a=0;a<names.length;a++)for(let b=a+1;b<names.length;b++){const left=regions[names[a]??''],right=regions[names[b]??''];if(left&&right&&Math.min(left.right,right.right)-Math.max(left.x,right.x)>1&&Math.min(left.bottom,right.bottom)-Math.max(left.y,right.y)>1)geometryFailures.push(`${names[a]} overlaps ${names[b]}`);}
    for(const control of controls)if(control.width<control.minimum-1||control.height<control.minimum-1)geometryFailures.push(`Target ${control.name}: ${control.width}x${control.height} below ${control.minimum}`);
    const graphicsFailures=graphics.filter(value=>value.ratio+.01<value.required);
    const failures=texts.filter(value=>value.ratio+.01<value.required||value.fontSize<value.minimum);
    return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,regions,texts,controls,graphics,graphicsFailures,geometryFailures,failures};
-  });
+  },network);
   const stem=`${info.project.name}-${viewport.width}x${viewport.height}-${theme}-${surface?.name??state}`;
   await page.screenshot({path:join(directory,`${stem}.png`),fullPage:true});
   const screenshotSha256=createHash('sha256').update(readFileSync(join(directory,`${stem}.png`))).digest('hex');
