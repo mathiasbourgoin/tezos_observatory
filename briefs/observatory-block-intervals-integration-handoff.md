@@ -1,6 +1,6 @@
 # Block intervals — immutable development handoff
 
-Coordinator-supplied development baseline: `49c74935ae82f5ff0f48dc50b9ace6c76caf4dd0`, from Astra's `feat/observatory-v3` worktree. The phase correction has a bounded independent review GO; fresh QA is running. This revision is **not** whole-V3 acceptance. Root's metric contract/context is committed separately at `1bebbc2`; human-owned glossary additions at `b7454d3`. A feature branch must bring in those documents and the verified bundle1.9 metadata (`29022be`) without overwriting app work. Never treat an author's mutable checkout as the reviewed integration source.
+Coordinator-supplied development baseline: `49c74935ae82f5ff0f48dc50b9ace6c76caf4dd0`, from Astra's `feat/observatory-v3` worktree. The phase correction has bounded independent review and fresh QA GO, with root closure recorded at `dd2d530`. This revision is **not** whole-V3 acceptance. Root's metric contract/context is committed separately at `1bebbc2`; human-owned glossary additions at `b7454d3`. A feature branch must bring in those documents and the verified bundle1.9 metadata (`29022be`) without overwriting app work. Never treat an author's mutable checkout as the reviewed integration source.
 
 Root inspected the following interfaces by `git show 49c74935...:<path>`; citations refer only to this immutable revision. Implementers reread their actual branch before editing.
 
@@ -14,7 +14,8 @@ Root inspected the following interfaces by `git show 49c74935...:<path>`; citati
 Existing Node22 runtime `/tmp/context-review-node22-bin` is reusable for development; new worktrees/evidence belong in `/var/tmp`. Clean install remains mandatory in independent QA, not excused by reuse. Existing Vitest/Playwright/native fetch/AbortController/guards are sufficient; no dependency or generic transport/testing framework is selected here. The planned metric runner must execute the real production calculator/acquisition consumer and actual served dashboard where required, with ERROR/RED/GREEN distinction and all20 accepted interfaces. The other original38 foundation and V3 interfaces, fresh independent manual CHECK38 and combined delivery gates remain mandatory.
 
 Astra is replacing low-contrast native select popups with named native disclosure/radio/button controls and correcting production-only instrumentation of five existing scenarios. Those changes are not in this baseline and are not silently accepted here. Coordinate additive integration rather than undo them. Known broader Firefox AC-13 scroll/motion failure still requires final V3 diagnosis and closure. No source availability, bounded phase review, or handoff document certifies either pending item.
-# Runtime clarification: applied-head invalidation
+
+## Runtime clarification: applied-head invalidation
 
 Root decision, 15 October 2026, after rereading `NetworkMonitor.deriveHead` and `recordProvenProgress` at the isolated development baseline. This interprets the accepted FR-021/C-8 proof requirement; it does not change monitor consensus semantics or add a health classifier.
 
