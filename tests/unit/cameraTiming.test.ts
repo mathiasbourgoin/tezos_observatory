@@ -6,7 +6,7 @@ it('one UI timing owner retains its first coherent emission across duplicates an
  expect(cameraReceipt(a,undefined,200)).toBeUndefined();expect(cameraReceipt(a,'B',NaN)).toBeUndefined();
 });
 it('render delay retains fresh destinations without shortening the visible journey; stale receipts snap',()=>{
- expect(CAMERA_DURATION_MS).toBe(1800);
+ expect(CAMERA_DURATION_MS).toBe(1200);
  expect(cameraElapsed(100,100)).toBe(0);expect(cameraElapsed(100,170)).toBe(70);expect(cameraElapsed(100,2099)).toBe(1999);
  for(const now of [99,2100,3000,NaN,Infinity])expect(cameraElapsed(100,now)).toBeUndefined();expect(cameraElapsed(undefined,100)).toBeUndefined();
 });

@@ -1,9 +1,15 @@
 import {expect,it} from 'vitest';
-import {navigatorDirection,retainNavigator} from '../../src/navigatorMotion';
+import {navigatorDirection,retainNavigator,sameCameraPosition} from '../../src/navigatorMotion';
 import type {NetworkViewModel,ObservedNavigatorView} from '../../src/dashboardView';
 const before:ObservedNavigatorView={identity:'votes101',source:'https://observer',chain:'Net',protocol:'P',level:101,round:0,payload:'vote-payload',coherent:true,contextParent:'B100',receivedAt:0,receivedMonotonic:1};
 const after:ObservedNavigatorView={...before,identity:'votes102',level:102,payload:'next-vote-payload',contextParent:'B101',receivedMonotonic:2,predecessor:{hash:'B101',parentHash:'B100',payload:'different-applied-payload',level:101,round:0,relation:'context'}};
 const live:NetworkViewModel={status:'healthy',appliedLevel:100,hash:'B100',sources:[{name:'Heads',url:'https://heads',status:'stream'}],session:{mode:'follow',frozen:false,newer:0,newerPartial:false,canPin:true,accepted:1,unresolved:0,raw:1,instances:[]}};
+it('keeps camera position through evidence identity, payload, hash and parent refreshes without associating those facts',()=>{
+ const refresh={...before,identity:'other',payload:'other',hash:'Block101',contextHead:'OtherHead',contextParent:'OtherParent'};
+ expect(sameCameraPosition(before,refresh)).toBe(true);expect(refresh.payload).not.toBe(before.payload);
+ for(const changed of [{source:'other'},{chain:'other'},{protocol:'other'},{level:102},{round:1},{coherent:false}])expect(sameCameraPosition(before,{...refresh,...changed})).toBe(false);
+ expect(sameCameraPosition(undefined,refresh)).toBe(false);
+});
 it('moves a votes-only next level using context without asserting a matching payload or block ancestry',()=>{
  expect(navigatorDirection(before,after)).toBe('right');expect(after.predecessor?.relation).toBe('context');
  expect(navigatorDirection({...before,hash:'DifferentBlock101'},after)).toBe('static');

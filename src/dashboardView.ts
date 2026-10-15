@@ -1,5 +1,5 @@
 import {CAMERA_DURATION_MS} from './cameraTiming';
-import {navigatorDirection,retainNavigator} from './navigatorMotion';
+import {navigatorDirection,retainNavigator,sameCameraPosition} from './navigatorMotion';
 import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockIntervals';
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
@@ -429,9 +429,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       if(retained&&before){if(!cameraAnimation)junction.dataset.direction='static';junction.dataset.awaitingProof='true';set(navigatorStatus,`Last coherent ${number(before.level)} · r${before.round} · as of ${new Date(before.receivedAt).toISOString()} · awaiting current proof. Dotted: context only · no current authority implied.`);return;}
       const wasAwaiting=junction.dataset.awaitingProof==='true';junction.dataset.awaitingProof='false';
       const sameMode=current?.session?.mode===model.session?.mode;
-      const enriched=before&&after&&before.coherent&&after.coherent&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol&&before.level===after.level&&before.round===after.round&&before.contextParent===after.contextParent&&(!!before.hash&&before.hash===after.hash||!!before.payload&&before.payload===after.payload&&(!before.hash||!after.hash));
-      // Vote/power enrichment and hash discovery for the same observed tuple do not interrupt travel.
-      if(sameMode&&(before?.identity===after?.identity&&after?.coherent||enriched)){if(after?.coherent)cameraAnchor=after;if(wasAwaiting)set(navigatorStatus,'Coherent destination restored · stationary. Solid: verified ancestry · dotted: context only · dashed: conditional.');return;}
+      // Camera coordinates belong to a level/round, independently of its current evidence identity.
+      if(sameMode&&sameCameraPosition(before,after)){if(after?.coherent)cameraAnchor=after;if(wasAwaiting)set(navigatorStatus,`Coherent destination restored · ${cameraAnimation?'camera continues':'stationary'}. Solid: verified ancestry · dotted: context only · dashed: conditional.`);return;}
       cancelCamera();
       cameraAnchor=after?.coherent?after:undefined;
       let direction='static',reason=model.session?.mode==='pin'?'Pinned observation · stationary':!after?.coherent?'Context unavailable · stationary':!before?'Observed anchor':before.source!==after.source?'Observer changed · recentered':before.level===after.level&&before.round===after.round?'Candidate changed · recentered':after.level>before.level+1||after.round>before.round+1?'Observation gap · recentered without inferred steps':'Observed context changed · recentered';
