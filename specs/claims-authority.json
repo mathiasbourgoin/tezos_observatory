@@ -10,6 +10,11 @@
       "requirement": "root coordinator under delegated project authority (2026-10-14); explicit reviewed spec/quiz and integration authorization",
       "acceptance-criterion": "root coordinator under delegated project authority (2026-10-14); explicit reviewed spec/quiz and integration authorization",
       "check": "root coordinator under delegated project authority (2026-10-14); explicit reviewed spec/quiz and integration authorization"
+    },
+    "observatory-block-intervals": {
+      "requirement": "root coordinator under delegated project authority (2026-10-15); complete spec read and actual 17-challenge resolutions, explicit validation",
+      "acceptance-criterion": "root coordinator under delegated project authority (2026-10-15); complete spec read and actual 17-challenge resolutions, explicit validation",
+      "check": "root coordinator under delegated project authority (2026-10-15); complete spec read and actual 17-challenge resolutions, explicit validation"
     }
   }
 }

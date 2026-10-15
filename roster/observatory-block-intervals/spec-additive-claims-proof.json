@@ -1,0 +1,8 @@
+{
+  "original_claims": 323,
+  "new_claims": 70,
+  "total_claims": 393,
+  "original_records_exactly_equal": true,
+  "new_namespace": "observatory-block-intervals",
+  "new_lifecycle": "active"
+}
