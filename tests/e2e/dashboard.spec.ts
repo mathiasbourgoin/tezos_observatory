@@ -1048,12 +1048,13 @@ test('V3 AC-29 observed junction places next round above and next level right wi
    // one browser task, then wait for the unchanged geometry contract to hold.
    await expect.poll(async()=>{
     const boxes=await panel.evaluate(node=>{
-     const rect=(selector:string)=>{const target=node.querySelector(selector);if(!target)throw new Error(`Junction fixture geometry missing: ${selector}`);const {x,y,width,height}=target.getBoundingClientRect();return {x,y,width,height};};
+     const rect=(selector:string)=>{const target=node.querySelector(selector);if(!target)return undefined;const {x,y,width,height}=target.getBoundingClientRect();return {x,y,width,height};};
      return {at:performance.now(),current:rect('.navigator-current'),up:rect('[data-branch="same-level"]'),right:rect('[data-branch="next-level"]')};
     });
     samples.push(boxes);const {current:a,up:b,right:c}=boxes;
-    return {above:b.y+b.height<=a.y,aligned:Math.abs(b.x-a.x)<2,right:c.x>a.x,sameRow:Math.abs(c.y-a.y)<2};
-   }).toEqual({above:true,aligned:true,right:true,sameRow:true});
+    if(!a||!b||!c)return {present:false,positive:false,above:false,aligned:false,right:false,sameRow:false};
+    return {present:true,positive:[a,b,c].every(rect=>rect.width>0&&rect.height>0),above:b.y+b.height<=a.y,aligned:Math.abs(b.x-a.x)<2,right:c.x>a.x,sameRow:Math.abs(c.y-a.y)<2};
+   }).toEqual({present:true,positive:true,above:true,aligned:true,right:true,sameRow:true});
   } finally {
    const path=info.outputPath(`junction-responsive-${width}.json`);await writeFile(path,JSON.stringify({width,samples},null,2));await info.attach(`junction-responsive-${width}`,{path,contentType:'application/json'});
   }
