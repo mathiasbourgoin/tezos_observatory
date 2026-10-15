@@ -168,6 +168,8 @@ export class NetworkData {
   private readonly constantsPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<Constants>}>();
   private readonly contextCache = new Map<string,RpcContext>();
   private readonly contextPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<RpcContext>}>();
+  private readonly helperRestrictions = new Map<string,string>();
+  private readonly missingHelpers = new Map<string,string>();
   private auxiliaryController = new AbortController();
   private collecting = true;
   private collectionGeneration = 0;
@@ -196,6 +198,8 @@ export class NetworkData {
     if(this.collecting)return;
     this.collecting=true;this.collectionGeneration++;
     this.auxiliaryController=new AbortController();
+    this.helperRestrictions.clear();
+    this.missingHelpers.clear();
   }
 
   private assertCollecting(generation:number,signal?:AbortSignal):void {
@@ -349,8 +353,12 @@ export class NetworkData {
       ...sources[this.network].filter((s) => s !== this.source),
     ];
     let error: unknown;
+    const helper=path.endsWith('/context/constants') || path.includes('/helpers/attestation_rights?') || path.includes('/helpers/baking_rights?');
     for (const source of pool) {
       this.assertCollecting(generation,signal);
+      const missingKey=JSON.stringify([source.baseUrl,path]);
+      const restriction=this.helperRestrictions.get(source.baseUrl)??this.missingHelpers.get(missingKey);
+      if(helper && restriction){error=new Error(restriction);continue;}
       this.requests++;
       try {
         const response = await fetch(source.baseUrl + path, {
@@ -358,6 +366,12 @@ export class NetworkData {
           ...(strictRedirect?{redirect:"error" as const}:{}),
           signal: AbortSignal.any([this.auxiliaryController.signal,...(signal ? [signal] : []),AbortSignal.timeout(8000)]),
         });
+        this.assertCollecting(generation,signal);
+        if(helper && response.status===403)this.helperRestrictions.set(source.baseUrl,`${source.name}: browser protocol helpers unavailable (HTTP 403); reconnect to retry`);
+        if(helper && response.status===404){
+          this.missingHelpers.set(missingKey,`${source.name}: pinned helper unavailable (HTTP 404)`);
+          while(this.missingHelpers.size>32)this.missingHelpers.delete(this.missingHelpers.keys().next().value!);
+        }
         if (!response.ok || strictRedirect&&response.redirected)
           throw new Error(`${source.name}: HTTP ${response.status}`);
         const result: unknown = await response.json();
@@ -436,7 +450,7 @@ export class NetworkData {
 
   async reconcile(target:ReconciliationTarget,signal:AbortSignal,onObservedHead?:(head:BlockHeader)=>void):Promise<ReconciledContext> {
     if(![...sources[this.network],...streamSources[this.network]].some(source=>source.baseUrl===target.source.baseUrl && source.network===target.source.network))throw new Error("Unconfigured reconciliation observer");
-    if(!sources[this.network].some(source=>source.baseUrl===target.source.baseUrl && source.network===target.source.network))throw new Error("Raw stream observer restricts browser protocol helpers");
+    const restriction=this.helperRestrictions.get(target.source.baseUrl);if(restriction)throw new Error(restriction);
     if(target.candidate && target.candidate.evidence.source.baseUrl!==target.source.baseUrl)throw new Error("Candidate belongs to another observer");
     if(target.observerHead && (target.observerHead.evidence?.source.baseUrl!==target.source.baseUrl || target.observerHead.evidence.source.network!==target.source.network))throw new Error("Current head belongs to an unproven or different observer");
     if(target.candidate && (target.level!==target.candidate.header.level || target.round!==proposalRound(target.candidate.header.fitness,target.candidate.header.level) || target.payload!==target.candidate.header.payload_hash))throw new Error("Reconciliation target does not match candidate facts");

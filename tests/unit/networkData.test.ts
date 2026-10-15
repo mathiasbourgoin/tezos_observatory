@@ -12,12 +12,37 @@ const contextResponse=(url:string):Response|undefined=>{
  const level=hash==="BFork"?120:hash==="BForkParent"?119:Number(hash.slice(1));
  return Response.json({...head(level),hash,predecessor:hash==="BFork"?"BForkParent":head(level).predecessor,chain_id:"NetFixture"});
 };
-it('retains raw Mainnet streams without retrying their known restricted protocol helpers',async()=>{
- const fetchMock=vi.fn();vi.stubGlobal('fetch',fetchMock);
+it.each([403,404])('learns HTTP %i helper failures with source/session or exact pinned-path scope',async status=>{
+ const calls:string[]=[];let restricted=true,headLevel=120;
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);calls.push(url);
+  if(url.endsWith('/head/header'))return Response.json({...head(headLevel),chain_id:'NetFixture'});
+  const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('attestation_rights'))return restricted?new Response('',{status}):Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
  const source=rawStreamSources.mainnet[0];if(!source)throw new Error('Raw observer missing');
  expect(rawStreamSources.mainnet.map(value=>value.baseUrl)).toEqual(['https://rpc.tzkt.io/mainnet']);
- await expect(new NetworkData('mainnet').reconcile({source,level:121,round:0},new AbortController().signal)).rejects.toThrow('restricts browser protocol helpers');
- expect(fetchMock).not.toHaveBeenCalled();
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal;
+ await expect(data.reconcile({source,level:121,round:0},signal)).rejects.toThrow(`HTTP ${status}`);
+ const count=calls.length;await expect(data.reconcile({source,level:121,round:0},signal)).rejects.toThrow(`HTTP ${status}`);
+ expect(calls.filter(url=>url.includes('attestation_rights'))).toHaveLength(1);
+ if(status===403)expect(calls).toHaveLength(count);
+ restricted=false;if(status===403){data.pause();data.resume();}else headLevel=121;
+ expect((await data.reconcile({source,level:headLevel+1,round:0},signal)).rights[0]?.address).toBe('D');
+ expect(calls.filter(url=>url.includes('attestation_rights'))).toHaveLength(2);
+ expect(calls.every(url=>url.startsWith(source.baseUrl))).toBe(true);
+});
+it('does not cache HTTP429 as an unsupported helper capability',async()=>{
+ let limited=true;
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);
+  if(url.endsWith('/head/header'))return Response.json({...head(120),chain_id:'NetFixture'});
+  const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('attestation_rights'))return limited?new Response('',{status:429}):Response.json([{level:121,delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const source=rawStreamSources.mainnet[0]!;const data=new NetworkData('mainnet'),signal=new AbortController().signal;
+ await expect(data.reconcile({source,level:121,round:0},signal)).rejects.toThrow('HTTP 429');limited=false;
+ expect((await data.reconcile({source,level:121,round:0},signal)).rights[0]?.evidence?.source).toEqual(source);
 });
 it("reuses committees and constants for the same immutable target",async()=>{
   const calls:string[]=[];
