@@ -11,6 +11,10 @@ export interface NavigatorPathInput {
  readonly pre?:NavigatorPathPhase;
  readonly att?:NavigatorPathPhase;
 }
+export const historyLengths=[25,50,100,250,500,1000,'unlimited'] as const;
+export type HistoryLength=typeof historyLengths[number];
+export const historyLength=(value:unknown):HistoryLength=>historyLengths.find(option=>(typeof value==='string'||typeof value==='number')&&String(option)===String(value))??500;
+
 export interface NavigatorPathRecord extends NavigatorPathInput {
  readonly key:string;
  readonly x:number;
@@ -24,43 +28,74 @@ const peak=(before:NavigatorPathPhase|undefined,after:NavigatorPathPhase|undefin
 
 /** Bounded presentation history. It neither fetches data nor creates consensus proof. */
 export class NavigatorPath {
- private retained:readonly NavigatorPathRecord[]=Object.freeze([]);
+ private retained=new Map<string,NavigatorPathRecord>();
+ private slots=new Map<string,string>();
  private selected:NavigatorPathRecord|undefined;
  private scope:string|undefined;
- private loss:Readonly<{levels:number;rounds:number}>=Object.freeze({levels:0,rounds:0});
+ private lostRecords=0;
+ private discardedBefore=-1;
+ private length:HistoryLength;
+ constructor(length:HistoryLength=500){this.length=length;}
  get current():NavigatorPathRecord|undefined {return this.selected;}
- get records():readonly NavigatorPathRecord[] {return this.retained;}
- get truncated():Readonly<{levels:number;rounds:number}> {return this.loss;}
-
+ get records():readonly NavigatorPathRecord[] {return Object.freeze([...this.retained.values()]);}
+ /** One spatial representative per visited tuple; rivals are inspected without overlapping tiles. */
+ get positions():readonly NavigatorPathRecord[] {return [...this.slots.values()].flatMap(key=>{const record=this.retained.get(key);return record?[record]:[];});}
+ get limit():HistoryLength {return this.length;}
+ get truncated():Readonly<{records:number}> {return {records:this.lostRecords};}
+ setLimit(length:HistoryLength):void {this.length=length;this.trim();}
+ private tuple(anchor:ObservedNavigatorView):string {return `${anchor.level}/${anchor.round}`;}
+ private qualified(anchor:ObservedNavigatorView):boolean {return anchor.coherent&&!!anchor.source&&!!anchor.chain&&!!anchor.protocol&&Number.isSafeInteger(anchor.level)&&anchor.level>=0&&Number.isSafeInteger(anchor.round)&&anchor.round>=0&&Number.isFinite(anchor.receivedMonotonic)&&anchor.receivedMonotonic>=0;}
+ private capture(input:NavigatorPathInput,position:{x:number;y:number;gapBefore:boolean}):NavigatorPathRecord|undefined {
+  const anchor=input.anchor,key=keyOf(anchor),before=this.retained.get(key);
+  if(before&&anchor.receivedMonotonic<before.anchor.receivedMonotonic)return undefined;
+  // The same proven hash/context can receive a new admission identity. Replace its facts;
+  // an identity upgrade never borrows phase peaks from the previous admission.
+  const upgraded=!before&&anchor.hash?[...this.retained.values()].find(record=>record.key!==key&&record.anchor.hash===anchor.hash&&record.anchor.payload===anchor.payload&&record.anchor.level===anchor.level&&record.anchor.round===anchor.round&&record.anchor.source===anchor.source&&record.anchor.chain===anchor.chain&&record.anchor.protocol===anchor.protocol&&record.anchor.contextHead===anchor.contextHead&&record.anchor.contextParent===anchor.contextParent):undefined;
+  if(upgraded&&anchor.receivedMonotonic<upgraded.anchor.receivedMonotonic||!before&&!upgraded&&anchor.receivedMonotonic<=this.discardedBefore)return undefined;
+  const pre=peak(before?.pre,phase(input.pre)),att=peak(before?.att,phase(input.att));
+  const captured=Object.freeze({...anchor,...(anchor.predecessor?{predecessor:Object.freeze({...anchor.predecessor})}:{})});
+  const record:NavigatorPathRecord=Object.freeze({key,anchor:captured,...position,...(pre?{pre}:{}),...(att?{att}:{})});
+  if(upgraded){this.retained.delete(upgraded.key);for(const [tuple,slotKey] of this.slots)if(slotKey===upgraded.key)this.slots.set(tuple,key);}
+  this.retained.set(key,record);if(this.selected?.key===key||this.selected?.key===upgraded?.key)this.selected=record;return record;
+ }
  observe(input:NavigatorPathInput,direction:'static'|'up'|'right',reset=false):NavigatorPathRecord|undefined {
   if(reset)this.clear();
-  const anchor=input.anchor;
-  if(!anchor.coherent||!anchor.source||!anchor.chain||!anchor.protocol||!Number.isSafeInteger(anchor.level)||anchor.level<0||!Number.isSafeInteger(anchor.round)||anchor.round<0||!Number.isFinite(anchor.receivedMonotonic)||anchor.receivedMonotonic<0)return undefined;
+  const anchor=input.anchor;if(!this.qualified(anchor))return undefined;
   const scope=JSON.stringify([anchor.source,anchor.chain,anchor.protocol]);
-  if(this.scope!==scope)this.clear();
-  this.scope=scope;
-  const current=this.selected;
-  if(current&&anchor.receivedMonotonic<current.anchor.receivedMonotonic)return undefined;
-  const key=keyOf(anchor),existing=this.retained.find(record=>record.anchor.level===anchor.level&&record.anchor.round===anchor.round);
+  if(this.scope!==scope)this.clear();this.scope=scope;
+  const current=this.selected;if(current&&anchor.receivedMonotonic<current.anchor.receivedMonotonic)return undefined;
+  const tuple=this.tuple(anchor),existingKey=this.slots.get(tuple),existing=existingKey?this.retained.get(existingKey):undefined;
   const movement=current&&navigatorDirection(current.anchor,anchor)===direction?direction:'static';
-  const x=existing?.x??(current?current.x+(movement==='up'?0:1):0);
-  const y=existing?.y??(current?current.y-(movement==='up'?1:0):0);
-  const gapBefore=existing?.gapBefore??(current!==undefined&&movement==='static');
-  const same=existing?.key===key?existing:undefined;
-  const pre=peak(same?.pre,phase(input.pre)),att=peak(same?.att,phase(input.att));
-  const captured=Object.freeze({...anchor,...(anchor.predecessor?{predecessor:Object.freeze({...anchor.predecessor})}:{})});
-  const record:NavigatorPathRecord=Object.freeze({key,anchor:captured,x,y,gapBefore,...(pre?{pre}:{}),...(att?{att}:{})});
-  const retained=[...this.retained.filter(value=>value!==existing),record];
-  const rounds=retained.filter(value=>value.anchor.level===anchor.level);
-  const droppedRounds=new Set(rounds.slice(0,Math.max(0,rounds.length-32)));
-  const levels=[...new Set(retained.filter(value=>!droppedRounds.has(value)).map(value=>value.anchor.level).reverse())];
-  const droppedLevels=new Set(levels.slice(100));
-  this.retained=Object.freeze(retained.filter(value=>!droppedRounds.has(value)&&!droppedLevels.has(value.anchor.level)));
-  this.loss=Object.freeze({levels:this.loss.levels+droppedLevels.size,rounds:this.loss.rounds+droppedRounds.size});
-  this.selected=record;
-  return record;
+  const position={x:existing?.x??(current?current.x+(movement==='up'?0:1):0),y:existing?.y??(current?current.y-(movement==='up'?1:0):0),gapBefore:existing?.gapBefore??(current!==undefined&&movement==='static')};
+  const record=this.capture(input,position);if(!record)return undefined;
+  this.slots.set(tuple,record.key);this.selected=record;this.trim();return record;
  }
- private clear():void {
-  this.retained=Object.freeze([]);this.selected=undefined;this.scope=undefined;this.loss=Object.freeze({levels:0,rounds:0});
+ /** Already admitted local alternatives do not select a destination or create a path segment. */
+ retain(input:NavigatorPathInput):void {
+  const anchor=input.anchor;
+  if(!this.qualified(anchor)||JSON.stringify([anchor.source,anchor.chain,anchor.protocol])!==this.scope)return;
+  const tupleKey=this.slots.get(this.tuple(anchor)),position=tupleKey?this.retained.get(tupleKey):this.positions.find(record=>record.anchor.level===anchor.level)??this.selected;
+  if(position){this.capture(input,{x:position.x,y:position.y,gapBefore:position.gapBefore});this.trim();}
  }
+ /** Distinct observed hashes or payload-only identities; upgrades never borrow another context's phases. */
+ observations(level:number,round?:number):readonly NavigatorPathRecord[] {
+  const proposals=new Map<string,NavigatorPathRecord>();
+  for(const record of this.retained.values()){
+   const anchor=record.anchor;if(anchor.level!==level||round!==undefined&&anchor.round!==round)continue;
+   const key=JSON.stringify([anchor.round,anchor.hash?'block':'payload',anchor.hash??anchor.payload??anchor.identity]);
+   const previous=proposals.get(key);if(!previous||anchor.receivedMonotonic>=previous.anchor.receivedMonotonic)proposals.set(key,record);
+  }
+  return [...proposals.values()].sort((a,b)=>b.anchor.receivedMonotonic-a.anchor.receivedMonotonic);
+ }
+ private trim():void {
+  if(this.length==='unlimited'||this.retained.size<=this.length)return;
+  const retired=[...this.retained.values()].filter(record=>record.key!==this.selected?.key).sort((a,b)=>a.anchor.receivedMonotonic-b.anchor.receivedMonotonic).slice(0,this.retained.size-this.length);
+  for(const record of retired){this.retained.delete(record.key);this.discardedBefore=Math.max(this.discardedBefore,record.anchor.receivedMonotonic);this.lostRecords++;}
+  const replacements=new Map<string,NavigatorPathRecord>();
+  for(const record of this.retained.values()){const tuple=this.tuple(record.anchor),before=replacements.get(tuple);if(!before||record.anchor.receivedMonotonic>=before.anchor.receivedMonotonic)replacements.set(tuple,record);}
+  for(const [tuple,key] of this.slots)if(!this.retained.has(key)){
+   const replacement=replacements.get(tuple);if(replacement)this.slots.set(tuple,replacement.key);else this.slots.delete(tuple);
+  }
+ }
+ private clear():void {this.retained.clear();this.slots.clear();this.selected=undefined;this.scope=undefined;this.lostRecords=0;this.discardedBefore=-1;}
 }

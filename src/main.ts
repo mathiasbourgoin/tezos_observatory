@@ -487,6 +487,14 @@ function render(runtime: Runtime): void {
   };
   const observedRecord=retainedTargets.find(record=>record.identity===chosenIdentity);
   if(observedRecord)model.observation=navigatorObservation(observedRecord);
+  // Capture compact, already-qualified local alternatives before their authority expires.
+  // Historical backgrounds keep the peak power/denominator/threshold as one fact.
+  model.pathObservations=view.observationTargets.flatMap(record=>{
+    const admission=record.admission;
+    if(!admission||record.contextInvalid||!runtime.monitor.contextAuthorized(admission.context)||!record.target.candidate&&!record.target.payload)return [];
+    const pre=record.phases?.pre,att=record.phases?.att;
+    return [{anchor:navigatorObservation(record),...(pre?{pre:{power:pre.maximumPower,total:pre.maximumTotal,threshold:pre.maximumThreshold}}:{}),...(att?{att:{power:att.maximumPower,total:att.maximumTotal,threshold:att.maximumThreshold}}:{})}];
+  });
   model.events=capturedEvents(runtime);
   if(rights)model.committee=rights.map(right=>({...delegateView(right),preReceipt:pre.has(right.address)?"Received":preCoverage?"Absent in selected source snapshot":"Partial / unavailable",attReceipt:att.has(right.address)?"Received":attCoverage?"Absent in selected source snapshot":"Partial / unavailable",contextNote:targetContext?`Source ${targetContext.observer.source.baseUrl} (observer) · rights responder ${right.evidence?.source.baseUrl??"unknown"} · chain ${targetContext.observer.chainId} · head ${targetContext.observer.header.hash} · target ${targetContext.level} · protocol ${targetContext.protocolHash}`:"Context unavailable"}));
   const knownSlots=new Set(rights?.map(right=>right.slot)??[]);

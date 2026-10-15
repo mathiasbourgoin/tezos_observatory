@@ -1,6 +1,6 @@
 import {CAMERA_DURATION_MS} from './cameraTiming';
 import {navigatorDirection,retainNavigator,sameCameraPosition} from './navigatorMotion';
-import {NavigatorPath,type NavigatorPathRecord} from './navigatorPath';
+import {NavigatorPath,historyLength,historyLengths,type HistoryLength,type NavigatorPathInput,type NavigatorPathRecord} from './navigatorPath';
 import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockIntervals';
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
@@ -22,6 +22,7 @@ export interface NetworkViewModel {
   navigatorDiscontinuity?:string;
   blockIntervals?:IntervalView;
   observation?:ObservedNavigatorView;
+  pathObservations?:readonly NavigatorPathInput[];
   selectedRelationship?:'applied-block'|'applied-tuple'|'different-block'|'next-level'|'other';
   appliedSinceMonotonic?:number;
   nextProposalObservation?:{observed:boolean;source:string};
@@ -319,6 +320,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
   const footer = el('footer', 'page-footer', 'Read-only monitoring · RPC streams are opened by this browser while the page is visible. No signatures, no node changes.');
   root.replaceChildren(header, tabs, grid, footer, announcements);
   const states = new Map<Network, {model?: NetworkViewModel; tick(now: number): void; update(model: NetworkViewModel): void}>();
+  let retainedLength:HistoryLength=500;try {retainedLength=historyLength(localStorage.getItem('observatory:path-length'));} catch { /* Storage is optional. */ }
+  const lengthControls:HTMLSelectElement[]=[],resizeHistories:((length:HistoryLength)=>void)[]=[];
   for (const network of ['mainnet', 'shadownet'] as const) {
     const name = network === 'mainnet' ? 'Mainnet' : 'Shadownet';
     const tab = el('button', `network-tab ${network}`), tabName = el('span', '', name), tabStatus = el('span', 'tab-status', 'Connecting'); tab.append(tabName, tabStatus); tab.type = 'button';
@@ -426,9 +429,38 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     // Only the inert departing visual may reuse this last coherent, context-bound card.
     let observedCard:{key:string;presentation:ReturnType<typeof cardPresentation>}|undefined,navigatorHadOpportunities=false;
     const cancelCamera=():void=>{cameraAnimation?.cancel();cameraAnimation=undefined;departures?.remove();departures=undefined;previousNode.style.opacity='';};
-    const path=new NavigatorPath(),past=el('div','navigator-past'),pastCards=new Map<string,HTMLElement>();stage.append(past);
+    const path=new NavigatorPath(retainedLength),past=el('div','navigator-past'),pastCards=new Map<string,HTMLElement>();stage.append(past);
+    const proposalDialog=el('dialog','path-observations'),dialogTitle=el('h3','','Observed proposals'),dialogNote=el('p','table-note','Local observations only; not a canonical-chain or uncle claim. Payload-only observations do not identify a block. Votes may be shared by several hashes of the same payload.'),dialogRows=el('ol','path-observation-rows'),dialogPaging=el('div','path-observation-paging'),dialogPage=el('span','subtle'),dialogPrevious=el('button','','Previous page'),dialogNext=el('button','','Next page'),dialogClose=el('button','','Close observed proposals');
+    proposalDialog.setAttribute('aria-label','Retained observed proposals');dialogPrevious.type=dialogNext.type=dialogClose.type='button';
+    dialogPaging.append(dialogPrevious,dialogPage,dialogNext);proposalDialog.append(dialogTitle,dialogNote,dialogRows,dialogPaging,dialogClose);panel.append(proposalDialog);
+    let proposalPage=0,proposalFilter:{level:number;round:number}|undefined;
+    const renderObservations=():void=>{
+      const values=(proposalFilter?path.observations(proposalFilter.level,proposalFilter.round):path.records).slice().sort((a,b)=>b.anchor.receivedMonotonic-a.anchor.receivedMonotonic);
+      proposalPage=Math.max(0,Math.min(proposalPage,Math.ceil(values.length/10)-1));dialogRows.replaceChildren();
+      for(const record of values.slice(proposalPage*10,proposalPage*10+10)){
+        const anchor=record.anchor,row=el('li','path-observation'),identity=anchor.hash??anchor.payload??anchor.identity;
+        row.append(el('strong','',`Level ${number(anchor.level)} · r${anchor.round} · ${anchor.hash?'Observed block':'Payload-only observation'}`),el('span','address-text',identity),el('span','path-phase-summary subtle',`pre ${record.pre?`${number(record.pre.power)}/${number(record.pre.total)}`:'unknown'} · att ${record.att?`${number(record.att.power)}/${number(record.att.total)}`:'unknown'}`),el('span','subtle address-text',`Source ${anchor.source} · chain ${anchor.chain} · protocol ${anchor.protocol} · context ${anchor.contextHead} · parent ${anchor.contextParent} · proposal received ${new Date(anchor.receivedAt).toISOString()}`));
+        if(anchor.hash){const hash=anchor.hash,copy=el('button','address-copy','Copy block hash');copy.type='button';copy.addEventListener('click',()=>{void navigator.clipboard?.writeText(hash).then(()=>set(copy,'Copied')).catch(()=>set(copy,'Copy unavailable'));});row.append(copy);}
+        dialogRows.append(row);
+      }
+      set(dialogTitle,proposalFilter?`Observed alternatives · level ${number(proposalFilter.level)} · r${proposalFilter.round}`:'Retained observed proposals');
+      set(dialogPage,`${values.length} observations · page ${proposalPage+1}/${Math.max(1,Math.ceil(values.length/10))}`);dialogPrevious.disabled=proposalPage===0;dialogNext.disabled=(proposalPage+1)*10>=values.length;
+    };
+    const showObservations=(filter?:{level:number;round:number}):void=>{proposalFilter=filter;proposalPage=0;renderObservations();proposalDialog.showModal();};
+    dialogPrevious.addEventListener('click',()=>{proposalPage--;renderObservations();});dialogNext.addEventListener('click',()=>{proposalPage++;renderObservations();});dialogClose.addEventListener('click',()=>proposalDialog.close());
+    const allObservations=el('button','path-observations-open','Observed proposals (0)');allObservations.type='button';allObservations.setAttribute('aria-label','Inspect retained proposals');allObservations.addEventListener('click',()=>showObservations());
+    const currentAlternatives=el('button','path-alternatives','No observed alternatives');currentAlternatives.type='button';currentNode.append(currentAlternatives);
+    const updateObservationBadge=(button:HTMLButtonElement,anchor:ObservedNavigatorView):void=>{
+      const count=path.observations(anchor.level,anchor.round).length;set(button,count>1?`${count} observed identities`:'No observed alternatives');button.disabled=!!localCamera||count<2;
+      button.setAttribute('aria-label',`Inspect observed alternatives for level ${anchor.level} round ${anchor.round}`);
+      button.onclick=()=>showObservations({level:anchor.level,round:anchor.round});
+    };
+    const historyLabel=el('label','path-history-length','History length'),historySelect=el('select');historySelect.setAttribute('aria-label','History length');
+    for(const length of historyLengths){const option=el('option','',String(length));option.value=String(length);historySelect.append(option);}historySelect.value=String(retainedLength);historyLabel.append(historySelect);lengthControls.push(historySelect);
+    historySelect.addEventListener('change',()=>{retainedLength=historyLength(historySelect.value);try {localStorage.setItem('observatory:path-length',String(retainedLength));} catch { /* The local choice still works without storage. */ }for(const control of lengthControls)control.value=String(retainedLength);for(const resize of resizeHistories)resize(retainedLength);});
+    navigation.append(historyLabel,allObservations);resizeHistories.push(length=>{path.setLimit(length);layoutPath();});
     const naturalTabIndex=new WeakMap<HTMLElement,string|null>();
-    let cameraFollowing=true,viewX=0,viewY=0,pathActive=false,pathResetPending=false,localCamera:ObservedNavigatorView|undefined;
+    let cameraFollowing=true,viewX=0,viewY=0,pathActive=false,localCamera:ObservedNavigatorView|undefined;
     const knownPhase=(phase:VoteView|undefined)=>phase&&Number.isSafeInteger(phase.power)&&Number.isSafeInteger(phase.total)&&phase.power>=0&&phase.power<=phase.total&&phase.total>0?{power:phase.power,total:phase.total,...(phase.threshold===undefined?{}:{threshold:phase.threshold})}:undefined;
     const paintPhases=(node:HTMLElement,summary:HTMLElement,pre:NavigatorPathRecord['pre'],att:NavigatorPathRecord['att']):void=>{
       for(const [name,phase] of [['pre',pre],['att',att]] as const)node.style.setProperty(`--path-${name}`,`${phase?Math.min(100,100*phase.power/phase.total):0}%`);
@@ -454,7 +486,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       const cardWidth=width<700?Math.min(260,width*.78):Math.min(340,(width-2*gapX)/3),cardHeight=parseFloat(getComputedStyle(junction).gridTemplateRows);
       const stepX=cardWidth+gapX,stepY=cardHeight+gapY,totalWidth=3*cardWidth+2*gapX;
       camera.style.width=`${totalWidth}px`;camera.style.left=`${(width-totalWidth)/2}px`;
-      const destination=cameraDestination(),retainedRecords=pathActive?path.records:[];
+      const destination=cameraDestination(),retainedRecords=pathActive?path.positions:[];
       if(!pathActive&&!localCamera||!destination){camera.style.transform='translate(0,0)';past.hidden=true;set(pathStatus,'Retained path unavailable · observations accumulate during this browser session');cardAccess();return;}
       past.hidden=!pathActive;
       if(cameraFollowing){viewX=destination.x;viewY=destination.y;}
@@ -468,12 +500,14 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
           const hash=record.anchor.hash,copy=el('button','address-copy','Copy block hash');copy.type='button';copy.disabled=!hash;
           copy.addEventListener('click',()=>{if(hash)void navigator.clipboard?.writeText(hash).then(()=>set(copy,'Copied')).catch(()=>set(copy,'Copy unavailable'));});
           const identity=el('span','address-text',hash?short(hash):'Proposal hash unavailable');identity.title=hash??'No proposal hash observed';
-          card.append(el('span','eyebrow','Observed earlier'),el('strong','branch-target',`${number(record.anchor.level)} · r${record.anchor.round}`),el('span','subtle',hash?'Observed block':'Votes only'),identity,el('span','path-phase-summary subtle'),copy);
+          const alternatives=el('button','path-alternatives');alternatives.type='button';
+          card.append(el('span','eyebrow','Observed earlier'),el('strong','branch-target',`${number(record.anchor.level)} · r${record.anchor.round}`),el('span','subtle',hash?'Observed block':'Votes only'),identity,el('span','path-phase-summary subtle'),copy,alternatives);
           pastCards.set(record.key,card);past.append(card);
         }
         card.dataset.worldX=String(record.x);card.dataset.worldY=String(record.y);
         card.style.left=`${stepX+(record.x-destination.x)*stepX}px`;card.style.top=`${stepY+(record.y-destination.y)*stepY}px`;card.style.width=`${cardWidth}px`;card.style.height=`${cardHeight}px`;
         card.title=`Source ${record.anchor.source} · chain ${record.anchor.chain} · protocol ${record.anchor.protocol} · context ${record.anchor.contextHead} · parent ${record.anchor.contextParent} · as of ${new Date(record.anchor.receivedAt).toISOString()}`;
+        const alternatives=card.querySelector<HTMLButtonElement>('.path-alternatives');if(alternatives)updateObservationBadge(alternatives,record.anchor);
         const summary=card.querySelector<HTMLElement>('.path-phase-summary');if(summary)paintPhases(card,summary,record.pre,record.att);
       }
       for(const edge of past.querySelectorAll('.navigator-path-edge,.navigator-path-gap'))edge.remove();
@@ -489,8 +523,10 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
         else{Object.assign(edge.style,{left:`${x-gapX}px`,top:`${y+30}px`,width:`${gapX}px`,borderTop:`2px ${record.anchor.hash&&older.anchor.hash===record.anchor.predecessor?.hash&&record.anchor.predecessor?.relation==='ancestry'?'solid var(--forest)':'dotted var(--muted)'}`});}
         past.append(edge);
       }
-      const levels=new Set(path.records.map(record=>record.anchor.level)).size,truncated=path.truncated;
-      set(pathStatus,localCamera?'Pinned camera · captured conditional branches':`${cameraFollowing?'Live camera':'Exploring retained path'} · ${levels}/100 observed levels · pre/att backgrounds show received peaks, not finality${truncated.levels||truncated.rounds?' · older observations truncated':''}`);
+      const count=path.records.length,truncated=path.truncated;
+      set(pathStatus,localCamera?'Pinned camera · captured conditional branches':`${cameraFollowing?'Live camera':'Exploring retained path'} · ${count}${path.limit==='unlimited'?' · unlimited (memory grows)':`/${path.limit}`} observed proposals · phase peaks, not finality${truncated.records?' · older observations retired':''}`);
+      set(allObservations,`Observed proposals (${count})`);allObservations.disabled=!pathActive;
+      const anchor=localCamera??path.current?.anchor;if(anchor)updateObservationBadge(currentAlternatives,anchor);
       junction.dataset.cameraFollowing=String(cameraFollowing);junction.dataset.viewX=String(viewX);junction.dataset.viewY=String(viewY);
       // Buffered tiles are reached by panning, never by scrolling the clipped frame on Tab.
       cardAccess();
@@ -510,8 +546,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     for(const name of ['pointerup','pointercancel'])junction.addEventListener(name,()=>{dragging=undefined;});
     junction.addEventListener('focusout',()=>queueMicrotask(layoutPath));
     new ResizeObserver(layoutPath).observe(junction);
-    const updatePath=(model:NetworkViewModel,reset:boolean,retained:boolean):void=>{
-      const anchor=model.observation;if(reset)pathResetPending=true;
+    const updatePath=(model:NetworkViewModel,retained:boolean):void=>{
+      const anchor=model.observation;
       if(!retained){
         const pinned=model.session?.mode==='pin'&&anchor?.coherent?anchor:undefined;
         if(pinned?.identity!==localCamera?.identity)cameraFollowing=true;localCamera=pinned;
@@ -519,19 +555,19 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
         let record:NavigatorPathRecord|undefined;
         if(pathActive&&anchor){
           const pre=knownPhase(model.preattestations),att=knownPhase(model.attestations),direction=junction.dataset.direction==='up'?'up':junction.dataset.direction==='right'?'right':'static',before=path.current?.anchor;
-          const observedGap=before&&anchor.level>before.level+1&&anchor.source===before.source&&anchor.chain===before.chain&&anchor.protocol===before.protocol;
-          const clear=pathResetPending&&!observedGap;
-          if(clear||before&&(anchor.source!==before.source||anchor.chain!==before.chain||anchor.protocol!==before.protocol))cameraFollowing=true;
-          record=path.observe({anchor,...(pre?{pre}:{}),...(att?{att}:{})},direction,clear);
-          if(record)pathResetPending=false;
-          else pathActive=!clear&&sameCameraPosition(before,anchor);
+          const clear=before!==undefined&&(anchor.source!==before.source||anchor.chain!==before.chain||anchor.protocol!==before.protocol);
+          if(clear)cameraFollowing=true;
+          record=path.observe({anchor,...(pre?{pre}:{}),...(att?{att}:{})},direction);
+          if(!record)pathActive=!clear&&sameCameraPosition(before,anchor);
         }
         if(!pathActive&&!localCamera)cameraFollowing=true;
         // Rejected old receipts never lend their stored peaks to a different live identity.
         paintPhases(currentNode,currentPhases,record?.pre??knownPhase(model.preattestations),record?.att??knownPhase(model.attestations));
       }
+      if(model.session?.mode==='follow')for(const observation of model.pathObservations??[])path.retain(observation);
       junction.dataset.pathHistory=String(pathActive);for(const button of navigation.querySelectorAll('button'))button.disabled=!pathActive&&!localCamera;
       set(returnLive,localCamera?'Return to anchor':'Return to live');
+      if(localCamera&&proposalDialog.open)proposalDialog.close();
       layoutPath();
     };
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cancelCamera();set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
@@ -730,7 +766,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       if (bakers.length) for (const placeholder of bakerRows.querySelectorAll('.empty-state')) placeholder.remove();
       else for(const placeholder of bakerRows.querySelectorAll<HTMLElement>('.empty-state')){const same=placeholder.dataset.branch==='same-level',target=placeholder.querySelector<HTMLElement>('.branch-target');if(target)set(target,anchor?`Level ${number(anchor.level+(same?0:1))} · round ${same?anchor.round+1:0}`:'Level — · round —');}
       }
-      updatePath(model,reset,retained);
+      updatePath(model,retained);
       if(!retained){if(anchor?.coherent){observedCard={key:anchorKey(anchor),presentation:cardPresentation(currentNode)};navigatorHadOpportunities=model.opportunityFacts!==undefined;}else navigatorHadOpportunities=false;}
       set(meta.get('Primary source')!, model.source ?? 'Unavailable'); set(meta.get('Block hash')!, model.hash ?? 'Unavailable');
       set(meta.get('Applied head')!, model.appliedLevel === undefined ? 'Unavailable' : `Level ${number(model.appliedLevel)} · round ${number(model.appliedRound)}`);
