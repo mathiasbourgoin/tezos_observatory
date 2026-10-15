@@ -1,0 +1,195 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "confidence": 5,
+      "path": "scripts/v3-evidence-contract.mjs",
+      "line": 90,
+      "category": "correctness",
+      "summary": "Evidence loader accepts an omitted and mutated imported production asset",
+      "evidence": "Actual dc89 loadV3Evidence export, synthetic temporary loader-unit repository/bundle: full baseline accepted; remove assets/imported.js from manifest.production and recompute declared combined binding with mechanically consistent unit surface inputs: accepted; mutate that file although dist/index.html imports it: accepted. Loader checks only Object.entries(production), never compares keys with actual dist inventory. Diagnostic result: /var/tmp/observatory-primary-evidence-dc89/production-inventory-probe-result.json; script retained beside it. These are synthetic unit fixtures, not real UI evidence or independent receipts. Root actual13-asset dc89 binding remains separately verified.",
+      "fix": "Require exact complete emitted dist file set before checking hashes, including imported chunks/inspection/manifest/assets. Add negative omitted/extra/unbound consumed-asset tests using actual helper; preserve ERROR classification.",
+      "fingerprint": "scripts/v3-evidence-contract.mjs:90:correctness",
+      "specialist": "reviewer",
+      "fid": "scripts/v3-evidence-contract.mjs:90:correctness#c996998b",
+      "status": "OPEN"
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 5,
+      "path": "scripts/v3-evidence-contract.mjs",
+      "line": 90,
+      "category": "correctness",
+      "summary": "Duplicate: declared production inventory need not cover actual emitted files",
+      "evidence": "kb/context/required-properties.md property10 and V3 FR-069/FR-074 require source-qualified deterministic evidence. loadV3Evidence checks hashes only for Object.entries(manifest.production); unlike its source inventory check it never compares with actual dist file set. Independently confirmed static gap; the omitted-import mutation experiment belongs to primary reviewer, not this auditor.",
+      "fix": "Require exact actual emitted dist file keys before validating production hashes, without reintroducing eager build-dependent discovery.",
+      "fingerprint": "scripts/v3-evidence-contract.mjs:90:correctness",
+      "specialist": "code-quality",
+      "fid": "scripts/v3-evidence-contract.mjs:90:correctness#d1852b81",
+      "status": "OPEN"
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 5,
+      "path": "tests/e2e/dashboard.spec.ts",
+      "line": 1141,
+      "category": "spec",
+      "summary": "AC13 settlement assertion omits final acceptance-to-render delay",
+      "evidence": "The test measures settled.at-final[0].at where final[] contains only frames already rendering102/r0; domain accepted trace is collected at1127 but never used. Counterexample: final accepted0ms, first rendered80ms, settled240ms passes existing160≤200 while violating required240≤200. This is an assertion-coverage counterexample, not a claim production actually took240ms. /var/tmp/observatory-primary-evidence-dc89/acceptance-time-gap.json.",
+      "fix": "Bind final accepted coherent destination timestamp from actual domain admission to measured final camera settlement in both engines, retaining frame/source/generation identity and coalescing/cancellation assertions; fail missing acceptance/frame evidence as ERROR. Preserve historical225.5ms watchpoint.",
+      "fingerprint": "tests/e2e/dashboard.spec.ts:1141:spec",
+      "specialist": "reviewer",
+      "acs": [
+        "observatory-v3/AC-13",
+        "observatory-v3/FR-013"
+      ],
+      "fid": "tests/e2e/dashboard.spec.ts:1141:spec#d03260be",
+      "status": "OPEN"
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 1,
+      "path": "tests/e2e/v3Evidence.ts",
+      "line": 11,
+      "category": "spec",
+      "summary": "Eager production binding prevents the mandatory clean unit-before-build gate",
+      "evidence": "Independent clean checkoutdc89: npmci0, check0, npmtest1 with352 passed/1failed. Discovery unit invokes Playwright--list before dist exists; v3Evidence.ts eagerly calls sourceBindings. Own log /var/tmp/observatory-spec-evidence/unit.log. After build0, standalone identical discovery0. Root independently identified and assigned the same issue; normalize as duplicate of primary clean-order discovery finding.",
+      "fix": "Defer dist-dependent source bindings until actual capture/consumer execution, preserving fail-closed release checks; add a meaningful build-absent discovery regression and rerun mandatory clean order on the next frozen revision.",
+      "fingerprint": "tests/e2e/v3Evidence.ts:11:spec",
+      "specialist": "spec-compliance",
+      "acs": [
+        "observatory-v3/FR-070",
+        "observatory-v3/AC-08",
+        "observatory-v3/AC-24",
+        "observatory-block-intervals/FR-030",
+        "observatory-block-intervals/AC-15"
+      ],
+      "fid": "tests/e2e/v3Evidence.ts:11:spec#8fa4c9c8",
+      "status": "OPEN"
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 5,
+      "path": "src/dashboardView.ts",
+      "line": 5,
+      "category": "correctness",
+      "summary": "Duplicate: phase model omits its own immutable receipt and age",
+      "evidence": "KB glossary Receipt and Phase definitions; kb/context/required-properties.md properties1/8; specs/observatory-v3.md FR-005. At f75 VoteView still contains only count/expected/power/total/threshold; gauge99-121 accepts no provenance, so neither phase can expose its own receipt/age. Independently confirmed by source inspection; served-browser stagger reproduction belongs to spec specialist, not this auditor. Duplicate of spec-v3-fr005-missing-phase-receipt-age.",
+      "fix": "Carry accepted phase-specific observer/helper/context and original receipt facts into LIVE and retained/frozen view; retain truthful missing/coverage states.",
+      "fingerprint": "src/dashboardView.ts:5:correctness",
+      "specialist": "code-quality",
+      "fid": "src/dashboardView.ts:5:correctness#72f5c24c",
+      "status": "OPEN"
+    },
+    {
+      "severity": "MEDIUM",
+      "confidence": 5,
+      "path": "src/rpc/blockIntervals.ts",
+      "line": 53,
+      "category": "architecture",
+      "summary": "New collector exceeds the project 50-line function limit",
+      "evidence": ".harness/rules/code-quality.md Size Limits defines max function length50. collectBlockIntervals occupies lines53-131 inclusive79, spanning transport cancellation/body validation, endpoint acquisition, metadata and window assembly. kb/architecture.md keeps RPC acquisition distinct from presentation; extraction can remain within this native module.",
+      "fix": "Extract bounded per-read transport and/or endpoint/window assembly functions while retaining a single batch budget/controller owner and existing lifecycle tests. Do not replace with new infrastructure.",
+      "fingerprint": "src/rpc/blockIntervals.ts:53:architecture",
+      "specialist": "code-quality",
+      "fid": "src/rpc/blockIntervals.ts:53:architecture#f768ef73",
+      "status": "OPEN"
+    },
+    {
+      "severity": "MEDIUM",
+      "confidence": 5,
+      "path": "src/dashboardView.ts",
+      "line": 255,
+      "category": "architecture",
+      "summary": "Dashboard growth crosses the file-size limit and enlarges the monolithic factory",
+      "evidence": ".harness/rules/code-quality.md Size Limits sets max file500/function50. Actual wc gives509 lines versus351 at bf0f2d5; createDashboard spans255-509 inclusive255 lines. Existing factory was already large, but current change adds regions, chooser controls, camera, and provenance inside it. kb/architecture.md assigns production DOM here and permits reusable src/view elements. This is maintainability, not evidence of incorrect values.",
+      "fix": "Extract cohesive view/region factories under the established view boundary, retaining keyed DOM, reader state, callback-only acquisition and actual motion tests. Do not merely compress lines.",
+      "fingerprint": "src/dashboardView.ts:255:architecture",
+      "specialist": "code-quality",
+      "fid": "src/dashboardView.ts:255:architecture#8b080d86",
+      "status": "OPEN"
+    }
+  ],
+  "cross_runtime_findings": [],
+  "probable_duplicates": [
+    {
+      "path": "scripts/v3-evidence-contract.mjs",
+      "category": "correctness",
+      "line_delta": 0,
+      "a": {
+        "fingerprint": "scripts/v3-evidence-contract.mjs:90:correctness",
+        "fid": "scripts/v3-evidence-contract.mjs:90:correctness#c996998b",
+        "specialist": "reviewer",
+        "line": 90
+      },
+      "b": {
+        "fingerprint": "scripts/v3-evidence-contract.mjs:90:correctness",
+        "fid": "scripts/v3-evidence-contract.mjs:90:correctness#d1852b81",
+        "specialist": "code-quality",
+        "line": 90
+      }
+    }
+  ],
+  "rejected": [
+    {
+      "finding": {
+        "severity": "HIGH",
+        "confidence": 5,
+        "path": "tests/e2e/v3Evidence.ts",
+        "line": 11,
+        "category": "correctness",
+        "summary": "Clean documented unit gate depends on pre-existing dist assets",
+        "evidence": "Fresh detached dc89 checkout: npm ci and npm run check pass; npm test exits1 with352passed/1failed. tests/unit/v3EvidenceContract.test.ts:34 executes Playwright --list, which imports this top-level sourceBindings(); scripts/v3-evidence-contract.mjs:23 scans absent dist and throws ENOENT before any browser tests. Logs /var/tmp/observatory-primary-evidence-dc89/unit.log.",
+        "fix": "Make discovery independent of emitted assets, e.g. capture production source bindings lazily at actual capture execution; preserve clean ci→check→test→e2e→build order and verify fresh no-dist checkout.",
+        "fingerprint": "tests/e2e/v3Evidence.ts:11:correctness",
+        "specialist": "reviewer",
+        "bounded_correction": {
+          "revision": "f75cfe64c836a9e1efe620861184e75dc7bd2f2d",
+          "verified": true,
+          "evidence": "/var/tmp/observatory-primary-evidence-f75/commands.jsonl",
+          "results": "dist absent through ci/check/353 passing units; build then passes",
+          "whole_verdict": "OPEN"
+        }
+      },
+      "reason": "$: unexpected additional property \"bounded_correction\""
+    },
+    {
+      "finding": {
+        "severity": "HIGH",
+        "confidence": 0.99,
+        "path": "src/dashboardView.ts",
+        "line": 5,
+        "category": "spec",
+        "summary": "Phase totals omit their own receipt and monotonic age required by V3 FR-005",
+        "evidence": "VoteView has only counts/power/total/threshold, and gauge() at lines105-128 renders no phase provenance. main.ts selects one record receipt at337-340/390 and supplies phase totals at471-482 without selected.preEvidence/attEvidence. In fresh served-dist Chromium and Firefox, preattestation at12:00:30 and attestation five seconds later both show600/30000; all disclosures opened still expose only selected receipt12:00:30 and age5s, with no attestation receipt. Durable independent diagnostic: /var/tmp/observatory-spec-evidence/phase-diagnostic03.json; decoded phase-chromium.json and phase-firefox.json. Diagnostic assertions establish the absence, so its success is defect reproduction, not spec acceptance.",
+        "fix": "Project each accepted phase current evidence with its original source/context/wall receipt and monotonic age into both LIVE and retained/frozen readers; retain phase-specific coverage qualification and honest missing evidence. Add genuine staggered pre/att, duplicate/enrichment and retained/frozen assertions without substituting candidate or head receipt.",
+        "fingerprint": "spec-v3-fr005-missing-phase-receipt-age",
+        "specialist": "spec-compliance",
+        "acs": [
+          "observatory-v3/FR-005",
+          "observatory-v3/AC-01",
+          "observatory-v3/AC-10"
+        ]
+      },
+      "reason": "$.confidence: expected type integer, got number"
+    }
+  ],
+  "reobservations": [],
+  "dispositions": {
+    "reopened": [],
+    "pending_check": []
+  },
+  "warnings": [],
+  "stats": {
+    "input": 9,
+    "rejected": 2,
+    "cross_runtime": 0,
+    "reobservations": 0,
+    "reopened": 0,
+    "pending_check": 0,
+    "merged": 7,
+    "carried_forward": 0,
+    "probable_duplicates": 1
+  },
+  "normalizer_version": "2.0.0"
+}

@@ -1,0 +1,16 @@
+{
+  "candidate": "47848a5bd8c20a1d9ceb45a80b3e3b6bb84cbdfd",
+  "reviewed_author_source": "5ad5122f5d97a5683b5f59585dcb4f5f504e5daf",
+  "role": "fresh independent final delivery lead",
+  "verdict": "NO_GO_478_TIMING_REPAIR_AND_FINAL_QA_PENDING",
+  "new_blocking_product_findings": [{"source": "root relay of fresh integrated QA", "issue": "Chromium admission-to-settlement exceeds 200ms", "samples_ms": [226.9, 212.5], "status": "repair assigned; independent verification pending"}],
+  "independent_image_review": {"actually_viewed": 9, "directory": "/var/tmp/tezos-observatory-evidence-cg92wqle/pragmatic-478-captures/", "manifest_sha256_supplied_by_root": "bc7d75b53036dc0ce264b802dade8d713287b36be6273e1aee1193ff97afb24d", "sample": ["firefox390dark", "chromium390light", "chromium1440light", "firefox1440dark", "firefox3440light", "chromium3440dark", "chromium390dark-metrics", "chromium1440light-metrics", "chromium3440light-metrics"], "blocking_visible_findings": [], "capture_execution": "author", "native_interaction_proof": false},
+  "corrective_review": "SCOPED_CORRECTIONS_APPROVED",
+  "source_transfer": {"verified_by": "root coordinator", "raw_hashes": 12, "source_contract_git_objects": 118, "lead_reran": false},
+  "known_medium_debt": ["collector function size", "dashboard factory/file size"],
+  "risk": ["198ms sampled Chromium settlement has 2ms margin against 200ms", "fixture evidence does not establish public-provider completeness"],
+  "pending": ["final-source ordinary production regression", "independent practical two-engine three-viewport light/dark capture review", "native touch and keyboard", "concrete publication result and maintainer approval", "remote CI", "GitHub Pages", "custom public deployment", "served asset identity", "qualified live data verification"],
+  "deferred_not_passed": ["70x36 exhaustive matrix", "all95 official interfaces", "complete manualCHECK38", "full393-contract clearance"],
+  "publication_go": false,
+  "delivery_complete": false
+}

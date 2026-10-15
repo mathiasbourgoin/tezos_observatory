@@ -1,0 +1,29 @@
+# Fresh pragmatic delivery assessment
+
+Candidate: `47848a5bd8c20a1d9ceb45a80b3e3b6bb84cbdfd`, integrated from independently reviewed `5ad5122f5d97a5683b5f59585dcb4f5f504e5daf`.
+
+**Stage verdict: PENDING INTEGRATED QA AND PRACTICAL REVIEW.** No new blocking product defect is established by the supplied evidence. Publication and delivery are not cleared.
+
+This fresh lead read the project authority, tech-lead instructions, TypeScript rules, exact pragmatic release gate, independent corrective review and JSON, earlier architect/quality/spec reports, and explicit integration scope resolution. No product code or tests were modified and no redundant test run was performed.
+
+The corrective review supplies credible bounded closure of the three confirmed HIGHs: phase-specific current receipts/ages with first/peak facts kept separate; exact emitted asset inventory before hash validation; and timing from coherent actual final admission to destination settlement. Its own clean Node22 ci/check/358-unit/build sequence and 18 production cases across Chromium/Firefox passed. The earlier clean-discovery failure also has independent corrected clean-order evidence. Root reports checking all 12 raw evidence hashes and 118 source/contract Git objects byte-exact against the frozen delivery candidate; this provenance transfer is attributed to root, not a fresh lead execution. Vite's revision stamp makes differing build hashes between the author and integration commits expected; final served build identity still needs its own verification.
+
+Earlier architecture/quality/spec evidence remains attributed to its earlier frozen revision. Their duplicate HIGH findings are reconciled by the later corrective review rather than erased. The two MEDIUM size findings (collector function length and dashboard factory/file growth) remain explicit maintainability debt. Their reports establish no incorrect product behavior; pragmatic release does not require a speculative refactor. The scope gate's original failure remains preserved, with explicit root acceptance of observed integration paths under delegated intermediate authority.
+
+The meaningful residual performance risk is the independent 198ms Chromium sample against a 200ms gate, with a historical 225.5ms watchpoint. Passing samples establish bounded behavior, not a universal guarantee. Broader provider completeness and live-value correctness cannot be inferred from fixture cases.
+
+Required before a local release recommendation: the fresh final-source ordinary production regression, independent practical phone390×568/desktop1440×900/ultrawide3440×1440 light/dark review in both engines, actual captures, useful navigation, native touch/keyboard, truthful phase/timer qualifications and three interval windows. These are currently pending; author preview alone cannot replace independent acceptance. Any concrete failing behavior must return to the implementer with reproduction and affected verification.
+
+After those pass, prepare the exact publication result for retained maintainer approval under `.harness/rules/project-authority.md`. Remote CI, GitHub Pages, custom public deployment, served asset identity and qualified live data remain separate required delivery stages. No deployment GO, external message, or roadmap completion follows from this report.
+
+Explicitly deferred, never PASS: exhaustive70×36 captures, repetitive all95 official interfaces, complete manualCHECK38 audit and full393-contract clearance. Original roadmap/design obligations and failed evidence remain intact.
+
+Next action: incorporate the actual final-source QA report and independently reviewed image evidence, then issue the concrete local GO/NO-GO with any real blockers. Publication approval and live delivery verification follow afterward.
+
+## Independent practical image review — 478
+
+Actually viewed nine original gallery images: Firefox390dark and Chromium390light; Chromium1440light and Firefox1440dark; Firefox3440light and Chromium3440dark; and all three Chromium metric-values images (390dark,1440light,3440light). This covers each practical viewport and both themes and engines by representative sampling, not every engine/theme combination. Artifact directory: `/var/tmp/tezos-observatory-evidence-cg92wqle/pragmatic-478-captures/`; coordinator-supplied manifest SHA256 `bc7d75b53036dc0ce264b802dade8d713287b36be6273e1aee1193ff97afb24d`.
+
+No blocking visible defect in that sample. Phone layout keeps the branch junction and inspector within its width, with long vertical content; desktop separates the junction and inspector, and ultrawide distributes history, branch junction, inspector and committee into useful columns. Text and controls remain distinguishable in light/dark. Sparse fixture history creates generous blank regions without hiding required content. The expanded desktop phase disclosure shows a received preattestation receipt/age separately from unavailable attestation receipt/unknown age. Conditional branch labels, unavailable phase values and the distinction between observed versus applied state are visible. Metric images show all three means (7200.29s,3601.00s,906.00s) with actual coverage/interval counts and source qualifications; they make no live-network assertion. This is independent image judgment on author-produced fixture captures, not independent capture execution or proof of keyboard/touch interaction.
+
+**Updated blocking status:** root has now reported genuine final-source Chromium timing failures at226.9ms and212.5ms against200ms. This is a real deterministic delivery blocker, superseding the earlier sampled timing reassurance. Candidate478 is NO-GO for local release on that evidence; the minimal timing repair and affected independent verification are pending. Do not relax the assertion or transfer image review to a changed layout without checking the relevant diff. Final complete QA report and native interaction evidence remain pending.
