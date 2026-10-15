@@ -14,13 +14,14 @@ for(const width of [1440,390])for(const direction of ['up','right'] as const)for
  const oldContent=await panel.locator('.navigator-current').textContent()??'';expect(oldContent).toContain('101 · r0');
  if(direction==='right'){
   if(votesOnly)await expect(panel.locator('.baker-opportunity').first().locator('.branch-critical')).toContainText('Conditional timer');
-  const branches=await panel.locator('.baker-rows').textContent();await send(page,'shadownet-head',first);
+  const branchFacts=(text:string|null)=>text?.replace(/As of \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g,'As of <clock>');
+  const branches=branchFacts(await panel.locator('.baker-rows').textContent());await send(page,'shadownet-head',first);
   if(votesOnly){
    await expect(panel.locator('.candidate-evidence')).toContainText('Numerical authority unavailable');
    await expect(panel.locator('.pre .gauge-counts')).toContainText('Voting power unavailable');
    await expect(panel.locator('.navigator-status')).toContainText('awaiting current proof');
    expect(await panel.locator('.navigator-current').textContent()).toBe(oldContent);
-   expect(await panel.locator('.baker-rows').textContent()).toBe(branches);
+   expect(branchFacts(await panel.locator('.baker-rows').textContent())).toBe(branches);
   }
  }
  await scene.scrollIntoViewIfNeeded();const focusControl=page.getByRole('button',{name:'Reconnect',exact:true});await focusControl.evaluate(node=>(node as HTMLElement).focus({preventScroll:true}));await expect(focusControl).toBeFocused();
