@@ -1,0 +1,11 @@
+# PR86 calibration correction
+
+Candidate `0269b27` on isolated branch `fix/pr86-beta-mean`, checkout `/tmp/roster-pr86-beta`, extends the preserved linear candidate `64f5e278b2e04e6d10d3a77e2ac98dbf0ffeb0e8`. The earlier approved tree remains unchanged in its original checkout. No publication or merge occurred.
+
+The independent canonical-review preparation found that accepted finite positive parameters `Beta(1e308,1e308)` overflowed their sum. The report returned mean0 and Brier0 for a negative label, instead of mean0.5 and Brier0.25. A real consumer reproduction showed this could incorrectly make an evaluation eligible for human review; promotion still remained explicitly nonautomated. This is an upstream Roster calibration defect, separate from Observatory consensus arithmetic.
+
+The correction scales both parameters by their maximum before division. Their scaled sum stays at most2, preserving the accepted finite-positive domain and avoiding a new arbitrary parameter limit. Existing invalid-input rejection remains. Tests cover symmetric and asymmetric large parameters, both labels, invalid parameters and the actual evaluation gate rejecting the resulting Brier0.25 against its configured0.02 maximum.
+
+Actual Node22.23.3 verification: the new report regression first completed with assertion failure `0 !== 0.5` (exit1, two existing tests passed). After correction, all **six report/gate tests pass**. Clean `npm ci`, `npm run build:ts`, full upstream `npm test` and `git diff --check` exit0. Full-suite output includes unchanged unused-schema-value warnings and absent advisory cost log; the blocked optional esbuild install script did not prevent the actual build. No full-suite aggregate test count is claimed from truncated console output. Test-created untracked Python bytecode was removed, leaving a clean committed checkout.
+
+Independent review of this new exact revision and new exact-candidate QA remain required. The earlier review/QA of64f5e278 do not cover this correction. Canonical PR86 review preparation has not emitted GO; unavailable OpenCode API was recorded as degraded, not a successful second-runtime review. Required review specialists remain subject to available slots and S9 priority.
