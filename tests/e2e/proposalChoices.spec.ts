@@ -30,4 +30,5 @@ test('supported alternatives stay closed, rank within the current tuple and pres
  await panel.getByText('Selected identity & phase provenance',{exact:true}).click();await openDetails(panel.locator('.captured-candidates'));
  await panel.locator('.captured-candidates').getByRole('button',{name:`Inspect candidate ${zero.hash}`,exact:true}).click();
  await expect(panel.locator('.selected-payload')).toContainText('Zero');await expect(choices.getByRole('button',{name:`Inspect candidate ${zero.hash}`,exact:true})).toHaveCount(0);
+ await expect(panel.locator('.selected-kind')).toContainText('Observed proposal · producer unknown');await expect(panel.locator('.candidate-evidence')).toContainText(zero.hash);
 });
