@@ -1,3 +1,4 @@
+import {recentConsensus} from './consensus/recentConsensus';
 import {cameraReceipt,type CameraReceipt} from './cameraTiming';
 import {phaseProof} from './phaseProvenance';
 import {BlockIntervals} from './rpc/blockIntervals';
@@ -171,7 +172,7 @@ function sessionModel(runtime:Runtime):NonNullable<NetworkViewModel["session"]> 
 }
 function capturedEvents(runtime:Runtime):NonNullable<NetworkViewModel["events"]> {const view=runtime.view;return view?view.acceptedEvents.map(event=>({identity:event.identity,observedAt:event.evidence.receivedAt,description:`${event.phase==="pre"?"Preattestation":"Attestation"} ${event.kind==="crossing"?"crossing":"observed quorum"} · level ${event.level} · round ${event.round} · payload ${event.payload} · power ${event.power} · threshold ${event.threshold} · source ${event.evidence.source.baseUrl} · chain ${event.chainId} · payload-shared attribution`})):[];}
 function capturedRecent(runtime:Runtime):NonNullable<NetworkViewModel["recentConsensus"]> {
- return (runtime.view?.history??[]).slice(0,5).map(snapshot=>{const record=snapshot.record,pre=record.phases?.pre,att=record.phases?.att;return {identity:snapshot.identity,level:record.target.level,round:record.target.round,total:pre?.maximumTotal??att?.maximumTotal??record.admission?.constants.committee??0,...(pre?{prePower:pre.maximumPower,preTotal:pre.maximumTotal}:{}),...(att?{attPower:att.maximumPower,attTotal:att.maximumTotal}:{}),...(record.target.payload?{payload:record.target.payload}:{}),source:record.target.source.baseUrl};});
+ return recentConsensus(runtime.view?.history??[]);
 }
 /** Present already-admitted source facts; no view-level admission or clock authority. */
 function navigatorObservation(record:ObservationTarget<Derived>):NonNullable<NetworkViewModel['observation']>{
