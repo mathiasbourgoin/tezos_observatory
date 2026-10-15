@@ -206,14 +206,17 @@ function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
   const sort=nativeChoice('Committee sort',[['power','Power'],['address','Address'],['alias','Alias']]);
   const resort=el('button','','Resort committee');resort.type='button';
   const receipt=nativeChoice('Committee phase receipt filter',[['all','All phase receipts'],['pre:received','Preattestation received'],['att:received','Attestation received'],['pre:absent','Preattestation snapshot absent'],['att:absent','Attestation snapshot absent'],['pre:unknown','Preattestation partial / unavailable'],['att:unknown','Attestation partial / unavailable']]);
-  const unknown=el('p','committee-unknown');
-  if(full){body.insertBefore(search,viewport);body.insertBefore(sort.root,viewport);body.insertBefore(resort,viewport);body.insertBefore(receipt.root,viewport);body.append(unknown);}
-  let current:DelegateView[]|undefined,currentTotal:number|undefined,unknownFacts:readonly string[]=[],order:string[]=[],reset=true;
+  const unknown=el('details','committee-unknown'),unknownSummary=el('summary'),unknownViewport=el('div','unknown-observations-scroll'),unknownNote=el('p','table-note'),unknownList=el('ul','unknown-observations');
+  unknownViewport.tabIndex=0;unknownViewport.setAttribute('aria-label','Unknown-rights observation receipts');unknownViewport.append(unknownNote,unknownList);unknown.append(unknownSummary,unknownViewport);
+  unknown.addEventListener('toggle',()=>render());
+  if(full){intro.classList.add('committee-status');viewport.append(empty);body.insertBefore(search,viewport);body.insertBefore(sort.root,viewport);body.insertBefore(resort,viewport);body.insertBefore(receipt.root,viewport);body.append(unknown);}
+  let current:DelegateView[]|undefined,currentTotal:number|undefined,unknownFacts:readonly string[]=[],order:string[]=[],reset=true,retainedScrollTop=0;
   const explicit=()=>{reset=true;render();};search.addEventListener('input',explicit);sort.onChange(explicit);resort.addEventListener('click',explicit);receipt.onChange(explicit);
   tbody.addEventListener('focusout',()=>queueMicrotask(()=>render()));
   function render() {
     const delegates=current,total=currentTotal;
-    const scrollTop = viewport.scrollTop;
+    if(full&&!table.hidden&&!viewport.hidden)retainedScrollTop=viewport.scrollTop;
+    const scrollTop = full?retainedScrollTop:viewport.scrollTop;
     const known = delegates !== undefined,all=[...(delegates??[])],query=search.value.trim().toLowerCase();
     const matches=(delegate:DelegateView)=>{
       if(query&&!(delegate.searchAlias??delegate.alias??'').toLowerCase().includes(query)&&!delegate.address.toLowerCase().includes(query))return false;
@@ -226,7 +229,12 @@ function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
       if(reset){order=matching.sort(compare).map(delegate=>delegate.address);reset=false;}
       else {order=order.filter(address=>{const delegate=byAddress.get(address);return delegate!==undefined&&(matches(delegate)||rows.get(address)?.contains(document.activeElement));});const retained=new Set(order);for(const delegate of matching)if(!retained.has(delegate.address)){order.push(delegate.address);retained.add(delegate.address);}}
       list=order.map(address=>byAddress.get(address)!);
-      set(unknown,`Unknown-rights observations · ${unknownFacts.filter(fact=>!query||fact.toLowerCase().includes(query)).join('; ')||'None matching this query'}`);
+      const matchingFacts=query?unknownFacts.filter(fact=>fact.toLowerCase().includes(query)):unknownFacts;
+      set(unknownSummary,`Unknown-rights observations · ${matchingFacts.length?number(matchingFacts.length):'None matching this query'}`);
+      const visibleFacts=unknown.open?matchingFacts.slice(0,100):[];
+      if(unknown.open)set(unknownNote,matchingFacts.length?`Showing ${visibleFacts.length} of ${number(matchingFacts.length)} matching observations · Unknown power until committee rights are proven.`:'None matching this query');
+      for(let index=0;index<visibleFacts.length;index++){let item=unknownList.children[index] as HTMLLIElement|undefined;if(!item){item=el('li');unknownList.append(item);}set(item,visibleFacts[index]!);}
+      while(unknownList.children.length>visibleFacts.length)unknownList.lastElementChild?.remove();
     }else list=all.sort((a,b)=>b.power-a.power);
     if(full)set(intro,`Validated-rights delegates · ${!known||all.some(delegate=>delegate.preReceipt==='Partial / unavailable'||delegate.attReceipt==='Partial / unavailable')?'Coverage partial / unavailable; absence is not established for those phase rows':'Usable selected-source snapshot receipt states'} · no network-wide inactivity or global completeness claim.`);
     const forbidden = list.filter(item => item.forbidden || item.eligibility === 'forbidden').length;
@@ -256,10 +264,12 @@ function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
       if(full){set(cells[5] as HTMLElement,delegate.preReceipt??'Partial / unavailable');set(cells[6] as HTMLElement,delegate.attReceipt??'Partial / unavailable');const contextCell=cells[7] as HTMLElement;let contextText=contextCell.querySelector('p');if(!contextText){const detail=el('details','participant-context');detail.append(el('summary','','Source & context'));contextText=el('p');detail.append(contextText);contextCell.append(detail);}set(contextText,delegate.contextNote??'Context unavailable');}
       if (tbody.children[index] !== row) tbody.insertBefore(row, tbody.children[index] ?? null);
     });
-    empty.hidden = known && list.length > 0; viewport.hidden = !known || list.length === 0;
+    empty.hidden = known && list.length > 0; viewport.hidden = full?false:!known || list.length === 0;
+    if(full)table.hidden=!known||list.length===0;
     set(empty, known ? full?'No validated committee delegates match these controls.':'All expected bakers observed for this phase.' : 'Rights or observations unavailable.');
     // Removing an observed signer can trigger browser scroll anchoring to a new row.
     viewport.scrollTop = scrollTop;
+    if(full&&known&&list.length>0)retainedScrollTop=viewport.scrollTop;
   }
   return {root:details,update(delegates:DelegateView[]|undefined,total:number|undefined,observations:readonly string[]=[]){current=delegates;currentTotal=total;unknownFacts=observations;render();}};
 }
@@ -339,7 +349,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     let retryIdentity:string|undefined;
     const retry=el("button","","Retry selected observer context");retry.type="button";retry.hidden=true;retry.addEventListener("click",()=>{if(retryIdentity)options.onRetry?.(network,retryIdentity);});
     const candidateButtons = new Map<string,HTMLButtonElement>();
-    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection,retry, gauges,selectedProof.details);
+    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); const retrySlot=el('div','retry-slot');retrySlot.append(retry);consensus.append(sectionTitle, selection,retrySlot, gauges,selectedProof.details);
     const opportunities = el('section', 'opportunities'), timingHeader = el('div', 'section-heading'); timingHeader.append(el('h3', '', 'Observed path & conditional branches'));
     const countdown = el('span', 'countdown', 'Timing unavailable');
     const timing = el('p', 'timing-detail address-text', 'Independent clock estimate unavailable');
