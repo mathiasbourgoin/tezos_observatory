@@ -434,9 +434,9 @@ test("malformed source coverage stays partial until a fresh permitted coherent s
  await page.route("https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",route=>route.fulfill({json:{...current,chain_id:"NetFixture"}}));
  let reads=0,usable=false;await page.route("https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*",route=>{reads++;return route.fulfill({json:{validated:usable?[{hash:"unrelated",branch:current.hash,contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]}]:[{hash:"malformed",contents:[{kind:"preattestations_aggregate",consensus_content:{level:101,round:0,block_payload_hash:"vhPayload101"},committee:[0,-1]}]}],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}});});
  await send(page,"mainnet-operations",[vote(0)]);const panel=page.locator(".network-panel.mainnet");await panel.getByRole("button",{name:"Inspect payload vhPayload101",exact:true}).click();
- await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await expect(panel.locator(".att .gauge-counts")).toContainText("Voting power unavailable");await expect(panel).toContainText("partial positive observations");await expect(panel.getByText("Missing attestations · unavailable",{exact:true})).toBeVisible();
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await expect(panel.locator(".att .gauge-counts")).toContainText("0 / 5 power");await expect(panel).toContainText("partial positive observations");await expect(panel.getByText("Missing attestations · 3 bakers · 5 power",{exact:true})).toBeVisible();
  const retry=panel.getByRole("button",{name:"Retry selected observer context"});await expect(retry).toBeVisible();await expect.poll(()=>reads).toBe(1);
- usable=true;await send(page,"mainnet-operations",[vote(0)]);await page.clock.runFor(20000);expect(reads).toBe(1);
+ await retry.click();usable=true;await send(page,"mainnet-operations",[vote(0)]);await page.clock.runFor(20000);expect(reads).toBe(1);
  await retry.click();await expect.poll(()=>reads).toBe(2);await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await expect(panel.locator(".att .gauge-counts")).toContainText("0 / 5 power");await expect(panel).toContainText("Source-snapshot measured zero");
 });
 

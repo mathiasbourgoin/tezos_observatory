@@ -271,10 +271,10 @@ export class ObservationStore<T> {
     this.pruneSelectableUnits();
   }
 
-  fail(identity:string,error:unknown):void {
+  fail(identity:string,error:unknown,coverage:"invalidate"|"preserve-received-phase"="invalidate"):void {
     const record=this.find(identity);if(!record)return;
     const product=this.unresolved.has(identity)?this.unresolved:this.acceptedCandidates.has(identity)?this.acceptedCandidates:this.instances;
-    product.set(identity,Object.freeze({...record,error:String(error),...(record.coverage?{coverageStale:true}:{})}));
+    product.set(identity,Object.freeze({...record,error:String(error),...(record.coverage&&coverage==="invalidate"?{coverageStale:true}:{})}));
   }
 
   private recheck(source:RpcSource,snapshot?:PendingCoverage):void {

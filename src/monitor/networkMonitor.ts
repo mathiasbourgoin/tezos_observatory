@@ -1,3 +1,5 @@
+class PartialPhaseCoverageError extends Error {}
+
 import {pendingPhaseComplete} from "../rpc/networkData";
 import type {BlockProducerFact} from "../rpc/candidateProducer";
 import {
@@ -470,8 +472,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
           return {...result,...(epoch===undefined?{}:{observerGeneration:epoch})};
         },
         retainedKeys:()=>new Set([...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()].filter(value=>value.target.source.baseUrl===source.baseUrl).map(value=>reconciliationKey(this.currentTarget(value)))),
-        onResult:(_target,value)=>{this.observations.accept(value);this.state.syncOperations(this.state.currentGeneration(),this.observations.rawOperations());this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());if(value.snapshotError || value.snapshot?.complete===false&&!pendingPhaseComplete(value.snapshot,"pre")&&!pendingPhaseComplete(value.snapshot,"att"))throw new Error(value.snapshotError??value.snapshot?.reasons.join("; "));},
-        onError:(target,error)=>{for(const value of [...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()])if(reconciliationKey(this.currentTarget(value))===reconciliationKey(target))this.observations.fail(value.identity,error);this.emit();},
+        onResult:(_target,value)=>{this.observations.accept(value);this.state.syncOperations(this.state.currentGeneration(),this.observations.rawOperations());this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());if(value.snapshotError)throw new Error(value.snapshotError);if(value.snapshot?.complete===false){const message=value.snapshot.reasons.join("; ");if(pendingPhaseComplete(value.snapshot,"pre")||pendingPhaseComplete(value.snapshot,"att"))throw new PartialPhaseCoverageError(message);throw new Error(message);}},
+        onError:(target,error)=>{for(const value of [...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()])if(reconciliationKey(this.currentTarget(value))===reconciliationKey(target))this.observations.fail(value.identity,error,error instanceof PartialPhaseCoverageError?"preserve-received-phase":"invalidate");this.emit();},
       });this.reconcilers.set(source.baseUrl,reconciler);reconciler.start();
     }
     const target=this.currentTarget(record);
