@@ -84,8 +84,19 @@ export interface PendingSnapshot {
   readonly startedMonotonic:number;
   readonly complete:boolean;
   readonly reasons:readonly string[];
+  readonly phaseCoverage?:Readonly<Record<"pre"|"att",{readonly complete:boolean;readonly reasons:readonly string[]}>>;
   readonly contextBefore:TargetContext;
   readonly contextAfter:TargetContext;
+}
+/** Explicit per-phase proof, falling back conservatively for legacy snapshots. */
+export function pendingPhaseComplete(snapshot:Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">,phase:"pre"|"att"):boolean {
+  const proof=snapshot.phaseCoverage?.[phase];
+  return proof?proof.complete && proof.reasons.length===0:snapshot.complete && snapshot.reasons.length===0;
+}
+/** Shared retention loss withdraws both phase authorities without changing receipt facts. */
+export function invalidatePendingCoverage<S extends Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">>(snapshot:S,reason:string):S {
+  const reasons=Object.freeze([...new Set([...snapshot.reasons,reason])]);
+  return Object.freeze({...snapshot,complete:false,reasons,...(snapshot.phaseCoverage?{phaseCoverage:Object.freeze({pre:Object.freeze({complete:false,reasons}),att:Object.freeze({complete:false,reasons})})}:{})});
 }
 export interface DelegateRight {
   readonly context?: TargetContext;
@@ -342,18 +353,20 @@ export class NetworkData {
       return asOperationBatch(raw.validated).map(operation => ({...operation,evidence:observed.evidence}));
     }
     const reasons:string[]=[],operations:MonitoredOperation[]=[];
-    if(!object(raw) || !Array.isArray(raw.validated))reasons.push("Missing full validated category");
+    const phaseReasons:{pre:string[];att:string[]}={pre:[],att:[]};
+    const invalidate=(reason:string,phase?:"pre"|"att"):void=>{if(!reasons.includes(reason))reasons.push(reason);for(const affected of phase?[phase]:["pre","att"] as const)if(!phaseReasons[affected].includes(reason))phaseReasons[affected].push(reason);};
+    if(!object(raw) || !Array.isArray(raw.validated))invalidate("Missing full validated category");
     else {
-      if(raw.validated.length>10000)reasons.push("Validated category exceeds retained operation bound");
+      if(raw.validated.length>10000)invalidate("Validated category exceeds retained operation bound");
       for(const entry of raw.validated.slice(0,10000))try {
-        operations.push(...asOperationBatch([entry],()=>{if(!reasons.includes("Malformed or unclassifiable consensus content"))reasons.push("Malformed or unclassifiable consensus content");}).map(operation=>({...operation,evidence:observed.evidence})));
-      }catch {if(!reasons.includes("Malformed operation envelope"))reasons.push("Malformed operation envelope");}
+        operations.push(...asOperationBatch([entry],phase=>invalidate("Malformed or unclassifiable consensus content",phase)).map(operation=>({...operation,evidence:observed.evidence})));
+      }catch {invalidate("Malformed operation envelope");}
     }
     const after=await this.head(signal,context.observer.source);onObservedHead?.(after);
     const contextAfter=await this.targetContext(after,context.level,signal);
     this.assertCollecting(generation,signal);
-    if(!contextBefore || contextFacts(contextBefore)!==contextFacts(context) || contextFacts(contextAfter)!==contextFacts(context))reasons.push("Observer context changed across validated snapshot");
-    return Object.freeze({operations:Object.freeze(operations),evidence:observed.evidence,startedMonotonic,complete:reasons.length===0,reasons:Object.freeze(reasons),contextBefore:contextBefore??context,contextAfter});
+    if(!contextBefore || contextFacts(contextBefore)!==contextFacts(context) || contextFacts(contextAfter)!==contextFacts(context))invalidate("Observer context changed across validated snapshot");
+    return Object.freeze({operations:Object.freeze(operations),evidence:observed.evidence,startedMonotonic,complete:reasons.length===0,reasons:Object.freeze(reasons),phaseCoverage:Object.freeze({pre:Object.freeze({complete:phaseReasons.pre.length===0,reasons:Object.freeze(phaseReasons.pre)}),att:Object.freeze({complete:phaseReasons.att.length===0,reasons:Object.freeze(phaseReasons.att)})}),contextBefore:contextBefore??context,contextAfter});
   }
 
   async derive(head: BlockHeader, signal: AbortSignal): Promise<Derived> {

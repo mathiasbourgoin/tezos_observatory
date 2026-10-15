@@ -278,11 +278,11 @@ it("uses complete-body receipt rather than request start to order a coherent pos
 it("withdraws complete coverage when its supporting raw vote is evicted",async()=>{
  installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0]!;
  const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),packet={...operation(),evidence:evidence(b,2)};
- const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:packet.evidence,startedMonotonic:2,operations:[packet],complete:true,reasons:[]};
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:packet.evidence,startedMonotonic:2,operations:[packet],complete:true,reasons:[],phaseCoverage:{pre:{complete:true,reasons:[]},att:{complete:true,reasons:[]}}};
  store.accept({...proof,snapshot});expect(store.target(record.identity)?.coverage?.complete).toBe(true);expect(store.target(record.identity)?.phases?.pre?.power).toBe(3);
  store.addOperations(Array.from({length:10000},(_,index)=>({hash:`unrelated-${index}`,evidence:evidence(b,index+3),contents:[]})));
  expect(store.rawOperations().some(value=>value.hash==="op")).toBe(false);const retained=store.target(record.identity)!;
- expect(retained.coverageStale===true||retained.coverage?.complete===false).toBe(true);expect(retained.coverage?.evidence).toBe(snapshot.evidence);expect(retained.phases?.pre?.maximumPower).toBe(3);expect(retained.phases?.pre?.power).not.toBe(0);
+ expect(retained.coverage?.phaseCoverage?.pre.complete).toBe(false);expect(retained.coverage?.phaseCoverage?.att.complete).toBe(false);expect(retained.coverageStale===true||retained.coverage?.complete===false).toBe(true);expect(retained.coverage?.evidence).toBe(snapshot.evidence);expect(retained.phases?.pre?.maximumPower).toBe(3);expect(retained.phases?.pre?.power).not.toBe(0);
 });
 
 it("does not duplicate a retained observed-quorum event after its phase owner retires",async()=>{
@@ -628,4 +628,21 @@ it('V3 producer successor attempt survives promotion and wrong-source or chain f
  producers.admitted([wrongSource,wrongChain]);producers.admitted([make('current-still-eligible',124,124)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toEqual(['successor','current-still-eligible']);
  producers.admitted([make('retire-old-window',125,125)]);await new Promise(resolve=>setTimeout(resolve,0));expect(producers.state.attempts).toBe(1);
  producers.admitted([make('unseen-retired',124,124)]);expect(reads).toEqual(['successor','current-still-eligible','retire-old-window']);
+});
+
+
+it.each(['pre','att'] as const)('admits independent %s snapshot zero and preserves its interrupted historical receipt',async phase=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);
+ store.observeHead({...head(122),evidence:evidence(b)});
+ const candidate={identity:"phase-candidate",header:{...head(123),payload_hash:"P"},evidence:evidence(b)};
+ const record=store.addCandidate(candidate)!;
+ const proof=await new NetworkData("mainnet").reconcile({source:b,level:123,round:0,payload:"P"},new AbortController().signal);
+ const good=Object.freeze({complete:true,reasons:[]}),bad=Object.freeze({complete:false,reasons:["Malformed or unclassifiable consensus content"]});
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:2,operations:[],complete:false,reasons:bad.reasons,phaseCoverage:{pre:phase==='pre'?good:bad,att:phase==='att'?good:bad}};
+ store.accept({...proof,...store.generation(b),snapshot});const accepted=store.target(record.identity)!;
+ expect(accepted.phases?.[phase]?.power).toBe(0);expect(accepted.phases?.[phase==='pre'?'att':'pre']).toBeUndefined();
+ expect(accepted.coverage?.complete).toBe(false);expect(accepted.coverage?.phaseCoverage?.[phase].complete).toBe(true);
+ const captured=store.history()[0]!;store.interrupt(b);store.accept({...proof,...store.generation(b),snapshot});
+ expect(store.target(record.identity)?.coverageStale).toBe(true);expect(captured.record.coverageStale).toBe(false);expect(captured.record.coverage?.evidence).toBe(snapshot.evidence);
+ expect(store.target(record.identity)?.phases?.[phase]?.power).toBe(0);
 });

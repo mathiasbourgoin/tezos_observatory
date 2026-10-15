@@ -1,3 +1,4 @@
+import {pendingPhaseComplete,invalidatePendingCoverage} from "../rpc/networkData";
 import type {BlockProducerFact} from "../rpc/candidateProducer";
 import type {AdmissionEvidence,BlockHeader,CandidateObservation,MonitoredOperation,NetworkName,ObservationEvidence,RpcSource} from "../rpc/models";
 import {OperationStore,operationIdentity} from "../rpc/operationStore";
@@ -224,7 +225,7 @@ export class ObservationStore<T> {
     // those facts cannot turn an earlier positive snapshot into a fresh zero.
     for(const product of [this.acceptedCandidates,this.instances])for(const [identity,record] of product){
       if(!record.coverage || !record.admission || !lostSupport.has(JSON.stringify([record.admission.context.key,record.target.level,record.target.round,record.target.payload])))continue;
-      product.set(identity,Object.freeze({...record,coverageStale:true,coverage:Object.freeze({...record.coverage,complete:false,reasons:Object.freeze([...new Set([...record.coverage.reasons,"Supporting snapshot consensus facts evicted"])])})}));
+      product.set(identity,Object.freeze({...record,coverageStale:true,coverage:invalidatePendingCoverage(record.coverage,"Supporting snapshot consensus facts evicted")}));
     }
     for(const key of this.bindings.keys())if(!retained.has(key))this.bindings.delete(key);
     for(const [identity,members] of this.membership){for(const key of members)if(!retained.has(key))members.delete(key);if(members.size===0)this.membership.delete(identity);}
@@ -263,7 +264,7 @@ export class ObservationStore<T> {
       const retained=new Set(this.raw.values().filter(operation=>this.bindings.get(operationIdentity(operation))?.has(context.key)).map(operationKey));
       const truncated=snapshot.operations.some(operation=>operation.contents.some(content=>content.level===context.level) && !retained.has(operationKey(operation)));
       const {operations,...facts}=snapshot;
-      const coverage:PendingCoverage=Object.freeze({...facts,normalizedOperationCount:operations.length,complete:snapshot.complete&&!truncated,reasons:Object.freeze([...snapshot.reasons,...(truncated?["Snapshot consensus facts partially retained"]:[])])});
+      const coverage:PendingCoverage=Object.freeze({...facts,normalizedOperationCount:operations.length,...(truncated?invalidatePendingCoverage(facts,"Snapshot consensus facts partially retained"):facts)});
       this.recheck(source,coverage);this.refreshAcceptedPhases(false);
     }
     if(admission.snapshotError)this.interrupt(source);
@@ -432,11 +433,11 @@ export class ObservationStore<T> {
     const maximumCommittees:{pre?:readonly Readonly<DelegateRight>[];att?:readonly Readonly<DelegateRight>[]}={};
     for(const phase of ["pre","att"] as const)if(phases?.[phase])maximumCommittees[phase]=old?.record.phases?.[phase]?.maximumBasis===phases[phase].maximumBasis&&old.maximumCommittees[phase]?old.maximumCommittees[phase]:Object.freeze(record.admission.rights.map(right=>Object.freeze({...right})));
     const capturedCoverage=record.coverage??old?.record.coverage,capturedCoverageStale=record.coverage?record.coverageStale:old?.record.coverageStale;
-    const representative=Object.freeze({...record,...(capturedCoverage?{coverage:capturedCoverage,...(capturedCoverageStale===undefined?{}:{coverageStale:capturedCoverageStale})}:{}),...(phases?{phases}:{}),...(partial&&capturedCoverage?{coverage:Object.freeze({...capturedCoverage,complete:false,reasons:Object.freeze([...new Set([...capturedCoverage.reasons,"Historical inspection facts partially retained"])])})}:{})});
-    if(partial)for(let index=0;index<candidates.length;index++){const value=candidates[index]!;if(value.coverage)candidates[index]=Object.freeze({...value,coverage:Object.freeze({...value.coverage,complete:false,reasons:Object.freeze([...new Set([...value.coverage.reasons,"Historical inspection facts partially retained"])])})});}
+    const representative=Object.freeze({...record,...(capturedCoverage?{coverage:capturedCoverage,...(capturedCoverageStale===undefined?{}:{coverageStale:capturedCoverageStale})}:{}),...(phases?{phases}:{}),...(partial&&capturedCoverage?{coverage:invalidatePendingCoverage(capturedCoverage,"Historical inspection facts partially retained")}:{})});
+    if(partial)for(let index=0;index<candidates.length;index++){const value=candidates[index]!;if(value.coverage)candidates[index]=Object.freeze({...value,coverage:invalidatePendingCoverage(value.coverage,"Historical inspection facts partially retained")});}
     const snapshot:SessionSnapshot<T>=Object.freeze({identity,record:representative,evidence:old && old.evidence.receivedMonotonic<=record.evidence.receivedMonotonic?old.evidence:record.evidence,candidates:Object.freeze(candidates),maximumCommittees:Object.freeze(maximumCommittees),phaseCommittees:Object.freeze(phaseCommittees),currentPre,currentAtt,committee:Object.freeze(record.admission.rights.map(right=>Object.freeze({...right}))),pre,att,unknownSlots,conflicts,partial,acceptedSequence:old?.acceptedSequence??this.acceptedSequence});
     this.sessionHistory.set(identity,snapshot);
-    if(partial)for(const product of [this.acceptedCandidates,this.instances])for(const [key,value] of product)if(value.coverage?.complete && value.admission && this.sessionIdentity(value)===identity)product.set(key,Object.freeze({...value,coverage:Object.freeze({...value.coverage,complete:false,reasons:Object.freeze([...new Set([...value.coverage.reasons,"Historical inspection facts partially retained"])])})}));
+    if(partial)for(const product of [this.acceptedCandidates,this.instances])for(const [key,value] of product)if(value.coverage && value.admission && this.sessionIdentity(value)===identity)product.set(key,Object.freeze({...value,coverage:invalidatePendingCoverage(value.coverage,"Historical inspection facts partially retained")}));
     if(this.sessionHistory.size>150){const oldest=[...this.sessionHistory.values()].sort((a,b)=>a.evidence.receivedMonotonic-b.evidence.receivedMonotonic||a.identity.localeCompare(b.identity))[0]!;if(this.selectedPin?.instance===oldest.identity && !this.frozenPin)this.frozenPin=oldest;this.sessionHistory.delete(oldest.identity);}
     const priorLive=this.lastLiveSnapshot?.record;
     if(!priorLive || !this.find(priorLive.identity) || !priorLive.admission || !this.contextAuthorized(priorLive.admission.context) || record.evidence.receivedMonotonic>=priorLive.evidence.receivedMonotonic)this.lastLiveSnapshot=snapshot;
@@ -462,7 +463,7 @@ export class ObservationStore<T> {
         for(const phase of ["pre","att"] as const){
           const identity=key(record,phase);if(handled.has(identity))continue;handled.add(identity);
           const signers=group?.[phase],snapshot=record.coverage;
-          const complete=!!snapshot?.complete && snapshot.reasons.length===0 && !record.coverageStale;
+          const complete=!!snapshot && pendingPhaseComplete(snapshot,phase) && !record.coverageStale;
           if(!signers?.size && !complete)continue;
           const power=signerPower(signers??new Set(),admission.rights);if(power===undefined)continue;
           const evidence=(phase==="pre"?group?.preEvidence:group?.attEvidence)??snapshot?.evidence;if(!evidence)continue;
