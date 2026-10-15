@@ -11,11 +11,12 @@ Independent contract-only preparation, with no WIP/code/tests inspected or netwo
 | Future next-level boundary | State the predecessor-production hypothesis explicitly; unjustified timing is unavailable, never a promised deadline. | Foundations 295–296; V3 197–198 |
 | Rights-only, timing-only, both, neither | Each branch retains its own availability; do not borrow the other branch's proposer/deadline. | V3 198 |
 | Deadline expiration, ticks, duplicates, power changes | Elapsed/awaiting observation; no invented round, block, event or observed progression. | Foundations 296–297, 343; V3 199, 271 |
+| Connected transport without observed transitions; reconnecting transport during independently observed advancement | Keep transport and observed progression distinct. A stall requires coherent prediction and evidence; missing inputs leave health unknown. Timer expiration alone cannot establish stall. | Foundations FR022–024, AC15; plan step9 |
 | Historical capture followed by new live rights | Preserve captured deadline, remaining duration, as-of and provenance. Historically absent facts remain unavailable. Follow restores coherent current timers independently. | V3 200–202, 272, 284 |
 | H1→same-height H2, gaps | Withdraw obsolete LIVE authority without rewriting retained capture. No parent inferred from height/payload/coordinates. | Foundations 326; V3 281 |
 | Unsafe values, arithmetic overflow, invalid date/reference, wall-clock jumps | Invalid inputs authorize no prediction. Preserve original receipts/order/monotonic age; clocks create no observations. | Foundations 195–197, 201–202, 321, 325 |
 
-Complete foundations AC33/34 evidence is required, with AC12/16/17 cross-cutting obligations. V3 branch/capture/timing AC03/15/35 and context AC12 remain separate from motion/geometry evidence. S9 alone cannot certify the V3 rendered matrix or literal UP/RIGHT movement.
+Complete foundations AC15/33/34 evidence is required, with AC12/16/17 cross-cutting obligations. Run each original command, including `rtk proxy node scripts/check-observatory-foundations.mjs AC-15 --browsers chromium,firefox`; partial timing coverage does not close the health criterion. V3 branch/capture/timing AC03/15/35 and context AC12 remain separate from motion/geometry evidence. S9 alone cannot certify the V3 rendered matrix or literal UP/RIGHT movement.
 
 Protocol selection at activation requires technical evidence and review of the applicable producing/execution context; this checklist prescribes no new mapping or endpoint. Reuse the established context boundary and verify the timing extension against it. Actual production reader evidence is required in Chromium and Firefox. Full 38-criterion closure and independent whole-epic review/QA remain outstanding.
 
