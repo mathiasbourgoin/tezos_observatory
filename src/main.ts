@@ -375,8 +375,8 @@ function render(runtime: Runtime): void {
   const activityRound = currentRound;
   const hasObservation = selected!==undefined && targetContext!==undefined && observationContextCompatible(selected.evidence,targetContext,selected.admission) && observedInstance!==undefined &&
     view.lastOperationAt !== null &&
-    ((!collectionAllowed()) || (view.operationMode === "stream" &&
-      view.operationStream.mode === "stream") ||
+    ((!collectionAllowed()) || (view.operationStream.mode === "stream" &&
+      selected.evidence?.source.baseUrl===view.operationStream.source?.baseUrl && selected.evidence?.source.network===view.operationStream.source?.network) ||
       (snapshot!==null && snapshot!==undefined && view.operationGeneration === snapshot.generation &&
         schedule !== undefined &&
         view.lastOperationAt >= schedule.startedAt));
