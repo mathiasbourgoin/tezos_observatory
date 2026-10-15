@@ -471,3 +471,76 @@ it('reuses a fallback source receipt exactly and rejects incompatible observer p
  expect(advanced.errors.some(error=>error.includes('incompatible source context'))).toBe(true);
  expect(calls.filter(url=>url.startsWith(source.baseUrl)&&url.endsWith('/B120/helpers/attestation_rights?level=121'))).toHaveLength(1);
 });
+
+
+it('reuses a complete RPC head header while retaining protocol reads and both snapshot brackets',async()=>{
+ const reads:string[]=[],wall=vi.spyOn(Date,'now').mockReturnValue(1000);
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{
+  const url=String(input);reads.push(url);
+  if(url.endsWith('/head/header'))return Response.json({...head(120),chain_id:'NetFixture'});
+  const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('pending_operations'))return Response.json({validated:[]});
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal,observed=await data.head(signal);
+ wall.mockReturnValue(2000);
+ const derived=await data.derive(observed,signal),context=derived.contexts.get(121)!;
+ const snapshot=await data.pending(signal,observed,context);
+ expect(snapshot.complete).toBe(true);expect(derived.rights.get(121)?.[0]?.power).toBe(5);
+ expect(reads.filter(url=>url.endsWith('/blocks/B120/header'))).toHaveLength(0);
+ expect(reads.filter(url=>url.endsWith('/blocks/B120/protocols'))).toHaveLength(1);
+ expect(reads.filter(url=>url.endsWith('/blocks/head/header'))).toHaveLength(3);
+ expect(reads).toHaveLength(11);
+ expect(context.observer.header.evidence?.receivedAt).toBe(1000);
+ expect(context.observer.evidence.receivedAt).toBe(2000);
+ expect(context.observer.header.evidence?.source).toEqual(observed.evidence?.source);
+});
+
+
+it.each(['source','hash','chain','missing-chain','caller','pause','stream'] as const)('never substitutes an RPC header receipt across %s boundaries',async mode=>{
+ const reads:string[]=[],data=new NetworkData('mainnet'),owner=new AbortController();let finish:((value:unknown)=>void)|undefined;
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{
+  const url=String(input);reads.push(url);
+  if(url.endsWith('/head/header')){
+   if(mode==='caller'||mode==='pause')return {ok:true,json:()=>new Promise(resolve=>{finish=resolve;})} as Response;
+   const raw={...head(120),...(mode==='missing-chain'?{}:{chain_id:'NetFixture'})};return Response.json(raw);
+  }
+  const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ let observed:BlockHeader=head(120);
+ if(mode!=='stream'){
+  const pending=data.head(owner.signal).then(value=>({value}),()=>({value:undefined}));
+  if(mode==='caller'||mode==='pause'){
+   await vi.waitFor(()=>expect(finish).toBeDefined());
+   if(mode==='caller')owner.abort();else {data.pause();data.resume();}
+   finish!({...head(120),chain_id:'NetFixture'});expect((await pending).value).toBeUndefined();
+  }else observed=(await pending).value!;
+ }
+ const primary=data.source,other={...primary,baseUrl:'https://tezos-mainnet.octez.io'};
+ if(mode==='source')observed={...observed,evidence:{source:other,receivedAt:1,receivedMonotonic:1}};
+ if(mode==='hash')observed={...head(121),...(observed.evidence?{evidence:observed.evidence}:{})};
+ if(mode==='chain')observed={...observed,chainId:'OtherChain'};
+ const result=await data.derive(observed,new AbortController().signal);
+ const hash=mode==='hash'?'B121':'B120',source=mode==='source'?other:primary;
+ expect(reads.filter(url=>url===source.baseUrl+'/chains/main/blocks/'+hash+'/header')).toHaveLength(1);
+ if(mode==='chain')expect(result.contexts.size).toBe(0);
+ else expect(result.rights.get(observed.level+1)?.[0]?.power).toBe(5);
+});
+
+it('bounds completed literal head receipts independently of the context cache',async()=>{
+ const reads:string[]=[],data=new NetworkData('mainnet'),signal=new AbortController().signal;let level=100;
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{
+  const url=String(input);reads.push(url);
+  if(url.endsWith('/head/header'))return Response.json({...head(level),chain_id:'NetFixture'});
+  const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const oldest=await data.head(signal);
+ for(level=101;level<=112;level++)await data.head(signal);
+ await data.derive(oldest,signal);
+ expect(reads.filter(url=>url.endsWith('/blocks/B100/header'))).toHaveLength(1);
+});

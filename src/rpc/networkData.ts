@@ -167,6 +167,7 @@ export class NetworkData {
   private readonly constantCache = new Map<string,Constants>();
   private readonly constantsPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<Constants>}>();
   private readonly contextCache = new Map<string,RpcContext>();
+  private readonly receivedHeaders = new Map<string,BlockHeader>();
   private readonly contextPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<RpcContext>}>();
   private readonly helperRestrictions = new Map<string,string>();
   private readonly missingHelpers = new Map<string,string>();
@@ -220,11 +221,14 @@ export class NetworkData {
     const existing=this.contextPending.get(key);
     if(existing?.signal===signal){const value=await existing.task;this.assertCollecting(generation,signal);return verify(value);}
     const task=(async()=>{
-      const [headerReceipt,protocolReceipt]=await Promise.all([
-        this.requestObserved(`/chains/main/blocks/${hash}/header`,signal,undefined,source),
+      // A completed literal head RPC already delivered this immutable header.
+      // Stream messages and caller-supplied headers never populate this cache.
+      const received=expected?.chainId?this.receivedHeaders.get(JSON.stringify([source.network,source.baseUrl,hash,expected.chainId])):undefined;
+      const [header,protocolReceipt]=await Promise.all([
+        received?Promise.resolve(received):this.requestObserved(`/chains/main/blocks/${hash}/header`,signal,undefined,source).then(receipt=>asBlockHeader(receipt.value)),
         this.requestObserved(`/chains/main/blocks/${hash}/protocols`,signal,undefined,source),
       ]);
-      const header=asBlockHeader(headerReceipt.value),raw=protocolReceipt.value;
+      const raw=protocolReceipt.value;
       if(header.hash!==hash || !header.chainId || !object(raw) || typeof raw.protocol!=="string" || raw.protocol.length===0 || typeof raw.next_protocol!=="string" || raw.next_protocol.length===0)throw new Error("Unproven observer context identity");
       this.assertCollecting(generation,signal);
       const value:RpcContext=Object.freeze({header:Object.freeze({...header,fitness:Object.freeze([...header.fitness])}),source:Object.freeze({...source}),chainId:header.chainId,protocolHash:raw.protocol,nextProtocolHash:raw.next_protocol,evidence:Object.freeze({...protocolReceipt.evidence,requestedHeadHash:hash,chainId:header.chainId,protocolHash:raw.protocol,nextProtocolHash:raw.next_protocol})});
@@ -392,9 +396,17 @@ export class NetworkData {
   }
 
   async head(signal: AbortSignal,exactSource?:RpcSource): Promise<BlockHeader> {
+    const generation=this.collectionGeneration;
     const observed = await this.requestObserved("/chains/main/blocks/head/header",signal,undefined,exactSource);
     const header = asBlockHeader(observed.value);
-    return {...header,evidence:Object.freeze({...observed.evidence,observedHeadHash:header.hash,observedBlockHash:header.hash,predecessor:header.predecessor,...(header.proto === undefined ? {} : {protocolLevel:header.proto})})};
+    this.assertCollecting(generation,signal);
+    const received=Object.freeze({...header,fitness:Object.freeze([...header.fitness]),evidence:Object.freeze({...observed.evidence,observedHeadHash:header.hash,observedBlockHash:header.hash,predecessor:header.predecessor,...(header.proto === undefined ? {} : {protocolLevel:header.proto})})});
+    if(header.chainId){
+      const source=observed.evidence.source;
+      this.receivedHeaders.set(JSON.stringify([source.network,source.baseUrl,header.hash,header.chainId]),received);
+      while(this.receivedHeaders.size>12)this.receivedHeaders.delete(this.receivedHeaders.keys().next().value!);
+    }
+    return received;
   }
 
   async pending(signal:AbortSignal,head?:BlockHeader):Promise<readonly MonitoredOperation[]>;
