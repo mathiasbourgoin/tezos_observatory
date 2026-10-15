@@ -138,15 +138,19 @@ export const capturedCandidate=(panel:Locator,hash:string):Locator=>panel.locato
 
 /** Pin the retained instance, then inspect its exact captured block without adding votes. */
 export async function inspectRetainedCandidate(panel:Locator,hash:string):Promise<void>{
- const candidate=capturedCandidate(panel,hash);
- if(await candidate.count()===0){
-  const observed=headers.get(panel.page())?.get(hash);
-  if(!observed)throw new Error(`Fixture header unavailable for retained candidate ${hash}`);
-  await inspectRetainedPayload(panel,observed.payload_hash,{level:observed.level,round:Number.parseInt(observed.fitness[4]??'0',16)});
- }
+ const observed=headers.get(panel.page())?.get(hash);
+ if(!observed)throw new Error(`Fixture header unavailable for retained candidate ${hash}`);
+ // Follow updates on the next render; old pinned controls can still exist here.
+ // Select history explicitly before relying on its captured-only hash controls.
+ await inspectRetainedPayload(panel,observed.payload_hash,{level:observed.level,round:Number.parseInt(observed.fitness[4]??'0',16)});
+ await inspectCapturedCandidate(panel,hash);
+}
+
+/** Inspect an already pinned capture, including frozen evidence outside history. */
+export async function inspectCapturedCandidate(panel:Locator,hash:string):Promise<void>{
  await openDetails(panel.getByText('Selected identity & phase provenance',{exact:true}).locator('..'));
  await openDetails(panel.locator('.captured-candidates'));
- await candidate.click();
+ await capturedCandidate(panel,hash).click();
 }
 
 /** Operate the production disclosure and native radio, preserving its keyboard close path. */
