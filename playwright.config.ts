@@ -9,5 +9,5 @@ export default defineConfig({
     {name: "chromium", use: {...devices["Desktop Chrome"]}},
     {name: "firefox", use: {...devices["Desktop Firefox"]}},
   ],
-  webServer: {command: `npm run dev -- --port ${port} --strictPort`, port},
+  webServer: {command: `npm run build && npm exec vite preview -- --host 127.0.0.1 --port ${port} --strictPort`, port},
 });

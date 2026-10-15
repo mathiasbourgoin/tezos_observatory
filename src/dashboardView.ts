@@ -131,6 +131,20 @@ function recentConsensus() {
   }};
 }
 
+let choiceSequence=0;
+/** Native disclosure + radios: browser/OS popup colors are not author-controllable. */
+function nativeChoice(name:string,initial:readonly (readonly [string,string])[]=[]) {
+ const root=el('details','native-choice'),summary=el('summary'),group=el('fieldset','choice-options'),legend=el('legend','sr-only',name);
+ summary.setAttribute('aria-label',name);group.tabIndex=-1;group.append(legend);root.append(summary,group);const groupName=`observatory-choice-${++choiceSequence}`;
+ const entries=new Map<string,{label:HTMLLabelElement;input:HTMLInputElement;text:HTMLSpanElement}>();let selected='';
+ const sync=()=>{for(const [value,entry] of entries)entry.input.checked=value===selected;set(summary,entries.get(selected)?.text.textContent??'Unavailable');};
+ const update=(items:readonly (readonly [string,string])[])=>{const wanted=new Set(items.map(([value])=>value));for(const [value,entry] of entries)if(!wanted.has(value)){entry.label.remove();entries.delete(value);}for(const [value,text] of items){let entry=entries.get(value);if(!entry){const label=el('label','choice-option'),input=el('input'),span=el('span');input.type='radio';input.name=groupName;input.value=value;label.dataset.value=value;label.append(input,span);entry={label,input,text:span};entries.set(value,entry);group.append(label);input.addEventListener('change',()=>{if(input.checked){selected=value;sync();}});}set(entry.text,text);}if(!entries.has(selected))selected=items[0]?.[0]??'';sync();};
+ root.addEventListener('keydown',event=>{if(event.key==='Escape'&&root.open){root.open=false;summary.focus();event.stopPropagation();}});
+ document.addEventListener('click',event=>{if(event.target instanceof Node&&!root.contains(event.target))root.open=false;});
+ update(initial);
+ return {root,group,update,get value(){return selected;},set value(value:string){selected=value;sync();},set disabled(value:boolean){group.disabled=value;root.inert=value;summary.setAttribute('aria-disabled',String(value));if(value)root.open=false;},onChange(callback:()=>void){group.addEventListener('change',callback);}};
+}
+
 function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
   const full=phase==='Committee',title = full?'Committee evidence':phase === 'Pre' ? 'Missing preattestations' : 'Missing attestations';
   const {details, summary, body} = disclosure(title, `consensus-v2:${network}:${phase}`);
@@ -142,13 +156,13 @@ function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
   const tbody = el('tbody'); table.append(head, tbody); viewport.append(table); const empty = el('p', 'empty-state', 'Rights or observations unavailable.'); body.append(intro, viewport, empty);
   const rows = new Map<string, HTMLTableRowElement>();
   const search=el('input');search.type='search';search.placeholder='Find participant by alias or address';search.setAttribute('aria-label','Search committee alias or address');
-  const sort=el('select');sort.setAttribute('aria-label','Committee sort');for(const [value,label] of [['power','Power'],['address','Address'],['alias','Alias']]){const option=el('option','',label);option.value=value??'';sort.append(option);}
+  const sort=nativeChoice('Committee sort',[['power','Power'],['address','Address'],['alias','Alias']]);
   const resort=el('button','','Resort committee');resort.type='button';
-  const receipt=el('select');receipt.setAttribute('aria-label','Committee phase receipt filter');for(const [value,label] of [['all','All phase receipts'],['pre:received','Preattestation received'],['att:received','Attestation received'],['pre:absent','Preattestation snapshot absent'],['att:absent','Attestation snapshot absent'],['pre:unknown','Preattestation partial / unavailable'],['att:unknown','Attestation partial / unavailable']]){const option=el('option','',label);option.value=value??'';receipt.append(option);}
+  const receipt=nativeChoice('Committee phase receipt filter',[['all','All phase receipts'],['pre:received','Preattestation received'],['att:received','Attestation received'],['pre:absent','Preattestation snapshot absent'],['att:absent','Attestation snapshot absent'],['pre:unknown','Preattestation partial / unavailable'],['att:unknown','Attestation partial / unavailable']]);
   const unknown=el('p','committee-unknown');
-  if(full){body.insertBefore(search,viewport);body.insertBefore(sort,viewport);body.insertBefore(resort,viewport);body.insertBefore(receipt,viewport);body.append(unknown);}
+  if(full){body.insertBefore(search,viewport);body.insertBefore(sort.root,viewport);body.insertBefore(resort,viewport);body.insertBefore(receipt.root,viewport);body.append(unknown);}
   let current:DelegateView[]|undefined,currentTotal:number|undefined,unknownFacts:readonly string[]=[],order:string[]=[],reset=true;
-  const explicit=()=>{reset=true;render();};search.addEventListener('input',explicit);sort.addEventListener('change',explicit);resort.addEventListener('click',explicit);receipt.addEventListener('change',explicit);
+  const explicit=()=>{reset=true;render();};search.addEventListener('input',explicit);sort.onChange(explicit);resort.addEventListener('click',explicit);receipt.onChange(explicit);
   tbody.addEventListener('focusout',()=>queueMicrotask(()=>render()));
   function render() {
     const delegates=current,total=currentTotal;
@@ -216,17 +230,16 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
   let paused = false;
   pause.addEventListener('click', () => {paused = !paused; set(pause, paused ? 'Resume' : 'Pause'); pause.setAttribute('aria-pressed', String(paused)); options.onPauseChange?.(paused);});
   reconnect.addEventListener('click', () => options.onReconnect?.()); controls.append(live, pause, reconnect); header.append(brand, controls);
-  const appearance = el('label', 'appearance');
+  const appearance = el('div', 'appearance');
   appearance.append(el('span', 'eyebrow', 'Appearance'));
-  const theme = el('select'); theme.setAttribute('aria-label', 'Appearance');
-  for (const value of ['system', 'light', 'dark']) {const option = el('option', '', value[0]!.toUpperCase() + value.slice(1)); option.value = value; theme.append(option);}
+  const theme = nativeChoice('Appearance',[['system','System'],['light','Light'],['dark','Dark']]);
   const themeNotice = el('span', 'theme-notice', 'Theme saved for this session only'); themeNotice.hidden = true;
   const systemTheme = matchMedia('(prefers-color-scheme: dark)');
   try {const stored = localStorage.getItem('observatory:theme'); theme.value = stored === 'light' || stored === 'dark' ? stored : 'system';} catch {theme.value = 'system';}
   const applyTheme = () => {document.documentElement.dataset.theme = theme.value === 'system' ? systemTheme.matches ? 'dark' : 'light' : theme.value;};
-  theme.addEventListener('change', () => {applyTheme(); try {localStorage.setItem('observatory:theme', theme.value); themeNotice.hidden = true;} catch {themeNotice.hidden = false; set(themeNotice, 'Theme saved for this session only');}});
+  theme.onChange(() => {applyTheme(); try {localStorage.setItem('observatory:theme', theme.value); themeNotice.hidden = true;} catch {themeNotice.hidden = false; set(themeNotice, 'Theme saved for this session only');}});
   systemTheme.addEventListener('change', () => {if (theme.value === 'system') applyTheme();}); applyTheme();
-  appearance.append(theme, themeNotice); controls.append(appearance);
+  appearance.append(theme.root, themeNotice); controls.append(appearance);
   const tabs = el('nav', 'network-tabs'); tabs.setAttribute('aria-label', 'Network');
   const grid = el('div', 'network-grid');
   const announcements = el('div', 'sr-only'); announcements.setAttribute('aria-live', 'polite'); announcements.setAttribute('role', 'status');
@@ -279,7 +292,8 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const contextFields=new Map<string,HTMLElement>();
     for(const label of ['Observer','Chain','Context head','Execution protocol','Received']){selectedContext.append(el('dt','eyebrow',label));const value=el('dd');selectedContext.append(value);contextFields.set(label,value);}
     navigatorContext.append(el('h4','','Selected observation context'),selectedContext,clockProof.details);
-    opportunities.append(timingHeader,junction,navigatorStatus,navigatorContext);
+    opportunities.append(timingHeader,junction,navigatorStatus);
+    const contextProof=disclosure('Selected observation context',`observatory:${network}:navigator-context`);contextProof.body.append(navigatorContext);
     const missing = el('section', 'missing-section'); missing.append(el('h3', '', 'Expected bakers not observed'));
     const recent = recentConsensus();
     const missingPre = delegateList(network, 'Pre'), missingAtt = delegateList(network, 'Att'); missing.append(missingPre.root, missingAtt.root);
@@ -288,21 +302,19 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const metadata = el('dl', 'evidence-meta');
     const meta = new Map<string, HTMLElement>();
     for (const label of ['Primary source', 'Applied head', 'Block hash', 'Last successful head', 'Last operation', 'Block age', 'Snapshot age']) {metadata.append(el('dt', '', label)); const value = el('dd', '', 'Unavailable'); metadata.append(value); meta.set(label, value);}
-    const sessionControls=el("div","session-controls"),sessionNote=el("p","table-note"),sessionSelect=el("select");sessionSelect.setAttribute("aria-label","Retained session instance");
+    const sessionControls=el("div","session-controls"),sessionNote=el("p","table-note"),sessionSelect=nativeChoice("Retained session instance");
     const previous=el("button","control-button","Previous");previous.setAttribute("aria-label","Previous observation");previous.type="button";let previousIdentity:string|undefined;previous.addEventListener("click",()=>{if(previousIdentity)options.onSelect?.(network,previousIdentity);});
     const pinSelected=el("button","control-button","Pin"),latest=el("button","control-button","Latest"),follow=el("button","control-button","Follow");pinSelected.setAttribute("aria-label","Pin selected instance");follow.setAttribute("aria-label","Follow live");for(const button of [pinSelected,latest,follow])button.type="button";
-    pinSelected.addEventListener("click",()=>options.onPin?.(network));latest.addEventListener("click",()=>options.onLatest?.(network));follow.addEventListener("click",()=>options.onFollow?.(network));sessionSelect.addEventListener("change",()=>{if(sessionSelect.value)options.onSelect?.(network,sessionSelect.value);});const sessionMode=el('p','session-mode');const retention=el('details','retention-detail');retention.append(el('summary','','Session limits'),sessionNote);sessionControls.append(sessionMode,previous,pinSelected,latest,follow,retention);
-    const sessionRail=el("aside","session-rail");sessionRail.setAttribute("aria-label","Session history");sessionRail.append(el("h3","","Session history"),sessionSelect,recent.root);
-    const comparisonSection=el('section','source-comparison'),comparisonProvider=el('select'),compare=el('button','control-button','Compare selected observation'),comparisonResult=el('div','comparison-result table-note');
-    comparisonProvider.setAttribute('aria-label','Comparison provider');compare.type='button';compare.addEventListener('click',()=>options.onCompare?.(network,comparisonProvider.value));comparisonSection.append(el('h4','','Independent source comparison'),comparisonProvider,compare,comparisonResult);evidence.body.append(comparisonSection);
-    const comparisonOptions=new Map<string,HTMLOptionElement>();
-    const sessionOptions=new Map<string,HTMLOptionElement>();
+    pinSelected.addEventListener("click",()=>options.onPin?.(network));latest.addEventListener("click",()=>options.onLatest?.(network));follow.addEventListener("click",()=>options.onFollow?.(network));sessionSelect.onChange(()=>{if(sessionSelect.value)options.onSelect?.(network,sessionSelect.value);});const sessionMode=el('p','session-mode');const retention=el('details','retention-detail');retention.append(el('summary','','Session limits'),sessionNote);sessionControls.append(sessionMode,previous,pinSelected,latest,follow,retention);
+    const sessionRail=el("aside","session-rail");sessionRail.setAttribute("aria-label","Session history");sessionRail.append(el("h3","","Session history"),sessionSelect.root,recent.root);
+    const comparisonSection=el('section','source-comparison'),comparisonProvider=nativeChoice('Comparison provider'),compare=el('button','control-button','Compare selected observation'),comparisonResult=el('div','comparison-result table-note');
+    compare.type='button';compare.addEventListener('click',()=>options.onCompare?.(network,comparisonProvider.value));comparisonSection.append(el('h4','','Independent source comparison'),comparisonProvider.root,compare,comparisonResult);evidence.body.append(comparisonSection);
     const retainedList=el('ol','retained-history');retainedList.setAttribute('aria-label','Retained observations in receipt order');
     sessionRail.insertBefore(retainedList,recent.root);const historyButtons=new Map<string,HTMLButtonElement>();
     const authorityEvidence=el('p','authority-evidence table-note');
     const sourceRows = el('div', 'source-rows'), history = el('ol', 'event-history'); evidence.body.append(metadata, authorityEvidence, sourceRows, el('h4', '', 'Recent network events'), history);
     const observer = el('section', 'observer-summary'); observer.append(panelHeader, connection, headline, appliedContext);
-    const sourcePane = el('aside', 'source-pane'); sourcePane.append(el('h3', '', 'Sources & limits'),sourceRows,comparisonSection,evidence.details);evidence.body.prepend(authorityEvidence);
+    const sourcePane = el('aside', 'source-pane'); sourcePane.append(el('h3', '', 'Sources & limits'),contextProof.details,sourceRows,comparisonSection,evidence.details);evidence.body.prepend(authorityEvidence);
     inspector.append(selectedHeader, selectedKind,selectedPayload,proposalContext,consensus,notice,missing);
     const workspace=el('div','inspection-workspace'); workspace.append(sessionRail,inspector,committee.root,sourcePane);
     panel.append(observer,sessionControls,opportunities,workspace); grid.append(panel);
@@ -373,7 +385,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       if (model.observedProposal) proposalContext.title = `Last observed proposal: level ${model.observedProposal.level}, round ${model.observedProposal.round}${model.observedProposal.at === undefined ? '' : ` at ${clock(model.observedProposal.at)}`}`;
       else proposalContext.removeAttribute('title');
       const session=model.session;sessionControls.hidden=!session;
-      if(session){previousIdentity=session.previous;previous.disabled=!previousIdentity;set(sessionMode,`${session.mode==='follow'?'Following live':session.frozen?'Pinned · frozen outside history':'Pinned · retained observation'}${session.newer?` · ${session.newerPartial?'At least ':''}${session.newer} newer`:''}`);set(sessionNote,`${session.mode==="follow"?"Follow live":session.frozen?"Pinned frozen snapshot outside retained history":"Pinned retained session instance"} · ${session.instances.length} / 150 session instances · ${session.accepted} / 100 active candidates · ${session.unresolved} / 100 unresolved identities · ${session.raw} / 10000 raw operations · ${session.newerPartial?"At least ":""}${session.newer} newer items${session.newerPartial?"; first-arrival history partial":""} · Browser-session history is nonarchival and resets on reload`);pinSelected.disabled=!session.canPin;follow.setAttribute("aria-pressed",String(session.mode==="follow"));latest.setAttribute("aria-pressed","false");const wanted=new Set(session.instances.map(instance=>instance.identity));for(const instance of session.instances){let option=sessionOptions.get(instance.identity);if(!option){option=el("option");option.value=instance.identity;sessionOptions.set(instance.identity,option);sessionSelect.append(option);}set(option,instance.label);}for(const [key,option] of sessionOptions)if(!wanted.has(key)){option.remove();sessionOptions.delete(key);}sessionSelect.value=session.selected??"";}
+      if(session){previousIdentity=session.previous;previous.disabled=!previousIdentity;set(sessionMode,`${session.mode==='follow'?'Following live':session.frozen?'Pinned · frozen outside history':'Pinned · retained observation'}${session.newer?` · ${session.newerPartial?'At least ':''}${session.newer} newer`:''}`);set(sessionNote,`${session.mode==="follow"?"Follow live":session.frozen?"Pinned frozen snapshot outside retained history":"Pinned retained session instance"} · ${session.instances.length} / 150 session instances · ${session.accepted} / 100 active candidates · ${session.unresolved} / 100 unresolved identities · ${session.raw} / 10000 raw operations · ${session.newerPartial?"At least ":""}${session.newer} newer items${session.newerPartial?"; first-arrival history partial":""} · Browser-session history is nonarchival and resets on reload`);pinSelected.disabled=!session.canPin;follow.setAttribute("aria-pressed",String(session.mode==="follow"));latest.setAttribute("aria-pressed","false");sessionSelect.update(session.instances.map(instance=>[instance.identity,instance.label] as const));sessionSelect.value=session.selected??"";}
       if(session){
         const wanted=new Set(session.instances.map(instance=>instance.identity));
         for(const [key,button] of historyButtons)if(!wanted.has(key)){button.parentElement?.remove();historyButtons.delete(key);}
@@ -387,7 +399,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
         }
       }
       const comparison=model.comparison;comparisonSection.hidden=!comparison;
-      if(comparison){const wanted=new Set(comparison.providers.map(provider=>provider.url));for(const [url,option] of comparisonOptions)if(!wanted.has(url)){option.remove();comparisonOptions.delete(url);}for(const provider of comparison.providers)if(!comparisonOptions.has(provider.url)){const option=el('option','',`${provider.name} · ${provider.url}`);option.value=provider.url;comparisonOptions.set(provider.url,option);comparisonProvider.append(option);}compare.disabled=!comparison.enabled||comparison.running||!comparison.providers.length;comparisonProvider.disabled=comparison.running;const result=comparison.result?.();
+      if(comparison){comparisonProvider.update(comparison.providers.map(provider=>[provider.url,`${provider.name} · ${provider.url}`] as const));compare.disabled=!comparison.enabled||comparison.running||!comparison.providers.length;comparisonProvider.disabled=comparison.running;const result=comparison.result?.();
         if(!result)set(comparisonResult,comparison.running?'Comparison in progress; LIVE authority remains separate':'Explicit one-shot comparison · at most 3 reads · 8 seconds per read including body · no polling');
         else{const raw=result.rawOperations.map(operation=>`${operation.hash} · source ${operation.evidence?.source.baseUrl??'unknown'} · requested head ${operation.evidence?.requestedHeadHash??'unknown'} · observed head ${operation.evidence?.observedHeadHash??'unknown'} · ${operation.contents.map(content=>`${content.kind} ${content.level}/${content.round}/${content.block_payload_hash??'unknown'} slot ${content.slot}`).join('; ')}`).join(' | ');
           const power=result.powers===undefined?'Power unknown: compatible cached committee proof unavailable':result.powers.length===0?'Phase power unknown: no captured compatible positive votes; empty pending does not certify zero':result.powers.map(group=>`${group.round}/${group.payload} · Pre ${group.pre===undefined?'unknown':`${group.pre}/${group.total}`} · Att ${group.att===undefined?'unknown':`${group.att}/${group.total}`} · threshold ${group.threshold}`).join('; ');

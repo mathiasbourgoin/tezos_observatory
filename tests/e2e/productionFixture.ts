@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {expect,type Page,type Locator} from '@playwright/test';
 type Channel = 'mainnet-head' | 'mainnet-operations' | 'shadownet-head' | 'shadownet-operations' | 'mainnet-proposals' | 'shadownet-proposals';
 declare global {
@@ -91,4 +92,16 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
   if(initiallyHidden||holdInitialHeads)return;
   await expect(page.locator('.mainnet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
   await expect(page.locator('.shadownet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
+}
+
+/** Operate the production disclosure and native radio, preserving its keyboard close path. */
+export async function choose(control:Locator,value:string):Promise<void>{
+ const root=control.locator('..');if(await root.getAttribute('open')===null)await control.click();
+ const radio=root.locator(`input[type=radio][value=${JSON.stringify(value)}]`);await radio.check();await radio.press('Escape');
+}
+
+export function inspectionModule():string {
+ const manifest=JSON.parse(readFileSync('dist/.vite/manifest.json','utf8')) as Record<string,{file?:string;isEntry?:boolean}>;
+ const entry=manifest['inspection.ts'];if(!entry?.isEntry||!entry.file?.startsWith('assets/'))throw new Error('Production inspection entry missing from actual Vite manifest');
+ return `/${entry.file}`;
 }

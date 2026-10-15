@@ -57,7 +57,7 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .navigator-junction>.baker-rows{display:contents}.navigator-previous{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:5px;padding:12px 0;min-width:0}
 .navigator-current{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:5px;border:1px solid var(--ink);background:var(--selected);padding:12px;min-width:0}
 .navigator-junction .baker-opportunity[data-branch=same-level]{grid-column:2;grid-row:1}.navigator-junction .baker-opportunity[data-branch=next-level]{grid-column:3;grid-row:2;align-self:start}
-.branch-target{font-size:14px!important;color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}.branch-critical{font-size:12px;line-height:1.5}.branch-proof{font-size:12px}.branch-proof summary{min-height:24px;padding:4px 0}.branch-proof .opportunity-detail{display:block;font-size:12px;line-height:1.6;margin-top:8px}.navigator-status{margin-top:8px}.participant-context summary{min-height:28px;padding:3px 0}.participant-context p{font-size:12px}
+.branch-target{font-size:14px!important;color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}.branch-critical{font-size:14px;line-height:1.5}.branch-proof{font-size:12px}.branch-proof summary{min-height:24px;padding:4px 0}.branch-proof .opportunity-detail{display:block;font-size:12px;line-height:1.6;margin-top:8px}.navigator-status{margin-top:8px}.participant-context summary{min-height:28px;padding:3px 0}.participant-context p{font-size:12px}
 .delegate-scroll,.candidate-controls,.inspection-workspace{overflow-anchor:none}
 @media(max-width:700px){.navigator-junction{grid-template-columns:minmax(0,.85fr) minmax(0,1fr) minmax(0,1fr);gap:12px 8px;margin:12px 0}.navigator-current{padding:8px 6px}.navigator-previous{padding:8px 0}.navigator-junction .eyebrow{font-size:12px;letter-spacing:0;text-transform:none}.navigator-junction .address-text{font-family:inherit;overflow-wrap:anywhere}.navigator-junction .baker-opportunity{padding:8px 6px}.navigator-current .address-copy{padding:4px;min-height:30px}.committee-evidence .delegate-table{min-width:0}.committee-evidence .delegate-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.committee-evidence .delegate-table tbody{display:block}.committee-evidence .delegate-table tr{display:grid;grid-template-columns:1fr 1fr;padding:10px 0;border-bottom:1px solid var(--line)}.committee-evidence .delegate-table td{display:block;border:0;width:auto;padding:4px 6px}.committee-evidence .delegate-table td:first-child{font-weight:650}.committee-evidence .delegate-table td:nth-child(3)::before{content:'Power ';color:var(--muted)}.committee-evidence .delegate-table td:nth-child(4)::before{content:'Share ';color:var(--muted)}.committee-evidence .delegate-table td:nth-child(5)::before{content:'Eligibility ';color:var(--muted)}.committee-evidence .delegate-table td:nth-child(6)::before{content:'Pre: ';font-weight:650}.committee-evidence .delegate-table td:nth-child(7)::before{content:'Att: ';font-weight:650}.committee-evidence .delegate-table td:last-child{grid-column:1/-1}.committee-evidence .delegate-scroll{max-height:560px}}
 
@@ -132,3 +132,44 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .selected-kind,.quorum-caption,.gauge-counts{font-size:14px}
 .delegate-table{font-size:14px}.committee-evidence select{font-size:14px}
 @media(max-width:700px){.delegate-table{font-size:14px}.candidate-controls button{font-size:14px}}
+
+/* Radios keep the selected surface within the measured application palette. */
+.native-choice{position:relative;display:inline-block;min-width:120px;vertical-align:middle;margin:0 8px 8px 0}
+.native-choice>summary{min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:3px;background:var(--surface);font-size:14px;overflow-wrap:anywhere}
+.choice-options{position:absolute;z-index:20;top:100%;left:0;min-width:100%;width:max-content;max-width:min(440px,calc(100vw - 32px));max-height:320px;overflow:auto;margin:4px 0 0;padding:6px;border:1px solid var(--line);background:var(--surface);box-shadow:0 4px 12px #0002}
+.choice-option{display:flex;align-items:center;gap:10px;min-height:44px;padding:7px 10px;cursor:pointer;font-size:14px;overflow-wrap:anywhere}
+.choice-option input[type=radio]{appearance:none;flex:0 0 18px;width:18px;height:18px;min-height:18px;padding:0;margin:0;border:2px solid var(--ink);border-radius:50%;background:var(--surface)}
+.choice-option input:checked{background:var(--ink);box-shadow:inset 0 0 0 3px var(--surface)}
+.choice-option:has(input:checked){background:var(--selected);font-weight:650}
+.choice-option:hover{background:var(--selected)}
+.appearance .native-choice{min-width:96px;margin:0}.appearance .choice-options{left:auto;right:0}
+.session-rail>.native-choice{width:100%;margin:12px 0}.session-rail .choice-options{width:100%}
+@media(max-width:700px){.native-choice{max-width:100%}.choice-options{position:relative;top:auto;width:100%;max-width:100%;box-shadow:none}.appearance .choice-options{position:absolute;width:160px;max-width:calc(100vw - 24px)}.appearance .native-choice{max-width:none}}
+
+/* Put participation beside the observed path, with the committee alongside on wide workstations. */
+.opportunities{display:block}.navigator-context{border:0;padding:0}.navigator-context>h4{display:none}
+.source-pane .navigator-context-fields{display:grid;margin:8px 0}.source-pane .navigator-context{display:block}
+@media(min-width:1101px){
+.network-panel{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px 28px;align-items:start}
+.network-panel>.observer-summary,.network-panel>.session-controls{grid-column:1/-1;margin:0}
+.network-panel>.opportunities{grid-column:1;grid-row:3;margin:0;padding:12px 0}
+.inspection-workspace{display:contents}.selected-inspector{grid-column:2;grid-row:3/5;border-left:1px solid var(--line);padding-left:24px}
+.inspection-workspace>.session-rail{grid-column:1;grid-row:4;border-right:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 18px}
+.session-rail>h3{grid-column:1/-1}.session-rail>.native-choice{grid-column:1;grid-row:2;margin:0}.session-rail>.retained-history{grid-column:1;grid-row:3;max-height:260px;margin:0}.session-rail>.recent-consensus{grid-column:2;grid-row:2/4}
+.inspection-workspace>.committee-evidence{grid-column:1/-1;grid-row:5;padding-top:16px}
+.inspection-workspace>.source-pane{grid-column:1/-1;grid-row:6;display:grid;grid-template-columns:1fr 1fr;gap:12px 24px}
+.source-pane>h3{grid-column:1/-1}.source-pane>.source-comparison{grid-column:2;grid-row:2/5}.source-pane>.source-rows{grid-column:1}
+.selected-inspector .gauges{display:flex;flex-direction:column;gap:16px}.selected-inspector .missing-section{display:block}
+.navigator-junction{grid-template-columns:minmax(0,.65fr) minmax(0,1fr) minmax(0,1fr);gap:12px 18px;--branch-gap-x:18px;--branch-gap-y:12px}
+}
+@media(min-width:2600px){
+.network-panel{grid-template-columns:minmax(210px,.65fr) minmax(600px,1.7fr) minmax(440px,1.25fr) minmax(860px,2.5fr);gap:20px 28px}
+.network-panel>.observer-summary,.network-panel>.session-controls{grid-column:1/-1}
+.network-panel>.opportunities{grid-column:2;grid-row:3}
+.inspection-workspace>.selected-inspector{grid-column:3;grid-row:3;border-left:1px solid var(--line);padding-left:24px}
+.inspection-workspace>.committee-evidence{grid-column:4;grid-row:3;border-top:0;padding-top:0}
+.inspection-workspace>.session-rail{grid-column:1;grid-row:3;display:block;border-right:1px solid var(--line);padding-right:18px}
+.session-rail>.native-choice{margin:12px 0}.session-rail>.retained-history{max-height:480px;margin:12px 0}
+.inspection-workspace>.source-pane{grid-column:2/-1;grid-row:4}
+.committee-evidence .delegate-table{min-width:0}.committee-evidence .delegate-scroll{max-height:650px}
+}
