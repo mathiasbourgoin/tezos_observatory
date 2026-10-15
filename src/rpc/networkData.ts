@@ -52,12 +52,12 @@ export const sources: Record<NetworkName, readonly RpcSource[]> = {
 // Keep attestation-rights and constants lookups on their existing providers.
 export const streamSources: Record<NetworkName, readonly RpcSource[]> = {
   mainnet: [
+    ...sources.mainnet,
     {
       network: "mainnet",
       name: "TzKT RPC",
       baseUrl: "https://rpc.tzkt.io/mainnet",
     },
-    ...sources.mainnet,
   ],
   shadownet: sources.shadownet,
 };
@@ -159,6 +159,7 @@ export class NetworkData {
   requests = 0;
   source: RpcSource;
   private readonly constantCache = new Map<string,Constants>();
+  private readonly constantsPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<Constants>}>();
   private readonly contextCache = new Map<string,RpcContext>();
   private readonly contextPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<RpcContext>}>();
   private auxiliaryController = new AbortController();
@@ -182,7 +183,7 @@ export class NetworkData {
   pause():void {
     this.collecting=false;this.collectionGeneration++;
     this.auxiliaryController.abort();
-    this.contextPending.clear();this.committeesPending.clear();this.aliasesLoading=false;
+    this.contextPending.clear();this.committeesPending.clear();this.constantsPending.clear();this.aliasesLoading=false;
   }
 
   resume():void {
@@ -239,23 +240,38 @@ export class NetworkData {
 
   private async targetRequest(path:string,context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<{value:unknown;evidence:ObservationEvidence}> {
     const receipt=await this.requestObserved(path,signal,context.anchor.header,exactSource);
-    const source=receipt.evidence.source;
+    return {value:receipt.value,evidence:await this.helperEvidence(receipt.evidence,context,signal)};
+  }
+
+  /** Immutable receipts retain their source/time; observer authority is proven anew. */
+  private async helperEvidence(evidence:ObservationEvidence,context:TargetContext,signal:AbortSignal):Promise<ObservationEvidence> {
+    const source=evidence.source;
     const observer=await this.context(context.observer.header.hash,source,signal,context.observer.header);
     const anchor=await this.context(context.anchor.header.hash,source,signal,context.anchor.header);
     if(observer.chainId!==context.observer.chainId || observer.protocolHash!==context.observer.protocolHash || observer.nextProtocolHash!==context.observer.nextProtocolHash || anchor.chainId!==context.anchor.chainId || anchor.nextProtocolHash!==context.protocolHash)throw new Error("Helper response has incompatible source context");
-    return {value:receipt.value,evidence:Object.freeze({...receipt.evidence,chainId:observer.chainId,protocolHash:context.protocolHash,targetLevel:context.level,contextHeadHash:observer.header.hash,predecessor:observer.header.predecessor})};
+    return Object.freeze({...evidence,chainId:observer.chainId,protocolHash:context.protocolHash,targetLevel:context.level,contextHeadHash:observer.header.hash,predecessor:observer.header.predecessor});
+  }
+
+  private helperKey(context:TargetContext,path:string,source:RpcSource):string {
+    return JSON.stringify([source.baseUrl,source.network,context.anchor.chainId,context.anchor.header.hash,context.protocolHash,path]);
   }
 
   private async committee(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<readonly DelegateRight[]> {
     const generation=this.collectionGeneration;
     this.assertCollecting(generation,signal);
-    const key=exactSource?JSON.stringify([context.key,exactSource.baseUrl]):context.key,level=context.level;
-    const cached=this.committees.get(key);if(cached)return cached;
+    const level=context.level,path=`/chains/main/blocks/${context.anchor.header.hash}/helpers/attestation_rights?level=${level}`;
+    const key=this.helperKey(context,path,exactSource??this.source);
+    const cached=this.committees.get(key);
+    const bind=async(value:readonly DelegateRight[]):Promise<readonly DelegateRight[]>=>{
+      const evidence=value[0]?.evidence;if(!evidence)throw new Error("Cached rights lack source receipt");
+      const rebound=await this.helperEvidence(evidence,context,signal);
+      this.assertCollecting(generation,signal);return Object.freeze(value.map(right=>Object.freeze({...right,context,evidence:rebound})));
+    };
+    if(cached)return bind(cached);
     const existing=this.committeesPending.get(key);
-    if(existing?.signal===signal){const value=await existing.task;this.assertCollecting(generation,signal);return value;}
+    if(existing?.signal===signal)return bind(await existing.task);
     const task=(async()=>{
-      const generation=this.collectionGeneration;
-      const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/helpers/attestation_rights?level=${level}`,context,signal,exactSource);
+      const observed=await this.targetRequest(path,context,signal,exactSource);
       this.assertCollecting(generation,signal);
       const raw=observed.value;
       if(!Array.isArray(raw))throw new Error("Invalid rights response");
@@ -268,7 +284,7 @@ export class NetworkData {
         return Object.freeze({address:value.delegate,slot:numeric(value.first_slot),power:numeric(value.attesting_power),evidence:observed.evidence,context});
       });
       if (!committeeAuthority(values).usable) throw new Error("Invalid or contradictory committee");
-      this.committees.set(key,Object.freeze(values));
+      this.committees.set(this.helperKey(context,path,observed.evidence.source),Object.freeze(values));
       while(this.committees.size>12)this.committees.delete(this.committees.keys().next().value!);
       this.onChange?.();return values;
     })();
@@ -279,17 +295,31 @@ export class NetworkData {
   }
 
   private async protocolConstants(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<Constants> {
-    const key=exactSource?JSON.stringify([context.key,exactSource.baseUrl]):context.key;
-    const cached=this.constantCache.get(key);if(cached)return cached;
     const generation=this.collectionGeneration;
-    const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/context/constants`,context,signal,exactSource);
-    const raw=observed.value;
-    if(!object(raw))throw new Error("Invalid constants");
-    const value:Constants=Object.freeze({minimum:numeric(raw.minimal_block_delay),increment:numeric(raw.delay_increment_per_round),quorum:numeric(raw.consensus_threshold_size),committee:numeric(raw.consensus_committee_size),evidence:observed.evidence,context});
-    if(value.minimum<=0 || value.committee<=0 || value.quorum<=0 || value.quorum>value.committee)throw new Error("Invalid committee total/threshold");
-    this.assertCollecting(generation,signal);this.constantCache.set(key,value);
-    while(this.constantCache.size>12)this.constantCache.delete(this.constantCache.keys().next().value!);
-    return value;
+    this.assertCollecting(generation,signal);
+    const path=`/chains/main/blocks/${context.anchor.header.hash}/context/constants`;
+    const key=this.helperKey(context,path,exactSource??this.source);
+    const bind=async(value:Constants):Promise<Constants>=>{
+      if(!value.evidence)throw new Error("Cached constants lack source receipt");
+      const evidence=await this.helperEvidence(value.evidence,context,signal);
+      this.assertCollecting(generation,signal);return Object.freeze({...value,context,evidence});
+    };
+    const cached=this.constantCache.get(key);if(cached)return bind(cached);
+    const existing=this.constantsPending.get(key);
+    if(existing?.signal===signal)return bind(await existing.task);
+    const task=(async()=>{
+      const observed=await this.targetRequest(path,context,signal,exactSource);
+      const raw=observed.value;
+      if(!object(raw))throw new Error("Invalid constants");
+      const value:Constants=Object.freeze({minimum:numeric(raw.minimal_block_delay),increment:numeric(raw.delay_increment_per_round),quorum:numeric(raw.consensus_threshold_size),committee:numeric(raw.consensus_committee_size),evidence:observed.evidence,context});
+      if(value.minimum<=0 || value.committee<=0 || value.quorum<=0 || value.quorum>value.committee)throw new Error("Invalid committee total/threshold");
+      this.assertCollecting(generation,signal);this.constantCache.set(this.helperKey(context,path,observed.evidence.source),value);
+      while(this.constantCache.size>12)this.constantCache.delete(this.constantCache.keys().next().value!);
+      return value;
+    })();
+    const pending={signal,task};this.constantsPending.set(key,pending);
+    while(this.constantsPending.size>12)this.constantsPending.delete(this.constantsPending.keys().next().value!);
+    try{const value=await task;this.assertCollecting(generation,signal);return value;}finally{if(this.constantsPending.get(key)===pending)this.constantsPending.delete(key);}
   }
 
   /** One exact immutable-hash read; timeout includes a body even if a fetch shim ignores abort. */
