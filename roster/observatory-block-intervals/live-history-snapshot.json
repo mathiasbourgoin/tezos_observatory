@@ -59,7 +59,14 @@
           "coverageExceedsRequested": true
         }
       ],
-      "readCount": 5
+      "readCount": 5,
+      "readUrls": [
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T09%3A09%3A20.550Z&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-08T09%3A09%3A20.550Z&level.le=15381958&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-14T09%3A09%3A20.550Z&level.le=15381958&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T08%3A09%3A20.550Z&level.le=15381958&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&level=15381958"
+      ]
     },
     {
       "source": "https://api.shadownet.tzkt.io",
@@ -117,7 +124,14 @@
           "coverageExceedsRequested": true
         }
       ],
-      "readCount": 5
+      "readCount": 5,
+      "readUrls": [
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T09%3A09%3A20.705Z&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-08T09%3A09%3A20.705Z&level.le=5489655&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-14T09%3A09%3A20.705Z&level.le=5489655&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T08%3A09%3A20.705Z&level.le=5489655&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&level=5489655"
+      ]
     }
   ]
 }
