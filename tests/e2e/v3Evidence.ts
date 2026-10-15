@@ -3,19 +3,19 @@ import {expect,type Page,type TestInfo} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 
 export const bases=[{width:360,height:800},{width:390,height:844},{width:768,height:1024},{width:1440,height:900},{width:1920,height:1080},{width:2560,height:1440},{width:3440,height:1440},{width:5120,height:1440},{width:390,height:568}] as const;
-const revision=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-const sourceFiles=execFileSync('git',['ls-files','--cached','--others','--exclude-standard'],{encoding:'utf8'}).split('\n').filter(name=>/^(src\/|tests\/|scripts\/|package(?:-lock)?\.json$|(?:playwright(?:\.(?:v3|native))?|vite)\.config\.ts$|specs\/observatory-v3\.md$|roster\/observatory-v3\/check-scenarios\.json$)/.test(name)).sort();
-const sourceHashes=Object.fromEntries(sourceFiles.map(name=>[name,createHash('sha256').update(readFileSync(name)).digest('hex')]));
-const diffHash=createHash('sha256').update(JSON.stringify(sourceHashes)).digest('hex');
+const evidenceModule:unknown=await import(new URL('../../scripts/v3-evidence-contract.mjs',import.meta.url).href);
+if(typeof evidenceModule!=='object'||evidenceModule===null||!('sourceBindings' in evidenceModule)||typeof evidenceModule.sourceBindings!=='function')throw new Error('Missing production evidence binding');
+export const binding=evidenceModule.sourceBindings();
+const {revision,sourceCombined:diffHash}=binding;
 /** Actual production DOM and composed colors; native popup/tooltips remain separately named surfaces. */
-export async function captureMatrix(page:Page,info:TestInfo,state:string,interaction?:(page:Page)=>Promise<void>):Promise<void>{
- const directory=process.env['V3_EVIDENCE_DIR']??info.outputPath('matrix');await mkdir(directory,{recursive:true});await writeFile(join(directory,'source.json'),JSON.stringify({revision,combined:diffHash,files:sourceHashes},null,2));
- for(const viewport of bases)for(const theme of ['light','dark']){
-  await page.setViewportSize(viewport);await choose(page.getByLabel('Appearance'),theme);await page.evaluate(()=>scrollTo(0,0));if(interaction)await interaction(page);
+export async function captureMatrix(page:Page,info:TestInfo,state:string,interaction?:(page:Page)=>Promise<void>,surface?:{theme:string;preserveViewport?:boolean;name?:string}):Promise<void>{
+ const directory=process.env['V3_EVIDENCE_DIR']??info.outputPath('matrix');await mkdir(directory,{recursive:true});await writeFile(join(directory,'source.json'),JSON.stringify(binding,null,2));
+ const cells=surface?[{viewport:surface.preserveViewport?await page.evaluate(()=>({width:innerWidth,height:innerHeight})):page.viewportSize()??bases[3],theme:surface.theme}]:bases.flatMap(viewport=>['light','dark'].map(theme=>({viewport,theme})));
+ for(const {viewport,theme} of cells){
+  if(!surface){await page.setViewportSize(viewport);await choose(page.getByLabel('Appearance'),theme);}if(!surface)await page.evaluate(()=>scrollTo(0,0));if(interaction)await interaction(page);
   await expect.poll(()=>page.locator('.mainnet .navigator-junction').evaluate(node=>node.getAnimations().length)).toBe(0);
   const measurement=await page.evaluate(()=>{
    type Color=[number,number,number,number];
@@ -39,6 +39,8 @@ export async function captureMatrix(page:Page,info:TestInfo,state:string,interac
    for(const element of document.querySelectorAll<HTMLElement>('input,button,select,summary')){
     if(!visible(element,element.getBoundingClientRect()))continue;const style=getComputedStyle(element),bg=background(element);
     if(element instanceof HTMLInputElement&&element.placeholder){const placeholder=getComputedStyle(element,'::placeholder');texts.push({selector:'input::placeholder',text:element.placeholder,foreground:over(parse(placeholder.color),bg),background:bg,ratio:ratio(over(parse(placeholder.color),bg),bg),required:4.5,fontSize:parseFloat(style.fontSize),minimum:12});}
+    if(!element.matches(':disabled,[aria-disabled=true]')&&style.borderTopStyle!=='none'&&parseFloat(style.borderTopWidth)>0){const outside=background(element.parentElement??element);graphics.push({selector:`${element.tagName}.${element.className}`,surface:'control-boundary',ratio:ratio(over(parse(style.borderTopColor),outside),outside),required:3});}
+    if(element instanceof HTMLInputElement&&element.type==='radio'&&element.checked){const surface=background(element.closest('fieldset')??element);graphics.push({selector:'input[type=radio]:checked',surface:'selection-dot-against-inset',ratio:ratio(bg,surface),required:3});}
     if(style.outlineStyle!=='none'&&parseFloat(style.outlineWidth)>0){const outside=background(element.parentElement??element);graphics.push({selector:`${element.tagName}:focus`,surface:'outside',ratio:ratio(over(parse(style.outlineColor),outside),outside),required:3});}
    }
    const geometryFailures:string[]=[];
@@ -50,11 +52,11 @@ export async function captureMatrix(page:Page,info:TestInfo,state:string,interac
    const failures=texts.filter(value=>value.ratio+.01<value.required||value.fontSize<value.minimum);
    return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,regions,texts,controls,graphics,graphicsFailures,geometryFailures,failures};
   });
-  const stem=`${info.project.name}-${viewport.width}x${viewport.height}-${theme}-${state}`;
+  const stem=`${info.project.name}-${viewport.width}x${viewport.height}-${theme}-${surface?.name??state}`;
   await page.screenshot({path:join(directory,`${stem}.png`),fullPage:true});
   const screenshotSha256=createHash('sha256').update(readFileSync(join(directory,`${stem}.png`))).digest('hex');
-  await writeFile(join(directory,`${stem}.json`),JSON.stringify({revision,diffHash,state,engine:info.project.name,viewport,theme,screenshot:`${stem}.png`,screenshotSha256,measurement,status:measurement.failures.length||measurement.graphicsFailures.length||measurement.geometryFailures.length||measurement.documentWidth!==viewport.width?'FAIL':'PASS'},null,2));
-  expect(measurement.documentWidth,`${stem}: document overflow`).toBe(viewport.width);expect(measurement.failures,`${stem}: composed text contrast / minimum metadata size`).toEqual([]);expect(measurement.graphicsFailures,`${stem}: marker/focus contrast`).toEqual([]);
+  await writeFile(join(directory,`${stem}.json`),JSON.stringify({revision,diffHash,sourceCombined:binding.sourceCombined,contractCombined:binding.contractCombined,productionCombined:binding.productionCombined,state,engine:info.project.name,viewport,theme,screenshot:`${stem}.png`,screenshotSha256,measurement,status:measurement.failures.length||measurement.graphicsFailures.length||measurement.geometryFailures.length||(surface?measurement.documentWidth>viewport.width:measurement.documentWidth!==viewport.width)?'FAIL':'PASS'},null,2));
+  if(surface)expect(measurement.documentWidth,`${stem}: document overflow`).toBeLessThanOrEqual(viewport.width);else expect(measurement.documentWidth,`${stem}: document overflow`).toBe(viewport.width);expect(measurement.failures,`${stem}: composed text contrast / minimum metadata size`).toEqual([]);expect(measurement.graphicsFailures,`${stem}: marker/focus contrast`).toEqual([]);
   expect(measurement.geometryFailures,`${stem}: region overlap, clipping, useful width and target bounds`).toEqual([]);
   for(const [name,box] of Object.entries(measurement.regions)){expect(box.width,`${stem} ${name} width`).toBeGreaterThan(0);expect(box.x,`${stem} ${name} left clipping`).toBeGreaterThanOrEqual(-1);expect(box.right,`${stem} ${name} right clipping`).toBeLessThanOrEqual(viewport.width+1);}
  }

@@ -1,3 +1,5 @@
+import {BlockIntervals} from './rpc/blockIntervals';
+import {observationMeaning} from './observationMeaning';
 import {CandidateProducers} from './rpc/candidateProducer';
 import "./dashboard.css";
 import type {ObservationTarget} from "./monitor/observationStore";
@@ -55,6 +57,7 @@ const dashboard = createDashboard(root, {
   onFollow(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=true;runtime.monitor.followLive();fenceComparisonSelection(runtime);}},
   onLatest(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=!runtime.monitor.latestObservation();fenceComparisonSelection(runtime);}},
   onRetry(network,identity){if(collectionAllowed())runtimes.get(network)?.monitor.reconcileObservation(identity);},
+  onRefreshIntervals(network){void runtimes.get(network)?.intervals.refresh();},
   onCompare(network,url){const runtime=runtimes.get(network),source=streamSources[network].find(value=>value.baseUrl===url);if(!runtime||!source||!collectionAllowed()||[...runtimes.values()].some(value=>value.comparison.running))return;const selection=comparisonSelection(runtime);if(selection)void runtime.comparison.compare(selection,source);},
   onReconnect() {
     if (collectionAllowed()) for (const runtime of runtimes.values()) {
@@ -71,6 +74,7 @@ interface Runtime {
   data: NetworkData;
   comparison:SourceComparison;
   producers:CandidateProducers;
+  intervals:BlockIntervals;
   monitor: NetworkMonitor<Derived>;
   view: NetworkMonitorView<Derived> | null;
   opportunityFacts?:readonly [OpportunityFact,OpportunityFact];
@@ -82,6 +86,7 @@ interface Runtime {
 
 
 function stopCollection(runtime:Runtime):void {
+  runtime.intervals.setEnabled(false);
   runtime.collectionActive=false;runtime.producers.stop();runtime.comparison.pause();runtime.monitor.stop();runtime.data.pause();runtime.opportunityController.abort();
 }
 
@@ -89,6 +94,7 @@ function syncCollection(runtime:Runtime):void {
   if(!collectionAllowed()) {
     if(runtime.collectionActive)stopCollection(runtime);
   } else if(!runtime.collectionActive) {
+    runtime.intervals.setEnabled(true);
     runtime.collectionActive=true;runtime.producers.start();runtime.comparison.resume();runtime.data.resume();
     runtime.opportunityController=new AbortController();runtime.opportunityKey="";runtime.eligibilityHead="";
     runtime.monitor.start();void runtime.data.loadAliases().then(()=>scheduleRender(runtime));
@@ -163,7 +169,7 @@ function applyProducer(runtime:Runtime,model:NetworkViewModel):void {
 }
 function renderPinned(runtime:Runtime):boolean {
  const view=runtime.view,pin=view?.inspection;if(!view||!pin||pin.mode!=="pin")return false;const snapshot=pin.snapshot,applied=view.snapshot?.head;
- if(!snapshot){dashboard.update(runtime.network,{status:"unknown",note:"Pinned session facts unavailable",session:sessionModel(runtime)});return true;}
+ if(!snapshot){updateDashboard(runtime,{status:"unknown",note:"Pinned session facts unavailable",session:sessionModel(runtime)});return true;}
  const record=snapshot.record,candidate=snapshot.candidates.find(value=>value.identity===pin.selectedIdentity)?.target.candidate,context=record.admission?.context;
  const phaseComplete=(phase:"pre"|"att"):boolean=>record.coverage!==undefined&&pendingPhaseComplete(record.coverage,phase)&&!snapshot.partial&&!record.coverageStale&&!record.contextInvalid;
  const complete=phaseComplete("pre")&&phaseComplete("att");
@@ -187,14 +193,16 @@ function renderPinned(runtime:Runtime):boolean {
  if(!candidate)model.note+=` Observed votes · level ${record.target.level.toLocaleString("en-US")} · round ${record.target.round} · historical as-of.`;
  if(!complete)model.note+=' Captured partial positive observations; unavailable phases do not imply zero.';
  if(view.crossingHistoryPartial)model.note+=' Crossing history partial.';
- applyIndependentClock(runtime,model);applyProducer(runtime,model);model.comparison=comparisonModel(runtime);dashboard.update(runtime.network,model);return true;
+ Object.assign(model,observationMeaning(view,model.observation));applyIndependentClock(runtime,model);applyProducer(runtime,model);model.comparison=comparisonModel(runtime);updateDashboard(runtime,model);return true;
 }
+
+function updateDashboard(runtime:Runtime,model:NetworkViewModel):void {dashboard.update(runtime.network,{...model,blockIntervals:runtime.intervals.view()});}
 
 function render(runtime: Runtime): void {
   const view = runtime.view;
   const snapshot = view?.snapshot;
   if (!view) {
-    dashboard.update(runtime.network, {
+    updateDashboard(runtime, {
       status: "loading",
       connection: !collectionAllowed() ? "Paused" : "Connecting",
       sources: sources[runtime.network].map((s) => ({
@@ -216,12 +224,12 @@ function render(runtime: Runtime): void {
   const head=admitted?.head??snapshot?.head??(sourceTarget?runtime.monitor.observedHead(sourceTarget.target.source):undefined),derived=sourceTarget?admitted?.derived??null:snapshot?.derived,operations=sourceTarget?view.rawOperations:snapshot?.operations??view.rawOperations;
   if(!head){
     const error=view.headStream.error;
-    dashboard.update(runtime.network,{status:error?"degraded":"loading",connection:collectionAllowed()?"Connecting":"Paused",...(error?{error}:{}),session:sessionModel(runtime),events:capturedEvents(runtime),comparison:comparisonModel(runtime),note:"Applied head unavailable; source-local context proof pending",sources:sources[runtime.network].map(source=>({name:source.name,url:source.baseUrl,status:"Standby"}))});return;
+    updateDashboard(runtime,{status:error?"degraded":"loading",connection:collectionAllowed()?"Connecting":"Paused",...(error?{error}:{}),session:sessionModel(runtime),events:capturedEvents(runtime),comparison:comparisonModel(runtime),note:"Applied head unavailable; source-local context proof pending",sources:sources[runtime.network].map(source=>({name:source.name,url:source.baseUrl,status:"Standby"}))});return;
   }
   const now = Date.now(),
     headRound = proposalRound(head.fitness,head.level);
   if(headRound===undefined) {
-    dashboard.update(runtime.network,{status:"degraded",...(appliedHead?{appliedLevel:appliedHead.level,hash:appliedHead.hash,blockTimestamp:Date.parse(appliedHead.timestamp)}:{}),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
+    updateDashboard(runtime,{status:"degraded",...(appliedHead?{appliedLevel:appliedHead.level,hash:appliedHead.hash,blockTimestamp:Date.parse(appliedHead.timestamp)}:{}),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
     return;
   }
   let constants = derived?.constants;
@@ -485,7 +493,7 @@ function render(runtime: Runtime): void {
   if(!paused)void loadOpportunities(runtime);
   model.recentConsensus=capturedRecent(runtime);
   model.comparison=comparisonModel(runtime);
-  applyProducer(runtime,model);dashboard.update(runtime.network, model);
+  Object.assign(model,observationMeaning(view,model.observation));applyProducer(runtime,model);updateDashboard(runtime, model);
   if (rights && runtime.eligibilityHead !== head.hash && !paused) {
     runtime.eligibilityHead = head.hash;
     void runtime.data
@@ -574,6 +582,13 @@ for (const network of ["mainnet", "shadownet"] as const) {
       if (!runtime) return;
       runtime.comparison.setRawCapacity(10000-view.rawOperations.length);
       runtime.view = view;runtime.producers.fence();
+      const currentHead=view.snapshot?.head,expectedChain=view.networkIdentity?.chainId;
+      const applied=currentHead&&expectedChain?[...(view.snapshot?.derived?.contexts.values()??[])].map(context=>context.observer).find(observer=>
+        observer.chainId===expectedChain&&observer.source.network===network&&currentHead.evidence?.source.network===network&&observer.source.baseUrl===currentHead.evidence.source.baseUrl&&observedHeaderMatches(observer.header,currentHead)):undefined;
+      if(applied){
+        const header=applied.header,round=proposalRound(header.fitness,header.level);
+        if(round!==undefined)runtime.intervals.appliedHead({key:JSON.stringify([applied.chainId,header.hash,header.level,header.predecessor,header.timestamp,round,applied.protocolHash]),source:applied.source.baseUrl,chain:applied.chainId,level:header.level,hash:header.hash,predecessor:header.predecessor});
+      }
       fenceComparisonSelection(runtime);
       scheduleRender(runtime);
     },
@@ -582,6 +597,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
     network,
     collectionActive:false,followLiveSelection:true,
     data,
+    intervals:new BlockIntervals(network,()=>scheduleRender(runtime)),
     producers:new CandidateProducers({data,sources:streamSources[network].map(source=>source.baseUrl),epoch:record=>record.admission&&monitor.contextAuthorized(record.admission.context)?monitor.producerEpoch(record.identity):undefined,changed:(fact,epoch)=>{monitor.captureProducer(fact,epoch);scheduleRender(runtime);}}),
     comparison:new SourceComparison(network,streamSources[network],{rawCapacity:()=>10000-(runtime.view?.rawOperations.length??0),onChange:()=>{for(const value of runtimes.values())scheduleRender(value);}}),
     monitor,

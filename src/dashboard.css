@@ -173,3 +173,46 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .inspection-workspace>.source-pane{grid-column:2/-1;grid-row:4}
 .committee-evidence .delegate-table{min-width:0}.committee-evidence .delegate-scroll{max-height:650px}
 }
+
+/* Keep operational controls close to the observation without reducing targets. */
+@media(min-width:1101px){
+ .masthead{padding-bottom:12px}.network-tabs{margin-bottom:10px}
+ .network-panel{row-gap:12px}
+ .session-controls .retention-detail{flex-basis:auto;max-width:420px;margin-left:8px}
+ .session-controls .retention-detail[open]{flex-basis:100%;max-width:none;margin-left:0}
+}
+/* Tablet and browser zoom keep participation ahead of the bounded history rail. */
+@media(min-width:701px) and (max-width:1100px){
+ .inspection-workspace{grid-template-columns:minmax(0,1fr)}
+ .selected-inspector{grid-column:1;grid-row:1}.committee-evidence{grid-column:1;grid-row:2}
+ .session-rail{grid-column:1;grid-row:3;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 20px}
+ .session-rail>h3{grid-column:1/-1}.session-rail>.native-choice{grid-column:1;grid-row:2;margin:0}
+ .session-rail>.retained-history{grid-column:1;grid-row:3;margin:0;max-height:260px}
+ .session-rail>.recent-consensus{grid-column:2;grid-row:2/4;margin:0}
+ .source-pane{grid-column:1;grid-row:4}.gauges{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+}
+@container(min-width:600px) and (max-width:800px){
+ .delegate-table tr{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .delegate-table td:nth-child(2){grid-column:2/4}.delegate-table td:last-child{grid-column:4;grid-row:2}
+}
+
+.selected-relationship{font-size:14px;font-weight:600;margin:8px 0}.next-proposal-observation{grid-column:1/-1;margin:0}.applied-stability{font-variant-numeric:tabular-nums}
+
+.block-intervals { border-block:1px solid var(--line); padding:1rem 0; min-width:0; }
+.interval-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.interval-header h3,.interval-window h4 { margin:0; }
+.interval-header button { min-height:44px; }
+.interval-windows { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; margin-block:1rem; }
+.interval-window { min-width:0; }
+.interval-mean { display:block; font-size:22px; font-variant-numeric:tabular-nums; margin-block:.25rem; }
+.interval-coverage,.interval-endpoints,.interval-note,.interval-status { font-size:14px; overflow-wrap:anywhere; }
+.interval-evidence { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
+.interval-details summary { min-height:24px; }
+@media(max-width:600px) { .interval-windows { grid-template-columns:1fr; gap:.75rem; } }
+
+/* Indexed spans follow the current observation, with stable native controls. */
+@media(min-width:1101px) and (max-width:2599px){.inspection-workspace>.block-intervals{grid-column:1/-1;grid-row:5}.inspection-workspace>.committee-evidence{grid-row:6}.inspection-workspace>.source-pane{grid-row:7}}
+@media(min-width:2600px){.inspection-workspace>.block-intervals{grid-column:2/-1;grid-row:4}.inspection-workspace>.source-pane{grid-row:5}}
+@media(min-width:701px) and (max-width:1100px){.inspection-workspace>.block-intervals{grid-column:1;grid-row:2}.inspection-workspace>.committee-evidence{grid-row:3}.inspection-workspace>.session-rail{grid-row:4}.inspection-workspace>.source-pane{grid-row:5}}
+
+.block-intervals>a{color:var(--copper)}

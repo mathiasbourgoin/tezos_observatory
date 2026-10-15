@@ -1,3 +1,5 @@
+import {attachFailureTrace} from './productionFixture';
+import {annotateV3} from './v3Verification';
 import {expect, test, type Page, type Locator} from '@playwright/test';
 import type {ObservationStore} from '../../src/monitor/observationStore';
 import type {Derived} from '../../src/rpc/networkData';
@@ -980,15 +982,17 @@ test("foundations AC-3 autonomous B authority remains readable without primary a
 });
 
 
-test('V3 AC-22 theme is explicit persistent and follows system only in system mode',async({page})=>{
+test('V3 AC-22 theme is explicit persistent and follows system only in system mode',async({page},info)=>{
+ const states:unknown[]=[];const capture=async()=>states.push(await page.evaluate(()=>({at:performance.now(),osDark:matchMedia('(prefers-color-scheme: dark)').matches,resolved:document.documentElement.dataset.theme,selected:document.querySelector('.appearance input:checked')?.getAttribute('value')})));
  await prepare(page,false);
  const theme=page.getByLabel('Appearance');
  await expect(theme).toBeVisible();
- await choose(theme,'light');await expect(page.locator('html')).toHaveAttribute('data-theme','light');
- await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+ await choose(theme,'light');await expect(page.locator('html')).toHaveAttribute('data-theme','light');await capture();
+ await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');await capture();
  await page.reload();await expect(theme.locator("..").locator("input:checked" )).toHaveValue('light');
- await choose(theme,'system');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
- await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+ await choose(theme,'system');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');await capture();
+ await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');await capture();
+ await info.attach('actual-system-preference-transition',{body:JSON.stringify(states),contentType:'application/json'});
  await expect(page.getByRole('heading',{name:'Tezos Observatory',exact:true})).toBeVisible();
 });
 
@@ -1189,6 +1193,8 @@ test('V3 AC-23 native disclosure radio groups support keyboard selection focus a
  await filter.press('Enter');await appearance.click();await expect(group).not.toHaveAttribute('open','');await page.keyboard.press('Escape');
 });
 
+test.afterEach(async({},info)=>annotateV3(info));
+
 
 test('V3 AC-15 early pin aborts unresolved timing and never invents historical capture after a late body',async({page})=>{
  await prepare(page,false);const panel=page.locator('.network-panel.mainnet');
@@ -1199,4 +1205,52 @@ test('V3 AC-15 early pin aborts unresolved timing and never invents historical c
  const rows=panel.locator('.baker-opportunity');await expect(rows.first()).toContainText('Historical timing and rights not captured');const captured=await rows.allTextContents();
  await page.evaluate(()=>(window as unknown as {earlyTimingGate:{release:()=>void}}).earlyTimingGate.release());await send(page,'mainnet-operations',[vote(0)]);await expect(panel.locator('.pre .gauge-exact')).toHaveText('600 / 30,000');expect(await rows.allTextContents()).toEqual(captured);
  await expect(panel.locator('.session-mode')).toContainText('Pinned');await expect(panel.locator('.candidate-evidence')).toContainText('EarlyTiming101');
+});
+
+test.afterEach(async({page},info)=>attachFailureTrace(page,info));
+
+test('V3 AC-23 status narration ignores ticks votes and replays while naming actual mode and progress once',async({page},info)=>{
+ await page.clock.install();await prepare(page,false);await send(page,'mainnet-operations',[vote(0)]);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
+ await page.evaluate(()=>{const status=document.querySelector('[role=status][aria-live=polite]');if(!status)throw new Error('Missing native live status');const messages:string[]=[];Object.assign(window,{statusMessages:messages});new MutationObserver(()=>messages.push(status.textContent??'')).observe(status,{childList:true,subtree:true,characterData:true});});
+ await send(page,'mainnet-operations',[vote(0),vote(1)]);await page.clock.runFor(1000);expect(await page.evaluate(()=>(window as unknown as {statusMessages:string[]}).statusMessages)).toEqual([]);
+ const pin=panel.getByRole('button',{name:'Pin selected instance',exact:true});await pin.focus();await page.keyboard.press('Enter');await expect(panel.locator('.session-mode')).toContainText('Pinned');await expect.poll(()=>page.evaluate(()=>(window as unknown as {statusMessages:string[]}).statusMessages.length)).toBe(1);await expect(page.locator('[role=status][aria-live=polite]')).toContainText('Pinned');
+ await choose(page.getByLabel('Appearance'),'dark');await send(page,'mainnet-operations',[vote(1),vote(2)]);await page.clock.runFor(1000);expect(await page.evaluate(()=>(window as unknown as {statusMessages:string[]}).statusMessages.length)).toBe(1);
+ const follow=panel.getByRole('button',{name:'Follow live',exact:true});await follow.focus();await page.keyboard.press('Space');await expect(panel.locator('.session-mode')).toContainText('Following live');await expect.poll(()=>page.evaluate(()=>(window as unknown as {statusMessages:string[]}).statusMessages.length)).toBe(2);
+ await send(page,'mainnet-operations',[vote(0,101,1)]);await expect(panel.locator('.navigator-current')).toContainText('101 · r1');await expect.poll(()=>page.evaluate(()=>(window as unknown as {statusMessages:string[]}).statusMessages.length)).toBe(3);await expect(page.locator('[role=status][aria-live=polite]')).toContainText('round 1');
+ await page.getByRole('button',{name:'Pause',exact:true}).click();await expect(page.getByRole('button',{name:'Resume',exact:true})).toBeVisible();const requests=await page.evaluate(()=>window.mockRequests.length);await choose(page.getByLabel('Appearance'),'light');await panel.getByRole('button',{name:'Latest',exact:true}).click();await panel.getByRole('button',{name:'Follow live',exact:true}).click();await page.clock.runFor(1000);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(requests);
+ await info.attach('actual-status-announcements',{body:JSON.stringify(await page.evaluate(()=>(window as unknown as {statusMessages:string[]}).statusMessages)),contentType:'application/json'});
+});
+
+
+test('V3 AC-23 keyboard alone reaches candidate history navigation disclosures and explicit comparison',async({page},info)=>{
+ await prepare(page,false);const panel=page.locator('.network-panel.mainnet');
+ for(const hash of ['KeyboardFirst101','KeyboardSecond101']){const candidate={...head(101),hash};headers.get(page)?.set(hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash,header:candidate});await expect(panel.getByRole('button',{name:`Inspect candidate ${hash}`,exact:true})).toBeVisible();}
+ const visited:string[]=[];
+ const reach=async(target:import('@playwright/test').Locator)=>{for(let count=0;count<250;count++){if(await target.evaluate(node=>node===document.activeElement)){await expect(target).toBeFocused();return;}const key=await target.evaluate(node=>document.activeElement&&(document.activeElement.compareDocumentPosition(node)&Node.DOCUMENT_POSITION_PRECEDING)?'Shift+Tab':'Tab');await page.keyboard.press(key);visited.push(key+': '+await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')??document.activeElement?.textContent?.trim().slice(0,80)??''));}await info.attach('unreachable-keyboard-target',{body:JSON.stringify({target:await target.evaluate(node=>node.outerHTML),visited}),contentType:'application/json'});throw new Error('Keyboard target unreachable within bounded complete tab journey');};
+ const activate=async(target:import('@playwright/test').Locator,key='Enter')=>{await reach(target);await page.keyboard.press(key);};
+ await activate(panel.getByRole('button',{name:'Inspect candidate KeyboardSecond101',exact:true}));await expect(panel.locator('.session-mode')).toContainText('Pinned');
+ await activate(panel.getByRole('button',{name:'Previous observation',exact:true}),'Space');await expect(panel.locator('.candidate-evidence')).toContainText('KeyboardFirst101');
+ await activate(panel.getByRole('button',{name:'Latest',exact:true}));await expect(panel.locator('.candidate-evidence')).toContainText('KeyboardSecond101');
+ await activate(panel.getByRole('button',{name:'Follow live',exact:true}));await expect(panel.locator('.session-mode')).toContainText('Following live');
+ await send(page,'mainnet-operations',[vote(0,101,1)]);await expect(panel.locator('.navigator-current')).toContainText('101 · r1');
+ const history=panel.getByLabel('Retained session instance');await activate(history);await page.keyboard.press('Tab');await page.keyboard.press('ArrowDown');await expect(panel.locator('.session-mode')).toContainText('Pinned');await page.keyboard.press('Escape');await expect(history).toBeFocused();
+ const disclosure=panel.locator('[data-branch="same-level"] summary');await activate(disclosure);await expect(disclosure.locator('..')).toHaveAttribute('open','');await page.keyboard.press('Space');await expect(disclosure.locator('..')).not.toHaveAttribute('open','');
+ const provider=panel.getByLabel('Comparison provider');await activate(provider);await page.keyboard.press('Tab');await page.keyboard.press('ArrowDown');await page.keyboard.press('Escape');
+ const before=await page.evaluate(()=>window.mockRequests.length);await activate(panel.getByRole('button',{name:'Compare selected observation',exact:true}),'Space');await expect.poll(()=>page.evaluate(()=>window.mockRequests.length)).toBeGreaterThan(before);await expect(panel.locator('.comparison-result')).not.toHaveText('');
+ await info.attach('keyboard-native-task-journey',{body:JSON.stringify({visited,selected:await panel.locator('.navigator-current').textContent(),comparison:await panel.locator('.comparison-result').textContent()}),contentType:'application/json'});
+});
+
+
+test('V3 AC-01 applied tuple votes and unchanged-head age never imply next-level progress',async({page},info)=>{
+ test.setTimeout(240000);
+ await page.clock.install();const initial=head(100,209);await prepare(page,false,initial);await send(page,'mainnet-operations',[vote(0,100,209)]);const panel=page.locator('.network-panel.mainnet');
+ await expect(panel.locator('.selected-title')).toHaveText('100 / r209');await expect(panel.locator('.pre .gauge-exact')).toHaveText('600 / 30,000');
+ await expect(panel.locator('.selected-relationship')).toContainText('already-applied');await expect(panel.locator('.next-proposal-observation')).toContainText('No coherent next-level proposal observed');
+ const age=panel.locator('.applied-stability');await expect(age).toContainText('unchanged in this session');const before=await age.getAttribute('data-since');expect(before).not.toBeNull();
+ await page.clock.runFor(10000);await send(page,'mainnet-head',initial);await expect(age).toHaveAttribute('data-since',before??'');await expect(age).toContainText('10s');await expect(panel.locator('.navigator-current')).toContainText('100 · r209');
+ const fork={...initial,hash:'SameTupleDifferentBlock100'};headers.get(page)?.set(fork.hash,fork);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:fork.hash,header:fork});await panel.getByRole('button',{name:'Inspect candidate SameTupleDifferentBlock100',exact:true}).click();await expect(panel.locator('.selected-relationship')).toContainText('selected block hash differs');
+ const next={...head(101),hash:'NextObserved101'};next.fitness[3]=(0xffffffff-209).toString(16).padStart(8,'0');headers.get(page)?.set(next.hash,next);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await panel.getByRole('button',{name:'Follow live',exact:true}).click();await expect(panel.locator('.selected-relationship')).toContainText('next level');await expect(panel.locator('.next-proposal-observation')).toContainText('Coherent next-level proposal observed');
+ await send(page,'mainnet-head',next);await expect(age).not.toHaveAttribute('data-since',before??'');await expect(panel.locator('.applied-context')).toContainText('level 101');await send(page,'mainnet-operations',[vote(1,101,0)]);await expect(panel.locator('.selected-relationship')).toContainText('already-applied');
+ const nextSince=await age.getAttribute('data-since');await page.clock.runFor(5000);const returnedFork={...next,hash:'NextObservedFork101'};await send(page,'mainnet-head',returnedFork);await expect.poll(async()=>Number(await age.getAttribute('data-since'))).toBeGreaterThan(Number(nextSince));const forkSince=await age.getAttribute('data-since');await page.clock.runFor(7000);await send(page,'mainnet-head',next);await expect.poll(async()=>Number(await age.getAttribute('data-since'))).toBeGreaterThan(Number(forkSince));const returnedSince=await age.getAttribute('data-since');expect(Number(returnedSince)).toBeGreaterThan(Number(nextSince));await page.clock.runFor(3000);await send(page,'mainnet-head',next);await expect(age).toHaveAttribute('data-since',returnedSince??'');
+ await info.attach('applied-tuple-material-progress',{body:JSON.stringify({initialSince:before,finalSince:await age.getAttribute('data-since'),relationship:await panel.locator('.selected-relationship').textContent(),next:await panel.locator('.next-proposal-observation').textContent()}),contentType:'application/json'});
 });

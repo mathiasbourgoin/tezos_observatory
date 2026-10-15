@@ -54,6 +54,7 @@ export interface NetworkMonitorView<T extends NetworkDerivedState> {
   readonly acceptedEvents:readonly AcceptedEvent[];
   readonly crossingHistoryPartial:boolean;
   readonly progression:ObservedProgress|null;
+  readonly appliedProof?:Readonly<{context:RpcContext;evidence:ObservationEvidence}>|null;
   readonly headStream: StreamStatus;
   readonly operationStream: StreamStatus;
   readonly operationMode: "stream" | "fallback" | "paused";
@@ -109,6 +110,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private readonly observations:ObservationStore<T>;
   private readonly reconcilers=new Map<string,ObserverReconciliation<ContextAdmission<T>>>();
   private provenHead:RpcContext|undefined;
+  private appliedProof:Readonly<{context:RpcContext;evidence:ObservationEvidence}>|null=null;
   private progression:ObservedProgress|null=null;
   private readonly headTransport: StreamTransport<BlockHeader>;
   private readonly operationTransport: StreamTransport<MonitorOperationBatch> | null;
@@ -381,6 +383,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     const previous=this.provenHead;
     if(previous?.source.baseUrl===current.source.baseUrl && previous.chainId===current.chainId && previous.header.hash===current.header.hash)return;
     this.provenHead=current;
+    this.appliedProof=Object.freeze({context:current,evidence});
     if(!previous || previous.source.baseUrl!==current.source.baseUrl || previous.chainId!==current.chainId)return;
     const from=previous.header,to=current.header,oldRound=proposalRound(from.fitness,from.level),round=proposalRound(to.fitness,to.level);
     const kind:ObservedProgress["kind"]=to.level===from.level+1 && to.predecessor===from.hash && previous.nextProtocolHash===current.protocolHash?"next-level"
@@ -576,6 +579,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       acceptedEvents:this.observations.acceptedEvents(),
       crossingHistoryPartial:this.observations.crossingState().uncertain,
       progression:this.progression,
+      appliedProof:this.appliedProof,
       rawOperations: this.observations.rawOperations(),
       observationTargets:this.observations.acceptedTargets(),
       history:this.observations.history(),

@@ -1,3 +1,4 @@
+import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockIntervals';
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
 export type Network = 'mainnet' | 'shadownet';
@@ -13,7 +14,11 @@ export interface ObservedNavigatorView {
  readonly predecessor?:{readonly hash:string;readonly level:number;readonly round:number;readonly relation:'ancestry'|'context';readonly payload?:string;readonly parentHash:string};
 }
 export interface NetworkViewModel {
+  blockIntervals?:IntervalView;
   observation?:ObservedNavigatorView;
+  selectedRelationship?:'applied-block'|'applied-tuple'|'different-block'|'next-level'|'other';
+  appliedSinceMonotonic?:number;
+  nextProposalObservation?:{observed:boolean;source:string};
   producer?:string;
   comparison?:{providers:readonly {name:string;url:string}[];enabled:boolean;running:boolean;result?:()=>ComparisonResult|undefined};
   status: 'loading' | 'healthy' | 'unknown' | 'stalled' | 'degraded';
@@ -60,6 +65,36 @@ function disclosure(title: string, key: string): {details: HTMLDetailsElement; s
 }
 function field(parent: HTMLElement, label: string): HTMLElement {
   const item = el('div', 'metric'); item.append(el('span', 'eyebrow', label)); const value = el('strong', '', '—'); item.append(value); parent.append(item); return value;
+}
+function blockIntervalRegion(network:Network,onRefresh:()=>void){
+ const root=el('section','block-intervals');root.setAttribute('aria-label',`${network==='mainnet'?'Mainnet':'Shadownet'} completed block intervals`);
+ const header=el('div','interval-header'),refresh=el('button','','Refresh block intervals');refresh.type='button';refresh.setAttribute('aria-label',`Refresh block intervals for ${network==='mainnet'?'Mainnet':'Shadownet'}`);refresh.addEventListener('click',onRefresh);
+ header.append(el('h3','','Mean completed-block interval'),refresh);
+ const source=el('a','','TzKT-reported indexed spans');source.rel='noreferrer';source.target='_blank';
+ const note=el('p','interval-note'),rows=el('div','interval-windows'),status=el('p','interval-status');
+ const values=intervalWindows.map(definition=>{const row=el('div','interval-window'),mean=el('strong','interval-mean','—'),coverage=el('p','interval-coverage'),endpoints=el('p','interval-endpoints');row.append(el('h4','',definition.label),mean,coverage,endpoints);rows.append(row);return {mean,coverage,endpoints};});
+ const details=el('details','interval-details'),evidence=el('pre','interval-evidence');details.append(el('summary','','Interval calculation & source evidence'),evidence);
+ root.append(header,source,note,status,rows,details);
+ const utc=(value:number)=>new Date(value).toISOString();
+ const coverageDuration=(milliseconds:number)=>{const seconds=Math.floor(milliseconds/1000),days=Math.floor(seconds/86400),hours=Math.floor(seconds%86400/3600),minutes=Math.floor(seconds%3600/60);return [days?`${days}d`:'',hours?`${hours}h`:'',minutes?`${minutes}m`:'',`${seconds%60}s`].filter(Boolean).join(' ');};
+ return {root,update(view:IntervalView|undefined){
+  if(!view){refresh.disabled=true;set(status,'Not yet collected');return;}
+  source.href=`${view.source}/v1/blocks`;
+  refresh.disabled=!view.enabled||view.running||view.cooldownSeconds>0;
+  const eligibility=!view.enabled?'Collection paused':view.running?'Refreshing block intervals':view.cooldownSeconds>0?`Refresh available in ${view.cooldownSeconds}s`:'Refresh available';
+  const batch=view.batch;
+  set(status,`${eligibility}${batch?` · ${view.stale?'Stale retained evidence':'As-of evidence'} · fetch age ${Math.floor((view.freshnessMilliseconds??0)/1000)}s · selected indexed-endpoint age ${view.endpointAgeMilliseconds===undefined?'unknown':`${Math.floor(view.endpointAgeMilliseconds/1000)}s`}`:view.running?' · Loading':view.failure?' · Unavailable':' · Not yet collected'}${view.failure?` · ${view.failure.reason}`:''}`);
+  set(note,batch?`As of ${utc(batch.start.wall)} · ${batch.metadata.lag===undefined?'Indexer lag unknown':`Indexer lag ${batch.metadata.lag} levels`} · Endpoint spans reported by TzKT; intermediate ancestry and completeness are not independently verified.`:'Three wall-clock windows; awaiting bounded indexed history.');
+  values.forEach((nodes,index)=>{
+   const window=batch?.windows[index],value=window?.value;
+   if(!window||!value){set(nodes.mean,'—');set(nodes.coverage,view.running?'Loading':view.failure?'Unavailable':'Not yet collected');set(nodes.endpoints,'');return;}
+   if(value.state==='available'||value.state==='partial'){
+    set(nodes.mean,formatInterval(value.mean));set(nodes.coverage,`${value.state==='partial'?'Partial available history · ':''}${value.count.toLocaleString('en-US')} intervals · ${(value.spanMilliseconds/1000).toLocaleString('en-US')} s actual coverage · ${coverageDuration(value.spanMilliseconds)}`);
+    set(nodes.endpoints,`Level ${value.start.level.toLocaleString('en-US')} · ${utc(value.start.milliseconds)} → ${batch.end.level.toLocaleString('en-US')} · ${utc(batch.end.milliseconds)}`);
+   }else if('reason' in value){set(nodes.mean,value.state==='insufficient'?'Insufficient data':'Unavailable');set(nodes.coverage,value.reason);set(nodes.endpoints,`Requested ${window.seconds}s · cutoff ${utc(window.cutoff)}`);}
+  });
+  set(evidence,batch?JSON.stringify({qualification:'TzKT-reported indexed spans; no independent intermediate completeness, ancestry or genesis proof',formula:'(E.timestamp − S.timestamp) / 1000 / (E.level − S.level)',...batch,failedAttempt:view.failure??null},null,2):view.failure?JSON.stringify(view.failure,null,2):'No completed indexed history batch.');
+ }};
 }
 function gauge(label: string, kind: string) {
   const root = el('section', `vote-gauge ${kind}`), header = el('div', 'gauge-header');
@@ -217,7 +252,7 @@ function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
   return {root:details,update(delegates:DelegateView[]|undefined,total:number|undefined,observations:readonly string[]=[]){current=delegates;currentTotal=total;unknownFacts=observations;render();}};
 }
 
-export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void;onPin?:(network:Network)=>void;onFollow?:(network:Network)=>void;onLatest?:(network:Network)=>void;onCompare?:(network:Network,url:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
+export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?:(network:Network)=>void;onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void;onPin?:(network:Network)=>void;onFollow?:(network:Network)=>void;onLatest?:(network:Network)=>void;onCompare?:(network:Network,url:string)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
   root.classList.add('consensus-app');
   const header = el('header', 'masthead'), brand = el('div', 'header-brand');
   const mark = el('img', 'header-mark'); mark.src='./observatory-mark.svg'; mark.alt=''; mark.width=40; mark.height=40;
@@ -256,8 +291,9 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const panelHeader = el('div', 'panel-header'), heading = el('h2', '', name), status = el('span', 'status-chip', 'Connecting'); panelHeader.append(heading, status);
     const headline = el('div', 'headline'), level = field(headline, 'Consensus level'), round = field(headline, 'Current round');
     const appliedContext = el('p', 'applied-context table-note', 'Last applied block unavailable');
+    const appliedStability=el('span','applied-stability','Applied-head session age unknown');
     const proposalContext = el('p', 'proposal-context', 'Proposal observation unavailable');
-    const connection = el('div', 'connection-line'), transport = el('span', '', 'Connecting to RPC streams…'), freshness = el('span', '', 'No observation yet'); connection.append(transport, freshness);
+    const connection = el('div', 'connection-line'), transport = el('span', '', 'Connecting to RPC streams…'), freshness = el('span', '', 'No observation yet'); connection.append(transport, freshness,appliedStability);
     const notice = el('div', 'network-notice', 'Waiting for the first successful observation.');
     const consensus = el('section', 'consensus-section'), sectionTitle = el('div', 'section-heading');
     sectionTitle.append(el('h3', '', 'Committee participation')); const activity = el('span', 'subtle', 'Activity round —'); sectionTitle.append(activity);
@@ -265,6 +301,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const candidateControls = el('div', 'candidate-controls'); candidateControls.setAttribute('aria-label','Observed candidates and payloads');
     const candidateEvidence = el('p','candidate-evidence table-note');
     const selectedHeader = el('div', 'selected-heading'), selectedTitle = el('h2', 'selected-title', 'Observation unavailable'); selectedHeader.append(el('p', 'eyebrow', 'Selected consensus instance'), selectedTitle);
+    const selectedRelationship=el('p','selected-relationship'),nextProposalObservation=el('p','next-proposal-observation table-note');
     const selectedKind = el('p', 'selected-kind', 'Waiting for observed evidence'), selectedPayload = el('p', 'selected-payload');
     const selectedProof = disclosure('Selected identity & phase provenance', `observatory:${network}:identity`); selectedProof.body.append(candidateEvidence);
     const inspector = el('section', 'selected-inspector'); inspector.setAttribute('aria-label', 'Selected consensus evidence');
@@ -313,10 +350,11 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     sessionRail.insertBefore(retainedList,recent.root);const historyButtons=new Map<string,HTMLButtonElement>();
     const authorityEvidence=el('p','authority-evidence table-note');
     const sourceRows = el('div', 'source-rows'), history = el('ol', 'event-history'); evidence.body.append(metadata, authorityEvidence, sourceRows, el('h4', '', 'Recent network events'), history);
-    const observer = el('section', 'observer-summary'); observer.append(panelHeader, connection, headline, appliedContext);
+    const observer = el('section', 'observer-summary'); observer.append(panelHeader, connection, headline, appliedContext,nextProposalObservation);
     const sourcePane = el('aside', 'source-pane'); sourcePane.append(el('h3', '', 'Sources & limits'),contextProof.details,sourceRows,comparisonSection,evidence.details);evidence.body.prepend(authorityEvidence);
-    inspector.append(selectedHeader, selectedKind,selectedPayload,proposalContext,consensus,notice,missing);
-    const workspace=el('div','inspection-workspace'); workspace.append(sessionRail,inspector,committee.root,sourcePane);
+    inspector.append(selectedHeader,selectedRelationship, selectedKind,selectedPayload,proposalContext,consensus,notice,missing);
+    const intervals=blockIntervalRegion(network,()=>options.onRefreshIntervals?.(network));
+    const workspace=el('div','inspection-workspace'); workspace.append(sessionRail,inspector,intervals.root,committee.root,sourcePane);
     panel.append(observer,sessionControls,opportunities,workspace); grid.append(panel);
     const keyedBakers = new Map<string, HTMLElement>(), keyedSources = new Map<string, HTMLElement>();
     let current: NetworkViewModel | undefined,previousAnnouncement:string|undefined;
@@ -347,6 +385,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       if (!current) return;
       const age = current.observedMonotonic === undefined ? undefined : Math.max(0, (performance.now() - current.observedMonotonic) / 1000);
       const snapshotAge=current.snapshotMonotonic===undefined?undefined:Math.max(0,(performance.now()-current.snapshotMonotonic)/1000);
+      const stableAge=current.appliedSinceMonotonic===undefined?undefined:Math.max(0,Math.floor((performance.now()-current.appliedSinceMonotonic)/1000));set(appliedStability,stableAge===undefined?'Applied-head session age unknown':`Applied head unchanged in this session · ${stableAge}s`);if(current.appliedSinceMonotonic===undefined)delete appliedStability.dataset.since;else appliedStability.dataset.since=String(current.appliedSinceMonotonic);
       set(freshness, age === undefined ? 'No head message yet' : `Last head message ${age < 1 ? 'just now' : `${Math.floor(age)}s ago`}`);
       set(meta.get('Snapshot age')!, snapshotAge === undefined ? 'Unavailable' : `${Math.floor(snapshotAge)}s`);
       set(meta.get('Block age')!, current.blockTimestamp === undefined ? 'Unavailable' : current.observedAt===undefined||age===undefined?'Unavailable':`${Math.max(0,Math.floor((current.observedAt-current.blockTimestamp)/1000+age))}s`);
@@ -357,6 +396,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       set(timing, `Independent clock estimate · level ${number(t.level ?? current.consensusLevel)} · estimated round ${t.round} → ${t.nextRound} · next estimated round boundary ${new Date(t.endsAt).toISOString()} · separate from selected branch deadlines${t.evidence?` · ${t.evidence}`:""}${remaining <= 0 ? ' · waiting for fresh timing' : ''}`);
     };
     states.set(network, {tick, update(model) {
+      intervals.update(model.blockIntervals);
       moveCamera(model);current = model; panel.dataset.status = model.status;
       const anchor=model.observation;
       set(currentTarget,anchor?`${number(anchor.level)} · r${anchor.round}`:'Observation unavailable');
@@ -372,6 +412,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       junction.dataset.relationship=parent?.relation??'unknown';
       const observed = model.roundSource === 'observed';
       set(selectedTitle, observed ? `${number(model.consensusLevel ?? model.level)} / r${number(model.round)}` : 'Observation unavailable');
+      const relationshipLabels={'applied-block':'Votes for the already-applied block','applied-tuple':'Votes match the already-applied head tuple · block hash unproven','different-block':'Votes match the applied tuple; selected block hash differs','next-level':'Observed consensus for the next level · not yet applied','other':'Other retained observation · not current applied progress'};set(selectedRelationship,model.selectedRelationship?relationshipLabels[model.selectedRelationship]:'Relationship to applied head unknown');set(nextProposalObservation,model.nextProposalObservation?`${model.nextProposalObservation.observed?'Coherent next-level proposal observed':'No coherent next-level proposal observed'} in retained session · ${model.nextProposalObservation.source}`:'Next-level proposal observation unavailable');
       const selectedCandidate = model.candidates?.find(candidate => candidate.identity === model.selectedIdentity);
       set(selectedKind, observed ? selectedCandidate?.hash ? `Observed proposal · ${model.producer?`block producer ${model.producer}`:'producer unknown'}` : 'Observed votes · proposal hash and producer unavailable' : 'Live unavailable · waiting for coherent observed evidence');
       set(selectedPayload, observed ? `Payload ${model.payload ?? 'unavailable'} · ${model.source ?? 'Source unavailable'}` : 'No observation inferred from the protocol clock');

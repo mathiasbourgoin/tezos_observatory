@@ -47,8 +47,8 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, options) => {
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
-      const entry={url:url.href,aborted:options?.signal?.aborted??false};window.mockRequests.push(entry);
-      options?.signal?.addEventListener('abort',()=>{entry.aborted=true;},{once:true});
+      const entry={url:url.href,at:performance.now(),aborted:options?.signal?.aborted??false,abortedAt:null as number|null};window.mockRequests.push(entry);
+      options?.signal?.addEventListener('abort',()=>{entry.aborted=true;entry.abortedAt=performance.now();},{once:true});
       const monitoring = url.pathname.includes('/monitor/heads/') || url.pathname.endsWith('/monitor_operations') || url.pathname.includes('/monitor/validated_blocks');
       if (!monitoring) return originalFetch(input, options);
       const network = url.hostname.includes('shadownet') ? 'shadownet' : 'mainnet';
@@ -88,6 +88,10 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
     else {await route.abort(); return;}
     await route.fulfill({json: result, headers: {'Access-Control-Allow-Origin': '*'}});
   });
+  await page.addInitScript(path=>{document.addEventListener('DOMContentLoaded',()=>{void import(path).then(module=>{
+    const trace:unknown[]=[];Object.assign(window,{fixtureDomainTrace:trace});const original=module.NetworkMonitor.prototype.emit;
+    module.NetworkMonitor.prototype.emit=function(){const snapshot=this.state.snapshot();trace.push({at:performance.now(),network:this.options.network,networkIdentity:this.observations.networkIdentity(),provenHead:this.provenHead,generation:snapshot?.generation,rawHead:snapshot?.header,derivedErrors:snapshot?.derived?.errors,contexts:snapshot?.derived?.contexts?[...snapshot.derived.contexts]:[],progression:this.progression,headStatus:this.headStatus,operationStatus:this.operationStatus});if(trace.length>80)trace.shift();return original.call(this);};
+  }).catch(error=>Object.assign(window,{fixtureDomainTraceError:String(error)}));},{once:true});},inspectionModule());
   await page.goto('/');
   if(initiallyHidden||holdInitialHeads)return;
   await expect(page.locator('.mainnet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
@@ -104,4 +108,12 @@ export function inspectionModule():string {
  const manifest=JSON.parse(readFileSync('dist/.vite/manifest.json','utf8')) as Record<string,{file?:string;isEntry?:boolean}>;
  const entry=manifest['inspection.ts'];if(!entry?.isEntry||!entry.file?.startsWith('assets/'))throw new Error('Production inspection entry missing from actual Vite manifest');
  return `/${entry.file}`;
+}
+
+
+/** Persist passive bounded domain receipts when a production scenario fails. */
+export async function attachFailureTrace(page:Page,info:import('@playwright/test').TestInfo):Promise<void>{
+ if(info.status==='passed'||page.isClosed())return;
+ const evidence=await page.evaluate(()=>{const data=window as unknown as {fixtureDomainTrace?:unknown[];fixtureDomainTraceError?:string};return {frames:data.fixtureDomainTrace??[],instrumentationError:data.fixtureDomainTraceError,requests:window.mockRequests.slice(-100),selected:document.querySelector('.mainnet .navigator-current')?.textContent,status:document.querySelector('.mainnet .navigator-status')?.textContent};});
+ await info.attach('bounded-production-domain-failure',{body:JSON.stringify(evidence),contentType:'application/json'});
 }

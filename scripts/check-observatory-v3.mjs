@@ -1,4 +1,6 @@
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -11,6 +13,8 @@ export function classifyBrowserReport(report,status,criterion,titles){
  const visit=suite=>{for(const spec of suite.specs??[])for(const test of spec.tests??[])records.push({title:spec.title,test});for(const nested of suite.suites??[])visit(nested);};
  for(const suite of report.suites??[])visit(suite);
  if(records.length!==titles.length*2)throw new Error('Incomplete required scenario/engine matrix');
+ const stats=report.stats;if(!stats||!['expected','unexpected','skipped','flaky'].every(key=>Number.isSafeInteger(stats[key])&&stats[key]>=0)||stats.skipped||stats.flaky||stats.expected+stats.unexpected!==records.length)throw new Error('Missing/malformed/incomplete native browser summary');
+ if(stats.expected!==records.filter(record=>record.test.results?.[0]?.status==='passed').length)throw new Error('Native summary differs from scenario results');
  const seen=new Set(),failures=[];
  for(const {title,test} of records){
   const key=JSON.stringify([title,test.projectName]);
@@ -33,7 +37,8 @@ export async function run(args){
   const manifest=JSON.parse(readFileSync(new URL('../roster/observatory-v3/check-scenarios.json',import.meta.url),'utf8'));
   const titles=manifest[criterion];if(!titles?.length)throw new Error(`Required scenarios not implemented: ${criterion}`);
   const escape=value=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  const child=spawnSync('rtk',['proxy',process.execPath,'node_modules/@playwright/test/cli.js','test','--config=playwright.v3.config.ts','--grep',titles.map(escape).join('|'),'--project','chromium','--project','firefox','--reporter=json'],{encoding:'utf8',maxBuffer:50_000_000,timeout:300_000});
+  const child=spawnSync('rtk',['proxy',process.execPath,'node_modules/@playwright/test/cli.js','test','--config=playwright.v3.config.ts','--grep',titles.map(escape).join('|'),'--project','chromium','--project','firefox','--reporter=json'],{encoding:'utf8',maxBuffer:50_000_000,timeout:900_000});
+  const reportRoot=process.env.V3_CHECK_REPORT_DIR??tmpdir();mkdirSync(reportRoot,{recursive:true});const directory=mkdtempSync(resolve(reportRoot,`observatory-v3-${criterion}-`));const reportPath=resolve(directory,`${criterion}.playwright.json`);writeFileSync(reportPath,child.stdout??'');writeFileSync(resolve(directory,`${criterion}.stderr.log`),child.stderr??'');console.error(JSON.stringify({namespace:'observatory-v3',criterion,reportPath,reportSha256:createHash('sha256').update(child.stdout??'').digest('hex')}));
   if(child.error||child.signal)throw child.error??new Error('Browser process interrupted');
   const report=JSON.parse(child.stdout);const code=classifyBrowserReport(report,child.status,criterion,titles);
   console.log(JSON.stringify({namespace:'observatory-v3',criterion,result:code===0?'PASS':'ASSERTION_FAILED',scenarios:titles.length,engines:['chromium','firefox']}));return code;

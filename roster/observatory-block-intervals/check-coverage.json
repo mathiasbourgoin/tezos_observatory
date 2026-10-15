@@ -1,0 +1,170 @@
+{
+  "namespace": "observatory-block-intervals",
+  "unitCases": [
+    "computes crossing intervals from elapsed timestamps and level differences, preserving precision",
+    "keeps invalid source fields distinct from valid but unusable arithmetic",
+    "acquires exactly five anonymous projected reads and uses only initial response lag metadata",
+    "shares one earliest lookup only between valid empty floors and labels partial coverage",
+    "rejects fixed endpoint changes atomically and keeps malformed floor failure local",
+    "rejects streamed overflow without reading an unbounded JSON body",
+    "settles an abort-ignoring fetch after eight seconds with no late followup reads",
+    "rejects a malformed populated response URL as a shared identity contradiction",
+    "enforces cooldown without polling and stales at completion plus120 seconds",
+    "bounds ignored-abort body reads locally and still verifies independent supported windows",
+    "rejects the whole24second attempt even when the final ignored-abort response later agrees",
+    "does not commit when the final completion receipt itself reaches the whole deadline",
+    "keeps failed shared attempts atomic and never borrows a previous numeric window",
+    "fences ignored-abort old generations through pause and same-context resume",
+    "uses completion monotonic freshness independently of selected endpoint age and wall jumps",
+    "fences only proven applied branch replacement: rollback",
+    "fences only proven applied branch replacement: same-height",
+    "fences only proven applied branch replacement: adjacent-parent",
+    "does not invent metric contradiction from forward",
+    "does not invent metric contradiction from gap",
+    "does not invent metric contradiction from rotation",
+    "does not invent metric contradiction from duplicate",
+    "rejects malformed, missing or future shared initial selection undefined",
+    "rejects malformed, missing or future shared initial selection {\"level\":104,\"hash\":\"E104\",\"timestamp\":\"2026-10-15T12:00:28Z\"}",
+    "rejects malformed, missing or future shared initial selection {}",
+    "rejects malformed, missing or future shared initial selection {\"level\":104,\"hash\":\"E104\",\"timestamp\":\"2026-10-15T12:00:31Z\"}",
+    "accepts exact normalized offset equality while preserving original timestamp strings",
+    "applies empty-floor contradictions only to dependent windows, without treating unsupported metadata as history proof",
+    "keeps earliest failure local to missing-history dependents and never falls back from invalid nonempty rows",
+    "keeps unsupported or incoherent metadata unknown independently of usable spans: {}",
+    "keeps unsupported or incoherent metadata unknown independently of usable spans: {\"Tzkt-Level\":\"-1\",\"Tzkt-Known-Level\":\"255\"}",
+    "keeps unsupported or incoherent metadata unknown independently of usable spans: {\"Tzkt-Level\":\"9007199254740992\",\"Tzkt-Known-Level\":\"9007199254740993\"}",
+    "keeps unsupported or incoherent metadata unknown independently of usable spans: {\"Tzkt-Level\":\"250\",\"Tzkt-Known-Level\":\"249\"}",
+    "keeps unsupported or incoherent metadata unknown independently of usable spans: {\"Tzkt-Level\":\"100\",\"Tzkt-Known-Level\":\"255\"}",
+    "treats invalid synchronization independently of coherent level lag and accepts exactly16KiB streamed bodies",
+    "coalesces eligible overlap into one latest attempt and drops cooldown-ineligible work without timers",
+    "includes a whole long-stall crossing interval and preserves irregular large-gap arithmetic",
+    "rejects populated wrong response source https://other.invalid/v1/blocks even on an otherwise valid local floor",
+    "rejects populated wrong response source https://api.tzkt.io/v1/not-blocks even on an otherwise valid local floor",
+    "keeps independent network failures from overwriting supported results and ignores unsupported completeness flags",
+    "classifies actual-shaped browser reports with runtime errors taking precedence in either order",
+    "requires every unit case and real positive assertion count and prioritizes runtime over RED",
+    "rejects an inventory-only metric matrix without actual source-bound DOM observations",
+    "checks actual metric fonts, source, coverage and parent bindings instead of trusting a PASS label",
+    "accepts a floor exactly at each cutoff including equivalent offset timestamps",
+    "rejects a missing or incoherent native browser summary after all real scenario results pass",
+    "requires actual native screen observations for every metric zoom record"
+  ],
+  "browserCases": [
+    {
+      "title": "block intervals ordinary bounded endpoints render three real timestamp means",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "ordinary"
+      }
+    },
+    {
+      "title": "block intervals production reader contract preserves bounded independent refresh lifecycle and inspection",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "reader-contract"
+      }
+    },
+    {
+      "title": "block intervals production states partial",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "state-partial"
+      }
+    },
+    {
+      "title": "block intervals production states insufficient",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "state-insufficient"
+      }
+    },
+    {
+      "title": "block intervals production states window-failure",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "state-window-failure"
+      }
+    },
+    {
+      "title": "block intervals production states failure",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "state-failure"
+      }
+    },
+    {
+      "title": "block intervals production shared failure retains attributed stale values without changing chain health",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "retained-failure"
+      }
+    },
+    {
+      "title": "block intervals production initially hidden and manual pause survive BFCache without incidental reads",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "hidden-bfcache"
+      }
+    },
+    {
+      "title": "block intervals accepted current applied forward proof triggers after cooldown and does not fence an active span",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "applied-forward"
+      }
+    },
+    {
+      "title": "block intervals unqualified raw applied replacement cannot fence a pending indexed span",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "unqualified-applied"
+      }
+    },
+    {
+      "title": "independent production: accepted same-level applied replacement fences a matching-E refresh",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "applied-reorg"
+      }
+    },
+    {
+      "title": "V3 AC-13 adjacent burst settles its final right destination without queued motion or reader movement",
+      "annotation": {
+        "type": "v3-verified",
+        "description": "AC-13"
+      }
+    },
+    {
+      "title": "V3 AC-13 rapid admission burst preserves the actual final destination",
+      "annotation": {
+        "type": "v3-verified",
+        "description": "AC-13"
+      }
+    },
+    {
+      "title": "block intervals evidence keeps readable metadata at the actual product root font",
+      "annotation": {
+        "type": "block-interval-verified",
+        "description": "minimum-type"
+      }
+    }
+  ],
+  "readerCriteria": [
+    1,
+    2,
+    3,
+    4,
+    7,
+    9,
+    11,
+    12,
+    13,
+    14,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "note": "All listed real feature consumers execute for selected criteria; this ledger is expected execution inventory, not passing evidence. AC15 additionally requires the immutable complete combined release bundle and fresh independent visual receipts."
+}
