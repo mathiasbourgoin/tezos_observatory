@@ -334,11 +334,16 @@ export class ObservationStore<T> {
   }
   history():readonly SessionSnapshot<T>[] {return [...this.sessionHistory.values()].sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));}
   pin(identity:string):boolean {
+    const frozen=this.frozenPin;
+    if(frozen && (frozen.identity===identity || frozen.record.identity===identity || frozen.candidates.some(candidate=>candidate.identity===identity))){
+      if(this.selectedPin?.identity!==identity)this.selectedPin=Object.freeze({instance:frozen.identity,identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});
+      return true;
+    }
     const snapshot=[...this.sessionHistory.values()].find(value=>value.identity===identity||value.record.identity===identity||value.candidates.some(candidate=>candidate.identity===identity));if(!snapshot)return false;
     this.selectedPin=Object.freeze({instance:snapshot.identity,identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=undefined;return true;
   }
   followLive():void {this.selectedPin=undefined;this.frozenPin=undefined;}
-  latest():boolean {const live=this.liveSelection();if(!live){this.followLive();return false;}if(this.pin(live.record.identity))return true;this.selectedPin=Object.freeze({instance:live.snapshot.identity,identity:live.record.identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=live.snapshot;return true;}
+  latest():boolean {const live=this.liveSelection();if(!live){this.followLive();return false;}this.selectedPin=undefined;this.frozenPin=undefined;if(this.pin(live.record.identity))return true;this.selectedPin=Object.freeze({instance:live.snapshot.identity,identity:live.record.identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=live.snapshot;return true;}
   private liveSelection():{readonly snapshot:SessionSnapshot<T>;readonly record:ObservationTarget<T>}|undefined {
     const records=this.acceptedTargets().filter(record=>record.admission&&!record.contextInvalid&&this.contextAuthorized(record.admission.context)).sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
     for(const record of records){const identity=this.sessionIdentity(record),snapshot=this.sessionHistory.get(identity)??(this.lastLiveSnapshot?.identity===identity?this.lastLiveSnapshot:undefined);if(snapshot)return {snapshot,record};}

@@ -345,8 +345,11 @@ it("enriches a retained pin through active eviction then freezes it on history e
  store.addOperations([{...base,hash:"late-second-signer",evidence:evidence(b,200),contents:[{...base.contents[0]!,slot:1}]}]);inspection=store.inspection();expect(inspection.selectedIdentity).toBe(first.identity);expect(inspection.snapshot?.record.phases?.pre?.maximumPower).toBe(5);expect(inspection.snapshot?.pre).toEqual(["D1","D2"]);
  for(let index=101;index<252;index++)store.addCandidate(candidate(index,`P${index}`));
  const frozen=store.inspection();expect(frozen.frozen).toBe(true);expect(frozen.snapshot?.record.phases?.pre?.maximumPower).toBe(5);
+ expect(store.pin(first.identity)).toBe(true);expect(store.inspection()).toEqual(frozen);
+ expect(store.pin("pin-candidate-100")).toBe(true);expect(store.inspection().snapshot).toBe(frozen.snapshot);expect(store.inspection().frozen).toBe(true);expect(store.inspection().selectedIdentity).toBe("pin-candidate-100");expect(store.history()).toHaveLength(150);expect(store.pin(first.identity)).toBe(true);
  store.addOperations([{...base,hash:"return-to-frozen",evidence:evidence(b,1000)}]);expect(store.inspection().snapshot===frozen.snapshot).toBe(true);expect(store.inspection().frozen).toBe(true);
  const replayed=store.addCandidate({...candidate(0),evidence:evidence(b,2000)})!;expect(replayed.evidence.receivedMonotonic).toBe(first.evidence.receivedMonotonic);
+ expect(store.latest()).toBe(true);expect(store.inspection().snapshot).not.toBe(frozen.snapshot);
  expect(store.pin("pin-candidate-251")).toBe(true);expect(store.inspection().frozen).toBe(false);expect(store.inspection().snapshot).not.toBe(frozen.snapshot);
 });
 
@@ -413,4 +416,12 @@ it("does not count first candidate promotion of a pre-baseline pinned candidate-
  expect(store.history()).toHaveLength(1);expect(store.inspection().newer).toBe(0);
  store.addCandidate({identity:"second-pinned-candidate",header:{...head(123),hash:"SecondPinnedCandidate",payload_hash:"P"},evidence:evidence(b,3)});expect(store.inspection().newer).toBe(1);
  store.addCandidate({identity:"first-pinned-candidate",header:{...head(123),hash:"FirstPinnedCandidate",payload_hash:"P"},evidence:evidence(b,4)});expect(store.inspection().newer).toBe(1);
+});
+
+it("Latest replaces a frozen copy when its same instance has a newer coherent active owner",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),seed=store.addOperations([operation()])[0]!;store.accept(await new NetworkData("mainnet").reconcile(seed.target,new AbortController().signal));
+ const first=store.addCandidate({identity:"frozen-latest-candidate",header:{...head(123),hash:"FrozenLatest",payload_hash:"FrozenLatestPayload"},evidence:evidence(b,1)})!;expect(store.pin(first.identity)).toBe(true);
+ store.addOperations([{...operation("newer-live-owner"),evidence:evidence(b,10000),contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"FrozenLatestPayload"}]}]);
+ for(let index=0;index<151;index++)store.addCandidate({identity:`latest-retire-${index}`,header:{...head(123),hash:`LatestRetire${index}`,payload_hash:`LatestRetirePayload${index}`},evidence:evidence(b,index+2)});
+ const frozen=store.inspection();expect(frozen.frozen).toBe(true);store.addOperations([{...operation("newer-live-second"),evidence:evidence(b,20000),contents:[{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"FrozenLatestPayload"}]}]);expect(store.inspection().snapshot?.record.phases?.pre?.power).toBe(3);expect(store.latest()).toBe(true);expect(store.inspection().snapshot?.record.phases?.pre?.power).toBe(5);expect(store.inspection().snapshot?.record.target.payload).toBe("FrozenLatestPayload");
 });
