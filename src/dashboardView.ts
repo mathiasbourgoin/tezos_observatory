@@ -2,9 +2,9 @@ export type Network = 'mainnet' | 'shadownet';
 export interface VoteView {count: number; expected: number; power: number; total: number}
 export interface DelegateView {address: string; alias?: string; power: number; forbidden?: boolean; eligibility?: 'eligible' | 'forbidden' | 'unavailable'; eligibilityState?:'stale'|'context-invalid'; eligibilityNote?:string}
 export interface SourceView {name: string; url: string; status: string; detail?: string}
-export interface RecentConsensusView {level: number; round: number; prePower: number; attPower: number; total: number; payload?: string}
+export interface RecentConsensusView {identity?:string;level: number; round: number; prePower?: number; attPower?: number; preTotal?:number;attTotal?:number;total: number; payload?: string;source?:string}
 export interface NetworkViewModel {
-  status: 'loading' | 'healthy' | 'stalled' | 'degraded';
+  status: 'loading' | 'healthy' | 'unknown' | 'stalled' | 'degraded';
   level?: number; consensusLevel?: number; round?: number; activityRound?: number; hash?: string; payload?: string;
   appliedLevel?: number; appliedRound?: number;
   observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
@@ -15,6 +15,7 @@ export interface NetworkViewModel {
   candidateEvidence?: string;
   contextEvidence?: string;
   recentConsensus?: RecentConsensusView[];
+  events?:readonly {readonly identity:string;readonly description:string;readonly observedAt:number}[];
   observedAt?: number; blockTimestamp?: number; lastOperationAt?: number;
   source?: string; connection?: string; error?: string; note?: string;
   preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;
@@ -80,7 +81,7 @@ function recentConsensus() {
   return {root, update(history: RecentConsensusView[] | undefined) {
     const values = (history ?? []).slice(0, 5), keys = new Set<string>();
     for (const [index, value] of values.entries()) {
-      const key = `${value.level}:${value.round}:${value.payload ?? ''}`; keys.add(key);
+      const key = value.identity??`${value.level}:${value.round}:${value.payload ?? ''}`; keys.add(key);
       let row = keyed.get(key);
       if (!row) {
         row = el('div', 'recent-consensus-row'); row.append(el('span', 'recent-identity'));
@@ -91,12 +92,13 @@ function recentConsensus() {
         keyed.set(key, row);
       }
       set(row.children[0] as HTMLElement, `${number(value.level)} · r${value.round}`);
-      row.title = `Level ${value.level} · round ${value.round}${value.payload ? ` · payload ${value.payload}` : ''}`;
+      row.title = `Level ${value.level} · round ${value.round}${value.payload ? ` · payload ${value.payload}` : ''}${value.source?` · source ${value.source}`:""}`;
       for (const [offset, power] of [value.prePower, value.attPower].entries()) {
-        const percent = value.total > 0 ? Math.min(100, Math.max(0, 100 * power / value.total)) : undefined;
+        const total=(offset===0?value.preTotal:value.attTotal)??value.total;
+        const percent = power!==undefined && total > 0 ? Math.min(100, Math.max(0, 100 * power / total)) : undefined;
         const cell = row.children[offset + 1] as HTMLElement;
         set(cell.children[0] as HTMLElement, `${offset === 0 ? 'Pre' : 'Att'} ${percent === undefined ? '—' : `${percent.toFixed(1)}%`}`);
-        cell.title = `${number(power)} / ${number(value.total)} voting power`;
+        cell.title = `${number(power)} / ${number(total)} voting power`;
         (cell.querySelector('.recent-fill') as HTMLElement).style.width = `${percent ?? 0}%`;
       }
       if (rows.children[index] !== row) rows.insertBefore(row, rows.children[index] ?? null);
@@ -226,8 +228,8 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       set(timing, `Scheduled opportunity · level ${number(t.level ?? current.consensusLevel)} · estimated round ${t.round} → ${t.nextRound} · boundary ${clock(t.endsAt)}${remaining <= 0 ? ' · waiting for fresh timing' : ''}`);
     };
     states.set(network, {tick, update(model) {
-      const previous = current; current = model; panel.dataset.status = model.status;
-      const labels = {loading: 'Connecting', healthy: 'Progressing', stalled: 'Level stalled', degraded: 'RPC coverage degraded'};
+      current = model; panel.dataset.status = model.status;
+      const labels = {loading: 'Connecting', healthy: 'Observed advance', unknown:'Progress unknown',stalled: 'Prediction elapsed', degraded: 'RPC coverage degraded'};
       set(status, labels[model.status]); set(tabStatus, labels[model.status]); tab.dataset.status = model.status; set(level, number(model.appliedLevel ?? model.level)); set(round, number(model.appliedRound ?? model.round));
       const levelLabel=level.parentElement?.querySelector('.eyebrow'), roundLabel=round.parentElement?.querySelector('.eyebrow');
       if(levelLabel)set(levelLabel as HTMLElement,'Applied block level');
@@ -282,16 +284,10 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       const sources = model.sources ?? [], sourceKeys = new Set(sources.map(source => source.url));
       for (const source of sources) {let row = keyedSources.get(source.url); if (!row) {row = el('div', 'source-row'); sourceRows.append(row); keyedSources.set(source.url, row);} set(row, `${source.name} · ${source.status}${source.detail ? ` · ${source.detail}` : ''}`); row.title = source.url;}
       for (const [key, row] of keyedSources) if (!sourceKeys.has(key)) {row.remove(); keyedSources.delete(key);}
-      const events: string[] = [];
-      if (previous && model.level !== undefined && previous.level !== model.level) events.push(`${model.roundSource==='schedule'?'Scheduled opportunity':'Observed activity'} · level ${number(model.level)} · round ${number(model.round)}`);
-      else if (previous && model.activityRound !== undefined && previous.activityRound !== model.activityRound) events.push(`${model.roundSource==='schedule'?'Scheduled':'Observed'} round ${model.activityRound}`);
-      for (const phase of ['preattestations', 'attestations'] as const) if (previous?.[phase] && model[phase] && model.quorum !== undefined && previous[phase].power < model.quorum && model[phase].power >= model.quorum) events.push(`${phase === 'preattestations' ? 'Preattestation' : 'Attestation'} quorum reached`);
       if (previousStatus !== model.status && model.status !== 'loading') {
-        events.push(labels[model.status]);
         if (previousStatus !== undefined) set(announcements, `${name}: ${labels[model.status]}`);
       }
-      for (const event of events) history.prepend(el('li', '', `${clock(Date.now())} · ${event}`));
-      while (history.children.length > 12) history.lastElementChild?.remove();
+      history.replaceChildren(...(model.events??[]).slice(-12).reverse().map(event=>el('li','',`${clock(event.observedAt)} · ${event.description}`)));
       previousStatus = model.status; tick(Date.now());
     }});
   }

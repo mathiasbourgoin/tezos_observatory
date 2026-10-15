@@ -5,8 +5,8 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
-const browserChecks=new Set(['AC-4','AC-20']);
-const implemented = new Set(['AC-1','AC-3','AC-9','AC-10','AC-11','AC-12','AC-18',...browserChecks]);
+const browserChecks=new Set(['AC-4','AC-8','AC-13','AC-20','AC-31']);
+const implemented = new Set(['AC-1','AC-2','AC-3','AC-9','AC-10','AC-11','AC-12','AC-14','AC-18','AC-19',...browserChecks]);
 export function classifyBrowserReport(report,runnerStatus,criterion) {
   let completed=0;
   const behavioralFailures=[];
@@ -69,7 +69,161 @@ try {
     return {observer,anchor:observer,level:120,protocolHash:'PFixture',key:JSON.stringify([observerSource.baseUrl,'NetFixture','Parent','Grandparent','PFixture',120])};
   };
   rights=[{address:'D1',slot:0,power:3,context:authorityContextFor(source)},{address:'D2',slot:1,power:2,context:authorityContextFor(source)}];
-  if(criterion==='AC-3') {
+  if(criterion==='AC-2' || criterion==='AC-14' || criterion==='AC-19' || criterion==='AC-31') {
+    const {ObservationStore}=await server.ssrLoadModule('/monitor/observationStore.ts');
+    const originalFetch=globalThis.fetch,completed=[],reads=[],signal=new AbortController().signal;
+    const observer=sources.mainnet[0];let body={validated:[]},headReads=0,changeContext=false;
+    const rawHead=(level=120,fork=false)=>({level,hash:`H${level}${fork?'fork':''}`,predecessor:`H${level-1}`,chain_id:'NetFixture',timestamp:'2026-10-14T00:00:00Z',fitness:['02',level.toString(16).padStart(8,'0'),'','ffffffff','00000000']});
+    const full=validated=>({validated,refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]});
+    const unrelated={hash:'transaction',branch:'H119',contents:[{kind:'transaction',source:'D1',destination:'D2',fee:'1',counter:'1',gas_limit:'100',storage_limit:'0',amount:'1'}]};
+    const packet=(hash,payload='P')=>({hash,branch:'H119',contents:[{kind:'preattestation',level:121,round:0,slot:0,block_payload_hash:payload}]});
+    const receipt=(source=observer)=>({source,receivedAt:Date.now(),receivedMonotonic:performance.now()});
+    const finish=(id,before)=>{if(assertions<=before)throw new Error(`Incomplete execution: ${id} ran no assertions`);completed.push(id);};
+    const flush=async predicate=>{for(let turn=0;turn<100&&!predicate();turn++)await new Promise(resolve=>setImmediate(resolve));if(!predicate())throw new Error('Fixture workflow did not reach required consumer boundary');};
+    const rpc=async input=>{
+      const url=String(input);reads.push(url);
+      if(url.includes('pending_operations'))return body==='truncated'?new Response('{"validated":['):Response.json(body);
+      if(url.endsWith('/header')){const block=url.split('/blocks/')[1]?.split('/')[0];if(block==='head'){headReads++;return Response.json(rawHead(120,changeContext&&headReads>1));}return Response.json({...rawHead(Number(block.match(/\d+/)?.[0])),hash:block});}
+      if(url.endsWith('/protocols'))return Response.json({protocol:'PFixture',next_protocol:'PFixture'});
+      const level=Number(new URL(url).searchParams.get('level'));
+      if(url.includes('attestation_rights'))return Response.json([{level,delegates:criterion==='AC-31'?[{delegate:'D1',first_slot:0,attesting_power:3},{delegate:'D2',first_slot:1,attesting_power:1},{delegate:'D3',first_slot:2,attesting_power:1}]:[{delegate:'D1',first_slot:0,attesting_power:3},{delegate:'D2',first_slot:1,attesting_power:2}]}]);
+      if(url.endsWith('/context/constants'))return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+      throw new Error(`Unexpected fixture endpoint: ${url}`);
+    };
+    try {
+      globalThis.fetch=rpc;
+      const data=new NetworkData('mainnet'),head={...asBlockHeader(rawHead()),evidence:receipt()};
+      const derived=await data.derive(head,signal),targetContext=derived.contexts.get(121);
+      if(!targetContext || !derived.constantsByLevel.get(121) || !derived.rights.get(121))throw new Error('Missing real RPC-derived fixture authority');
+      const proof={head,derived,context:targetContext,rights:derived.rights.get(121),constants:derived.constantsByLevel.get(121)};
+      const makeStore=()=>{
+        const store=new ObservationStore('mainnet',sources.mainnet);
+        const evidence=receipt(),candidate={identity:`candidate-${evidence.receivedMonotonic}`,header:{...asBlockHeader(rawHead(121)),payload_hash:'P',evidence},evidence};
+        const record=store.addCandidate(candidate);if(!record)throw new Error('Missing actual retained candidate');return {store,record};
+      };
+      const pending=async()=>{headReads=0;return data.pending(signal,head,targetContext);};
+      if(criterion==='AC-2') {
+        let before=assertions;const zero=makeStore();body=full([]);const snapshot=await pending();zero.store.accept({...proof,...zero.store.generation(observer),snapshot});
+        const retained=zero.store.target(zero.record.identity);
+        check([retained?.coverage?.complete,retained?.phases?.pre?.power,retained?.phases?.att?.power],[true,0,0],'Only a coherent post-established full source snapshot measures both empty phases');
+        check([retained.coverage.evidence.source.baseUrl,retained.coverage.evidence.receivedAt],[observer.baseUrl,snapshot.evidence.receivedAt],'Zero retains actual source and original snapshot receipt');finish('source-scoped-zero',before);
+        before=assertions;const missing=makeStore();check([missing.store.target(missing.record.identity)?.coverage,missing.store.target(missing.record.identity)?.phases],[undefined,undefined],'Unproved identity and missing observations cannot supply zero');
+        assert.throws(()=>missing.store.accept({...proof,...missing.store.generation(observer),rights:[],snapshot}),/admission|context|committee/i);assertions++;
+        check([missing.store.acceptedTargets().length,missing.store.target(missing.record.identity)?.coverage],[0,undefined],'Unavailable coherent rights cannot publish zero or missing-delegate authority');finish('missing-authority',before);
+        before=assertions;const partial=makeStore();partial.store.addOperations([{...packet('positive'),evidence:receipt()}]);partial.store.accept({...proof,...partial.store.generation(observer)});
+        const positive=partial.store.acceptedTargets().find(record=>!record.target.candidate);
+        check([positive?.phases?.pre?.power,positive?.phases?.att,positive?.coverage],[3,undefined,undefined],'Received preattestation is positive partial evidence and cannot establish opposite-phase zero');finish('positive-partial',before);
+        before=assertions;const originalWindow=globalThis.window,transports=[];let latest;
+        globalThis.window={setTimeout:()=>1,clearTimeout:()=>{}};
+        try {
+          monitor=new NetworkMonitor({network:'mainnet',headSources:[observer],operationSources:[],derive:(head,signal)=>data.derive(head,signal),fallbackOperations:async()=>[],onUpdate:view=>{latest=view;},streamFactory:options=>{const transport={options,start(){},stop(){}};transports.push(transport);return transport;}});
+          monitor.start();const transport=transports.find(transport=>transport.options.path.includes('/monitor/heads/'));if(!transport)throw new Error('Actual primary head consumer missing');
+          transport.options.onValue(asBlockHeader(rawHead()),observer);await flush(()=>latest?.snapshot?.derived!==null&&latest?.snapshot?.derived!==undefined);
+          check(latest.progression,null,'Connected initial head is not invented progression');
+          transport.options.onValue(asBlockHeader(rawHead(121)),observer);await flush(()=>latest?.progression?.to.header.hash==='H121');
+          const progress=latest.progression;check([progress.kind,progress.from.header.hash,progress.to.header.hash],['next-level','H120','H121'],'Observed source-compatible head transition proves advancement');
+          transport.options.onStatus(observer,'Transport reconnecting',{connects:1,messages:2,reconnects:1,bytes:1,lastLatencyMs:null});
+          check([latest.headStream.error,latest.progression],['Transport reconnecting',progress],'Reconnecting transport preserves independent attributed advancement');
+          check(progress.evidence.source.baseUrl,observer.baseUrl,'Progress never borrows another observer identity');finish('independent-health',before);
+        } finally {monitor?.stop();monitor=undefined;globalThis.window=originalWindow;}
+        check(completed,['source-scoped-zero','missing-authority','positive-partial','independent-health'],'All complete AC2 clauses reached actual consumers');
+      } else if(criterion==='AC-31') {
+        let sequence=0;
+        const vote=(slot,kind='preattestation',payload='P',at=++sequence,extra={})=>({...packet(`phase-${++sequence}`,payload),contents:[{kind,level:121,round:0,slot,block_payload_hash:payload}],evidence:{...receipt(),receivedMonotonic:at,...extra}});
+        const create=async votes=>{const store=new ObservationStore('mainnet',sources.mainnet),record=store.addOperations(votes)[0];if(!record)throw new Error('Missing actual phase target');const admission=await new NetworkData('mainnet').reconcile(record.target,signal);store.accept(admission);return {store,record,admission};};
+        const crosses=store=>store.acceptedEvents().filter(event=>event.kind==='crossing');
+        let before=assertions;const initial=await create([vote(0),vote(1)]);
+        check([initial.store.target(initial.record.identity)?.phases?.pre?.power,initial.store.target(initial.record.identity)?.phases?.pre?.crossed],[4,false],'First authoritative quorum is observed, never a fabricated crossing');
+        check(initial.store.acceptedEvents().map(event=>event.kind),['observed-quorum'],'First-at-quorum event is explicitly qualified');finish('first-quorum',before);
+        before=assertions;const independent=await create([vote(0),vote(0,'attestation')]);
+        check([independent.store.target(independent.record.identity)?.phases?.pre?.power,independent.store.target(independent.record.identity)?.phases?.att?.power],[3,3],'Both phases start with independently observed exact below power');
+        independent.store.addOperations([vote(1)]);check(crosses(independent.store).map(event=>event.phase),['pre'],'New pre evidence cannot cross the attestation phase');
+        independent.store.addOperations([vote(1,'attestation')]);const retainedEvents=independent.store.acceptedEvents();
+        check(crosses(independent.store).map(event=>[event.phase,event.power,event.threshold]),[['pre',4,4],['att',4,4]],'Each phase crosses once with exact power and threshold');
+        const maximum=independent.store.target(independent.record.identity)?.phases?.pre;
+        check([maximum.maximumPower,maximum.maximumTotal,maximum.maximumThreshold],[4,5,4],'Retained maximum captures its original numerical basis');finish('independent-phases',before);
+        before=assertions;
+        const acceptCorrection=(store,admission,threshold,powers)=>store.accept({...admission,...store.generation(observer),rights:admission.rights.map((right,index)=>({...right,power:powers[index]})),constants:{...admission.constants,quorum:threshold}});
+        acceptCorrection(independent.store,independent.admission,3,[1,1,3]);
+        check([independent.store.target(independent.record.identity)?.phases?.pre?.power,independent.store.target(independent.record.identity)?.phases?.pre?.maximumPower],[2,4],'Numerical reduction preserves exact accepted maximum');
+        acceptCorrection(independent.store,independent.admission,5,[3,1,1]);independent.store.accept({...independent.admission,...independent.store.generation(observer)});
+        independent.store.addOperations([vote(1),vote(1,'attestation')]);independent.store.stop();independent.store.start();independent.store.accept({...independent.admission,...independent.store.generation(observer)});
+        check(independent.store.acceptedEvents(),retainedEvents,'Corrections threshold down/up recovery replay and re-admission cannot duplicate events');
+        check([independent.store.target(independent.record.identity)?.phases?.pre?.maximumBasis,independent.store.target(independent.record.identity)?.phases?.pre?.crossed],[maximum.maximumBasis,true],'Captured basis and sticky crossing survive corrections');
+        const corrected=await create([vote(0)]);acceptCorrection(corrected.store,corrected.admission,4,[4,0,1]);corrected.store.addOperations([vote(0)]);
+        check([corrected.store.target(corrected.record.identity)?.phases?.pre?.maximumPower,crosses(corrected.store).length],[4,0],'Correction reaching quorum then raw replay cannot invent a crossing');finish('corrections-and-replay',before);
+        before=assertions;const priorEvents=independent.store.acceptedEvents();
+        for(const hash of ['shared-one','shared-two']){const evidence=receipt();independent.store.addCandidate({identity:hash,header:{...asBlockHeader(rawHead(121)),payload_hash:'P',evidence},evidence});}
+        check(independent.store.acceptedEvents(),priorEvents,'Shared candidate payload cannot duplicate a phase event');check(priorEvents.every(event=>event.attribution==='payload-shared'),true,'Events never claim candidate-specific signatures');
+        const realNow=Date.now;try{Date.now=()=>realNow()+1000000000000;independent.store.rawOperations();check(independent.store.target(independent.record.identity)?.phases?.pre?.maximumPower,4,'Clock jump alone cannot retire phase authority');}finally{Date.now=realNow;}
+        independent.store.addOperations([{...vote(0,'preattestation','Ahead'),contents:[{kind:'preattestation',level:1000000,round:0,slot:0,block_payload_hash:'Ahead'}]}]);check(crosses(independent.store).length,2,'Another claimed height cannot reset retained crossing state');finish('shared-attribution-no-clock-retirement',before);
+        before=assertions;
+        for(let index=0;index<14;index++){independent.store.addOperations([vote(0,'preattestation',`Event-${index}`)]);independent.store.addOperations([vote(1,'preattestation',`Event-${index}`)]);}
+        const boundedEvents=independent.store.acceptedEvents();check(boundedEvents.length,12,'Event display ownership remains finite independently of retained phase history');
+        independent.store.addOperations([vote(0),vote(1)]);check(independent.store.acceptedEvents(),boundedEvents,'Evicting an event cannot reset its retained crossing deduplication');check(independent.store.target(independent.record.identity)?.phases?.pre?.crossed,true,'Original crossing fact survives event eviction');finish('event-eviction-does-not-reset',before);
+        for(const originallyCrossed of [false,true]){
+          before=assertions;const lost=await create([vote(0)]);if(originallyCrossed)lost.store.addOperations([vote(1)]);const priorCrossings=crosses(lost.store).length;
+          lost.store.addOperations(Array.from({length:600},(_,index)=>vote(0,'preattestation',`Retire-${index}`,1000+index)));
+          check(lost.store.target(lost.record.identity),undefined,'Product overflow truly evicts original target from actual store');check([lost.store.crossingState().retained<=500,lost.store.crossingState().uncertain],[true,true],'Owned metadata stays bounded and forgotten history becomes uncertain');
+          const fork={...asBlockHeader(rawHead()),hash:'H120fork',evidence:receipt()};lost.store.observeHead(fork);
+          globalThis.fetch=async input=>String(input).endsWith('/blocks/head/header')||String(input).endsWith('/blocks/H120fork/header')?(reads.push(String(input)),Response.json({...fork,chain_id:'NetFixture'})):rpc(input);
+          const forkRecord=lost.store.addOperations([vote(0,'preattestation','ForkPayload',2000,{observedHeadHash:fork.hash,observedHeadLevel:120})])[0];if(!forkRecord)throw new Error('Missing fork target');
+          lost.store.accept(await new NetworkData('mainnet').reconcile(forkRecord.target,signal));check(lost.store.target(forkRecord.identity)?.admission?.head.hash,'H120fork','Genuine RPC context proves fork admission');
+          globalThis.fetch=rpc;lost.store.observeHead({...head,evidence:receipt()});const returning=lost.store.addOperations([vote(0,'preattestation','P',3000,{observedHeadHash:'H120',observedHeadLevel:120})])[0];if(!returning)throw new Error('Missing return target');
+          lost.store.accept(await new NetworkData('mainnet').reconcile(returning.target,signal));lost.store.addOperations([vote(1,'preattestation','P',3001,{observedHeadHash:'H120',observedHeadLevel:120})]);
+          check(lost.store.target(returning.identity)?.admission?.head.hash,'H120','Genuine same-observer RPC proof establishes original context return');
+          check([crosses(lost.store).length,lost.store.target(returning.identity)?.phases?.pre?.uncertain],[priorCrossings,true],'Forgotten prior crossing/below state cannot recreate a crossing after reorg return');finish(originallyCrossed?'forgotten-crossing-return':'forgotten-below-return',before);
+        }
+        before=assertions;const rawLoss=await create([vote(0)]);rawLoss.store.addOperations(Array.from({length:10001},(_,index)=>vote(0,'preattestation','P',4000+index)));
+        check([rawLoss.store.rawOperations().length,rawLoss.store.crossingState().retained<=500,rawLoss.store.crossingState().uncertain],[10000,true,true],'Actual raw loss enforces finite ownership and sticky uncertainty');
+        check(rawLoss.store.target(rawLoss.record.identity)?.phases?.pre?.maximumPower,3,'Retained exact known maximum survives raw loss');check(crosses(rawLoss.store).length,0,'Same-payload raw flood cannot invent a crossing');finish('raw-loss-bounds',before);
+        check(completed,['first-quorum','independent-phases','corrections-and-replay','shared-attribution-no-clock-retirement','event-eviction-does-not-reset','forgotten-below-return','forgotten-crossing-return','raw-loss-bounds'],'Every native AC31 clause completed after both production engines');
+      } else if(criterion==='AC-14') {
+        let before=assertions;body=full([]);const early=await pending(),preidentity=makeStore();
+        preidentity.store.accept({...proof,...preidentity.store.generation(observer),snapshot:early});
+        check(preidentity.store.target(preidentity.record.identity)?.coverage,undefined,'A snapshot received before identity cannot establish coverage');
+        check(preidentity.store.target(preidentity.record.identity)?.phases?.att,undefined,'Preidentity empty body cannot certify phase zero');finish('preidentity',before);
+        const cases=[['missing-validated',{}],['applied-only',{applied:[]}],['malformed-relevant',full([{...packet('bad'),contents:[{kind:'attestation',level:121,round:0,slot:-1,block_payload_hash:'P'}]}])],['malformed-aggregate',full([{hash:'aggregate',contents:[{kind:'preattestations_aggregate',consensus_content:{level:121,round:0,block_payload_hash:'P'},committee:[0,-1]}]}])],['local-partial',full(Array.from({length:10001},(_,index)=>({...unrelated,hash:`unrelated-${index}`})))]];
+        for(const [id,value] of cases){before=assertions;const {store,record}=makeStore();body=value;const snapshot=await pending();
+          check(snapshot.complete,false,`${id} is classified incomplete`);check(snapshot.reasons.length>0,true,`${id} retains its incompleteness reason`);
+          store.accept({...proof,...store.generation(observer),snapshot});const retained=store.target(record.identity);
+          check(retained?.coverage?.complete,false,`${id} remains partial through actual store publication`);check(retained?.phases?.att,undefined,`${id} cannot certify absent attestation zero`);
+          if(id==='malformed-aggregate')check(snapshot.operations[0]?.contents.length,0,'One malformed aggregate member rejects the whole aggregate');finish(id,before);
+        }
+        before=assertions;const truncated=makeStore();body='truncated';let rejected=false;
+        try{await pending();}catch(error){if(!(error instanceof SyntaxError))throw error;rejected=true;}
+        check(rejected,true,'Structurally truncated JSON rejects the pending workflow');check(truncated.store.target(truncated.record.identity)?.coverage,undefined,'Failed body supplies no store completeness');finish('truncated-body',before);
+        before=assertions;const changed=makeStore();body=full([]);changeContext=true;const crossing=await pending();changeContext=false;
+        check(crossing.complete,false,'Same-height context change across body is incomplete');let refused=false;
+        try{changed.store.accept({...proof,...changed.store.generation(observer),snapshot:crossing});}catch(error){if(!String(error).includes('snapshot'))throw error;refused=true;}
+        check(refused,true,'Actual store rejects a snapshot spanning incompatible context');check(changed.store.target(changed.record.identity)?.phases?.att,undefined,'Context-spanning snapshot cannot publish zero');finish('context-change',before);
+        before=assertions;const later=makeStore();body=full([unrelated]);const complete=await pending();later.store.accept({...proof,...later.store.generation(observer),snapshot:complete});const retained=later.store.target(later.record.identity);
+        check([complete.complete,complete.evidence.requestedHeadHash],[true,undefined],'Valid unrelated complete category retains honest unpinned receipt');
+        check([retained?.coverage?.complete,retained?.phases?.pre?.power,retained?.phases?.att?.power],[true,0,0],'Later coherent source snapshot certifies actual retained phase zero');
+        check(retained.coverage.evidence.source.baseUrl,observer.baseUrl,'Measured zero keeps actual source');finish('later-valid-unrelated',before);
+        check(completed,['preidentity',...cases.map(([id])=>id),'truncated-body','context-change','later-valid-unrelated'],'Every required AC14 scenario completed');
+      } else {
+        let before=assertions;const store=new ObservationStore('mainnet',sources.mainnet),foreign={...observer,baseUrl:'https://unconfigured.invalid'};
+        check(store.addOperations([{...packet('foreign'),evidence:receipt(foreign)}]).length,0,'Unconfigured provider cannot create retained work');check(store.rawOperations().length,0,'Unconfigured provider cannot consume raw capacity');
+        const target={source:foreign,level:121,round:0,payload:'P'};const count=reads.length;let rejected=false;try{await data.reconcile(target,signal);}catch(error){if(!String(error).includes('Unconfigured'))throw error;rejected=true;}
+        check([rejected,reads.length],[true,count],'Unconfigured reconciliation starts no endpoint request');finish('configured-only',before);
+        before=assertions;store.addOperations(Array.from({length:10001},(_,index)=>({...packet(`raw-${index}`,`P${index%120}`),evidence:{...receipt(),receivedMonotonic:index}})));
+        check(store.rawOperations().length,10000,'Canonical actual raw store enforces 10000 operations');check(store.unresolvedTargets().length,100,'Shared actual unresolved product enforces 100 identities');
+        check(store.rawOperations().some(operation=>operation.hash==='raw-0'),false,'Oldest raw operation is evicted');store.addOperations([store.rawOperations()[0]]);check([store.rawOperations().length,store.unresolvedTargets().length],[10000,100],'Replay cannot grow bounded owned products');finish('raw-and-quarantine-bounds',before);
+        before=assertions;
+        for(let index=0;index<5;index++){const evidence={...receipt(),receivedMonotonic:20000+index};store.addCandidate({identity:`bounded-candidate-${index}`,header:{...asBlockHeader(rawHead(121)),hash:`candidate-${index}`,payload_hash:`candidate-P${index}`,evidence},evidence});}
+        check([store.unresolvedTargets().length,store.unresolvedTargets().filter(record=>record.target.candidate).length],[100,5],'Candidate and candidate-free targets share one quarantine bound');check(store.rawOperations().length,10000,'Candidate quarantine pressure cannot grow raw storage');finish('shared-candidate-bound',before);
+        before=assertions;const oversized=makeStore();body=full(Array.from({length:10001},(_,index)=>packet(`oversized-${index}`)));const snapshot=await pending();oversized.store.accept({...proof,...oversized.store.generation(observer),snapshot});
+        check([snapshot.complete,snapshot.operations.length],[false,10000],'Oversized validated snapshot is bounded and explicitly partial');check(oversized.store.target(oversized.record.identity)?.coverage?.complete,false,'Actual retained coverage cannot certify truncated snapshot');check(oversized.store.target(oversized.record.identity)?.phases?.att,undefined,'Truncated snapshot cannot certify absent phase zero');finish('oversized-snapshot',before);
+        before=assertions;const delegates=Array.from({length:6},(_,slot)=>({address:`D${slot}`,slot,power:1})),finishes=[];let active=0,maximum=0;
+        globalThis.fetch=async input=>{const url=String(input);if(!url.endsWith('/is_forbidden'))return rpc(input);reads.push(url);active++;maximum=Math.max(maximum,active);return new Promise(resolve=>finishes.push(()=>{active--;resolve(Response.json(false));}));};
+        const prior=reads.length;await new NetworkData('mainnet').loadEligibility(head,delegates,signal);check(reads.length,prior,'Mainnet eligibility starts no fanout');
+        const shade=new NetworkData('shadownet'),work=shade.loadEligibility({...head,evidence:undefined},delegates,signal);await flush(()=>finishes.length===3);
+        check([active,maximum],[3,3],'Actual Shadownet endpoint ledger stops at three concurrent workers');for(const finish of finishes.slice(0,3))finish();await flush(()=>finishes.length===6);check(maximum,3,'Second worker wave never exceeds three');for(const finish of finishes.slice(3))finish();await work;check([active,finishes.length],[0,6],'All bounded eligibility workers complete');finish('eligibility-workers',before);
+        check(completed,['configured-only','raw-and-quarantine-bounds','shared-candidate-bound','oversized-snapshot','eligibility-workers'],'Every required AC19 scenario completed');
+      }
+    } finally {globalThis.fetch=originalFetch;}
+  } else if(criterion==='AC-3') {
     const originalFetch=globalThis.fetch,originalWindow=globalThis.window;
     const a=streamSources.mainnet[0],b=sources.mainnet[0];
     const seen=[];

@@ -239,3 +239,26 @@ it("retains late eligibility as context-invalid evidence after a head change",as
  expect(data.forbidden("D")).toBeUndefined();expect(data.eligibilityStatus("D").contextInvalid).toBe(true);
  expect(data.eligibilityStatus("D").rawValue).toBe(true);expect(data.eligibilityStatus("D").evidence?.contextHeadHash).toBe("B120");
 });
+
+
+it("never converts an unsupported pending body into an empty validated snapshot",async()=>{
+ for(const body of [{},{applied:[]},{validated:null},{validated:{}}]){
+  vi.stubGlobal("fetch",async()=>Response.json(body));
+  await expect(new NetworkData("mainnet").pending(new AbortController().signal)).rejects.toThrow("validated");
+ }
+});
+
+
+it("returns independently attributed full validated coverage with before and after observer proof",async()=>{
+ const reads:string[]=[];
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{const url=String(input);reads.push(url);
+  if(url.includes("pending_operations"))return Response.json({validated:[{hash:"transaction",branch:"B119",contents:[{kind:"transaction",source:"D1",destination:"D2",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]}],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]});
+  if(url.endsWith("/blocks/head/header"))return Response.json({...head(120),chain_id:"NetFixture"});
+  const proof=contextResponse(url);if(proof)return proof;
+  const level=Number(new URL(url).searchParams.get("level"));return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:5}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData("mainnet"),signal=new AbortController().signal,derived=await data.derive(head(120),signal),context=derived.contexts.get(121);if(!context)throw new Error("Fixture context missing");
+ const result=await data.pending(signal,head(120),context) as unknown as {complete?:boolean;operations?:readonly unknown[];evidence?:{source:{baseUrl:string};requestedHeadHash?:string};contextBefore?:unknown;contextAfter?:unknown};
+ expect(result.complete).toBe(true);expect(result.operations).toHaveLength(1);expect(result.evidence?.source.baseUrl).toBe(context.observer.source.baseUrl);expect(result.evidence?.requestedHeadHash).toBeUndefined();expect(result.contextBefore).toEqual(context);expect(result.contextAfter).toEqual(context);
+ expect(reads.filter(url=>url.endsWith("/blocks/head/header"))).toHaveLength(2);
+});

@@ -50,7 +50,7 @@ async function send(page: Page, channel: Channel, value: unknown): Promise<void>
   }, {channel, value});
 }
 
-async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false,sourceB=false): Promise<void> {
+async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false,sourceB=false,rpcCommittee?:{total:number;quorum:number;powers:readonly number[]}): Promise<void> {
   headers.set(page,new Map([[initialHead.hash,initialHead],[initialHead.predecessor,{...head(initialHead.level-1),hash:initialHead.predecessor}]]));
   await page.addInitScript(({initialOperations, initialHead, initiallyHidden,sourceB}) => {
     window.mockHidden=initiallyHidden;window.mockRequests=[];
@@ -81,11 +81,11 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
     const url = new URL(route.request().url());
     const level = Number(url.searchParams.get('level') ?? 100);
     let result: unknown;
-    if (url.pathname.includes('attestation_rights')) result = [{level, delegates: Array.from({length: 50}, (_, slot) => ({
-      delegate: `tz1BakerAddress${String(slot).padStart(25, '0')}`, first_slot: slot, attesting_power: 600,
+    if (url.pathname.includes('attestation_rights')) result = [{level, delegates: Array.from({length: rpcCommittee?.powers.length??50}, (_, slot) => ({
+      delegate: `tz1BakerAddress${String(slot).padStart(25, '0')}`, first_slot: slot, attesting_power: rpcCommittee?.powers[slot]??600,
     }))}];
     else if (url.pathname.endsWith('/context/constants')) result = {
-      minimal_block_delay: '6', delay_increment_per_round: '3', consensus_threshold_size: 20000, consensus_committee_size: 30000,
+      minimal_block_delay: '6', delay_increment_per_round: '3', consensus_threshold_size: rpcCommittee?.quorum??20000, consensus_committee_size: rpcCommittee?.total??30000,
     };
     else if (url.pathname.includes('baking_rights')) result = [{level, round: Number(url.searchParams.get('max_round') ?? 0), delegate: 'tz1BakerAddress0000000000000000000000000'}];
     else if (url.pathname.endsWith('/is_forbidden')) result = false;
@@ -97,7 +97,7 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
       result={...observed,chain_id:'NetFixture'};
     }
     else if (url.pathname.includes('/v1/delegates')) result = Array.from({length: 50}, (_, slot) => ({address: `tz1BakerAddress${String(slot).padStart(25, '0')}`, alias: `Baker ${slot}`}));
-    else if (url.pathname.includes('pending_operations')) result = {validated: []};
+    else if (url.pathname.includes('pending_operations')) result = {}; // No full snapshot is claimed by ordinary stream fixtures.
     else {await route.abort(); return;}
     await route.fulfill({json: result, headers: {'Access-Control-Allow-Origin': '*'}});
   });
@@ -109,10 +109,15 @@ async function prepare(page: Page, initialOperations = true, initialHead=head(),
 
 test('monitor operations update the production dashboard without losing list scroll or focus', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
-  await prepare(page);
+  await prepare(page,false);
+  const pinned=headers.get(page)!.get("BBlock100")!;
+  await page.route("https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",route=>route.fulfill({json:{...pinned,chain_id:"NetFixture"}}));
+  await page.route("https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*",route=>route.fulfill({json:{validated:[],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}}));
   await send(page, 'mainnet-operations', [vote(0)]);
-  const panel = page.locator('.mainnet');
+  const panel = page.locator('.network-panel.mainnet');
   await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+  await panel.getByRole("button",{name:"Inspect payload vhPayload101",exact:true}).click();
+  await expect(panel).toContainText("Source-snapshot measured zero");
   const details = panel.locator('.missing-section details').first();
   await details.locator('summary').click();
   const viewport = details.locator('.delegate-scroll');
@@ -138,7 +143,7 @@ test('one network can lose its head stream while the other continues receiving v
   await expect(page.locator('.shadownet .status-chip')).toHaveText('RPC coverage degraded');
   await send(page, 'mainnet-operations', [vote(0)]);
   await expect(page.locator('.mainnet .pre .gauge-counts')).toContainText('600 / 30,000 power');
-  await expect(page.locator('.mainnet .status-chip')).toHaveText('Progressing');
+  await expect(page.locator('.mainnet .status-chip')).toHaveText('Progress unknown');
 });
 
 test('recent consensus retains peak power after the current level moves on',async({page})=>{
@@ -204,7 +209,7 @@ test('desktop and mobile layouts use the viewport without horizontal clipping', 
 test('mobile network selection and disclosures persist, and pause stops stream updates', async ({page}) => {
   await page.setViewportSize({width: 390, height: 900});
   await prepare(page);
-  await page.getByRole('button', {name: 'Shadownet Connecting'}).or(page.getByRole('button', {name: 'Shadownet Progressing'})).click();
+  await page.getByRole('button', {name: 'Shadownet Connecting'}).or(page.getByRole('button', {name: 'Shadownet Progress unknown'})).click();
   await expect(page.locator('.network-panel.shadownet')).toBeVisible();
   await page.locator('.shadownet .missing-section summary').first().click();
   await page.reload();
@@ -258,7 +263,8 @@ test('a validated proposal without matching payload votes never measures zero', 
   await expect(panel.locator('.proposal-context')).not.toContainText('Observed proposal');
   await expect(panel.locator('.att .gauge-percent')).toHaveText('—');
   await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
-  await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 101 · round 0 · validated mempool observations');
+  await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 101 · round 0');
+  await expect(panel.locator('.network-notice')).toContainText('partial positive observations');
   await expect(panel.locator('.network-notice')).not.toContainText('Current round');
 });
 
@@ -270,7 +276,8 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await send(page, 'shadownet-operations', [vote(0, 5489252, 0)]);
   const panel = page.locator('.network-panel.shadownet');
   await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round114');
-  await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 5,489,252 · round 0 · validated mempool observations');
+  await expect(panel.locator('.network-notice')).toContainText('Observed votes · level 5,489,252 · round 0');
+  await expect(panel.locator('.network-notice')).toContainText('partial positive observations');
   await expect(panel.locator('.network-notice')).not.toContainText('Current round');
   await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
   await expect(panel.locator('.timing-detail')).toContainText('estimated round 6');
@@ -428,4 +435,83 @@ test("reader selects retained A and B contexts without pooling their power",asyn
  await panel.getByRole("button",{name:"Inspect payload vhPayload121",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("600 / 30,000 power");await expect(panel).toContainText("context head BBlock120");
  await panel.getByRole("button",{name:"Inspect payload vhPayload123",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("1,200 / 30,000 power");await expect(panel).toContainText("context head BBlock122");
  await expect(panel.locator(".headline")).toContainText("120");
+});
+
+
+test("foundations AC-13 coherent source zero becomes stale while historical receipt stays inspectable",async({page},testInfo)=>{
+ await page.clock.install();
+ const current=head(100);await prepare(page,false,current);
+ const candidate={...head(101),hash:"BZeroCandidate",payload_hash:"vhZeroPayload"};headers.get(page)?.set(candidate.hash,candidate);
+ await page.route("https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",route=>route.fulfill({json:{...current,chain_id:"NetFixture"}}));
+ await page.route("https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*",route=>route.fulfill({json:{validated:[{hash:"unrelated",branch:current.hash,contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]}],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}}));
+ await send(page,"mainnet-proposals",{chain_id:"NetFixture",hash:candidate.hash,header:candidate});const panel=page.locator(".network-panel.mainnet");
+ await panel.getByRole("button",{name:`Inspect candidate ${candidate.hash}`,exact:true}).click();await expect(panel.locator(".candidate-evidence")).toContainText(candidate.hash);
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("0 / 30,000 power");await expect(panel.locator(".att .gauge-counts")).toContainText("0 / 30,000 power");await expect(panel).toContainText("Source-snapshot measured zero");
+ const asOf=(await panel.textContent())?.match(/snapshot received (\d{4}-[^ ]+)/)?.[1];expect(asOf).toBeTruthy();
+ await page.evaluate(()=>window.mockStreams["mainnet-operations"]!.error(new Error("Source coverage interrupted")));
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");await expect(panel).toContainText("Retained source snapshot stale");await expect(panel).toContainText(asOf!);await expect(panel.locator(".recent-phase.pre")).toContainText("Pre 0.0%");
+ await page.getByRole("button",{name:"Pause",exact:true}).click();await page.clock.setSystemTime(new Date("2030-01-01T00:00:00Z"));await page.clock.runFor(1000);await expect(panel).toContainText(asOf!);await expect(panel.locator(".att .gauge-counts")).toContainText("Voting power unavailable");
+ await page.getByRole("button",{name:"Resume",exact:true}).click();await expect(panel).toContainText(asOf!);await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");
+ testInfo.annotations.push({type:"foundation-verified",description:"AC-13"});
+});
+
+
+test("foundations AC-8 accepted crossing is attributed once and applied values stay separate",async({page},testInfo)=>{
+ await prepare(page,false,head(100),100,false,false,{total:5,quorum:4,powers:[3,1,1]});const panel=page.locator(".network-panel.mainnet");
+ await send(page,"mainnet-operations",[vote(0)]);await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");
+ await send(page,"mainnet-operations",[vote(1)]);await expect(panel.locator(".pre .gauge-counts")).toContainText("4 / 5 power");
+ const crossings=panel.locator(".event-history li").filter({hasText:/Preattestation.*(?:quorum reached|crossing)/});await expect(crossings).toHaveCount(1);
+ const other={hash:"other-payload",contents:[{kind:"preattestation",level:101,round:0,slot:0,block_payload_hash:"vhOtherPayload"}]};await send(page,"mainnet-operations",[other]);
+ await panel.getByRole("button",{name:"Inspect payload vhOtherPayload",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");
+ await panel.getByRole("button",{name:"Inspect payload vhPayload101",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("4 / 5 power");await expect(crossings).toHaveCount(1);await expect(crossings).toContainText("rpc.tzkt.io/mainnet");await expect(panel.locator(".headline")).toContainText("100");await expect(panel).toContainText("Expected bakers not observed");
+ testInfo.annotations.push({type:"foundation-verified",description:"AC-8"});
+});
+
+
+test("transport connectivity and observed source progress remain independent",async({page})=>{
+ const current=head(100);await prepare(page,false,current);const panel=page.locator(".network-panel.mainnet");
+ await expect(panel.locator(".status-chip")).toHaveText("Progress unknown");
+ await expect(panel.locator(".authority-evidence")).toContainText("NetFixture");
+ await send(page,"mainnet-head",head(101));await expect(panel.locator(".headline")).toContainText("101");await expect(panel).toContainText("Observed next-level advance");
+ await page.evaluate(()=>window.mockStreams["mainnet-head"]!.error(new Error("Source head transport interrupted")));
+ await expect(panel.locator(".status-chip")).toHaveText("RPC coverage degraded");await expect(panel).toContainText("Observed next-level advance");
+});
+
+
+test("malformed source coverage stays partial until a fresh permitted coherent snapshot",async({page})=>{
+ await page.clock.install();const current=head(100);await prepare(page,false,current,100,false,false,{total:5,quorum:4,powers:[3,1,1]});
+ await page.route("https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",route=>route.fulfill({json:{...current,chain_id:"NetFixture"}}));
+ let reads=0,usable=false;await page.route("https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*",route=>{reads++;return route.fulfill({json:{validated:usable?[{hash:"unrelated",branch:current.hash,contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]}]:[{hash:"malformed",contents:[{kind:"preattestations_aggregate",consensus_content:{level:101,round:0,block_payload_hash:"vhPayload101"},committee:[0,-1]}]}],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}});});
+ await send(page,"mainnet-operations",[vote(0)]);const panel=page.locator(".network-panel.mainnet");await panel.getByRole("button",{name:"Inspect payload vhPayload101",exact:true}).click();
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await expect(panel.locator(".att .gauge-counts")).toContainText("Voting power unavailable");await expect(panel).toContainText("partial positive observations");await expect(panel.getByText("Missing attestations · unavailable",{exact:true})).toBeVisible();
+ const retry=panel.getByRole("button",{name:"Retry selected observer context"});await expect(retry).toBeVisible();await expect.poll(()=>reads).toBe(1);
+ usable=true;await send(page,"mainnet-operations",[vote(0)]);await page.clock.runFor(20000);expect(reads).toBe(1);
+ await retry.click();await expect.poll(()=>reads).toBe(2);await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await expect(panel.locator(".att .gauge-counts")).toContainText("0 / 5 power");await expect(panel).toContainText("Source-snapshot measured zero");
+});
+
+
+test("foundations AC-31 accepted maxima survive replay retirement and proven reorg return",async({page},testInfo)=>{
+ const current=head(100);await prepare(page,false,current,100,false,false,{total:5,quorum:4,powers:[3,1,1]});const panel=page.locator(".network-panel.mainnet");
+ await send(page,"mainnet-operations",[vote(0)]);await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await send(page,"mainnet-operations",[vote(1)]);await expect(panel.locator(".pre .gauge-counts")).toContainText("4 / 5 power");
+ const preCrossings=panel.locator(".event-history li").filter({hasText:"Preattestation crossing"});await expect(preCrossings).toHaveCount(1);
+ await send(page,"mainnet-operations",[{hash:"first-att-quorum",contents:[{kind:"attestations_aggregate",consensus_content:{level:101,round:0,block_payload_hash:"vhPayload101"},committee:[{slot:0},{slot:1}]}]}]);await expect(panel.locator(".att .gauge-counts")).toContainText("4 / 5 power");await expect(panel.locator(".event-history li").filter({hasText:"Attestation observed quorum"})).toHaveCount(1);await expect(panel.locator(".event-history li").filter({hasText:/^Attestation crossing/})).toHaveCount(0);
+ const oldEvents=await panel.locator(".event-history li").allTextContents();
+ await page.getByRole("button",{name:"Pause",exact:true}).click();await page.getByRole("button",{name:"Resume",exact:true}).click();await send(page,"mainnet-operations",[vote(0),vote(1)]);await expect(panel.locator(".event-history li")).toHaveText(oldEvents);
+ const below={hash:"forgotten-below",contents:[{kind:"preattestation",level:101,round:0,slot:0,block_payload_hash:"vhBelow"}]};await send(page,"mainnet-operations",[below]);
+ await send(page,"mainnet-operations",Array.from({length:151},(_,index)=>({hash:`retire-${index}`,contents:[{kind:"preattestation",level:101,round:0,slot:0,block_payload_hash:`vhRetire${index}`}]})));await expect(panel).toContainText("Crossing history partial");
+ await send(page,"mainnet-operations",Array.from({length:10001},(_,index)=>({hash:`unrelated-bound-${index}`,contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]})));
+ const fork={...current,hash:"BProvenFork100"};await send(page,"mainnet-head",fork);await expect(panel).toContainText("Observed same-height reorg");await send(page,"mainnet-head",current);await expect(panel.locator(".authority-evidence")).toContainText("context head BBlock100");
+ await send(page,"mainnet-operations",[vote(0),vote(1),below]);await send(page,"mainnet-operations",[{hash:"forgotten-below-threshold",contents:[{kind:"preattestation",level:101,round:0,slot:1,block_payload_hash:"vhBelow"}]}]);
+ await panel.getByRole("button",{name:"Inspect payload vhBelow",exact:true}).click();await expect(panel.locator(".pre .gauge-counts")).toContainText("4 / 5 power");await expect(preCrossings).toHaveCount(1);await expect(panel).toContainText("Crossing history partial");await expect(panel.locator(".event-history li").filter({hasText:/^Attestation crossing/})).toHaveCount(0);
+ testInfo.annotations.push({type:"foundation-verified",description:"AC-31"});
+});
+
+
+test("late pending snapshot body cannot restore coverage after pause and resume",async({page})=>{
+ const current=head(100);await prepare(page,false,current);await page.route("https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header",route=>route.fulfill({json:{...current,chain_id:"NetFixture"}}));
+ await page.route("https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*",route=>route.fulfill({json:{validated:[],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}}));
+ await page.evaluate(()=>{const original=window.fetch.bind(window);const state={waiting:false,release:()=>{}};Object.assign(window,{heldPendingBody:state});window.fetch=async(input,options)=>{const response=await original(input,options),url=typeof input==="string"?input:input instanceof URL?input.href:input.url;if(url.startsWith("https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?")){const body=await response.json();response.json=()=>new Promise(resolve=>{state.waiting=true;state.release=()=>resolve(body);});}return response;};});
+ await send(page,"mainnet-operations",[vote(0)]);await expect.poll(()=>page.evaluate(()=>(window as unknown as {heldPendingBody:{waiting:boolean}}).heldPendingBody.waiting)).toBe(true);
+ const panel=page.locator(".network-panel.mainnet");await page.getByRole("button",{name:"Pause",exact:true}).click();await page.getByRole("button",{name:"Resume",exact:true}).click();await page.evaluate(()=>(window as unknown as {heldPendingBody:{release:()=>void}}).heldPendingBody.release());
+ await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");await expect(panel.locator(".att .gauge-counts")).toContainText("Voting power unavailable");await expect(panel).not.toContainText("Source-snapshot measured zero");await expect(panel.locator(".event-history li")).toHaveCount(0);await expect(panel.locator(".headline")).toContainText("100");
 });

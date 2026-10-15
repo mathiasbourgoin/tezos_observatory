@@ -34,3 +34,10 @@ it("preserves exact independent conflict evidence for the permitted 10000-group 
  const differentPhase=groupsFor([operation("P",0,"preattestation"),operation("Q",0,"attestation")],rights,120);
  expect(differentPhase.every(group=>group.conflicts.length===0)).toBe(true);
 });
+
+
+it("keeps the receipt of newly contributing delegates separate by phase and ignores duplicate receipt refresh",()=>{
+ const first=operation("P",0),second={...operation("P",1),evidence:{...first.evidence,receivedAt:2,receivedMonotonic:2}},replay={...first,hash:"duplicate",evidence:{...first.evidence,receivedAt:9,receivedMonotonic:9}};
+ const group=groupsFor([first,second,replay],rights,120)[0] as unknown as {preEvidence?:{receivedMonotonic:number};attEvidence?:unknown};
+ expect(group.preEvidence?.receivedMonotonic).toBe(2);expect(group.attEvidence).toBeUndefined();
+});

@@ -24,6 +24,11 @@ export function validTimestamp(value: unknown): value is string {
 const record = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+// Recognized unrelated top-level Ushuaia content kinds. This identifies their
+// category, not cryptographic validity: the RPC's validated category supplies
+// that claim. Octez 5c73fc9a, proto_025_PsUshuai/operation_repr.ml:686–1500.
+const unrelatedKinds=new Set("reveal transaction origination delegation register_global_constant set_deposits_limit increase_paid_storage update_consensus_key update_companion_key transfer_ticket zk_rollup_origination zk_rollup_publish zk_rollup_update smart_rollup_originate dal_publish_commitment smart_rollup_add_messages smart_rollup_cement smart_rollup_publish smart_rollup_refute smart_rollup_timeout smart_rollup_execute_outbox_message smart_rollup_recover_bond seed_nonce_revelation vdf_revelation double_consensus_operation_evidence double_baking_evidence activate_account proposals ballot drain_delegate failing_noop dal_entrapment_evidence".split(" "));
+
 export const nonnegativeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
@@ -68,7 +73,7 @@ export function asValidatedProposal(value: unknown): BlockHeader {
   return {...asBlockHeader({ ...value.header, hash: value.hash }),chainId:value.chain_id};
 }
 
-function asOperation(value: unknown): MonitoredOperation {
+function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
   if (
     !record(value) ||
     typeof value.hash !== "string" ||
@@ -89,7 +94,7 @@ function asOperation(value: unknown): MonitoredOperation {
           !record(consensus) ||
           !nonnegativeInteger(consensus.level) ||
           !nonnegativeInteger(consensus.round) ||
-          typeof consensus.block_payload_hash !== "string" ||
+          typeof consensus.block_payload_hash !== "string" || consensus.block_payload_hash.length===0 ||
           !Array.isArray(content.committee)
         ) {invalid = true; return [];}
         const kind =
@@ -110,7 +115,10 @@ function asOperation(value: unknown): MonitoredOperation {
           return [{ kind, level, round, slot, block_payload_hash }];
         });
       }
-      if (content.kind !== "preattestation" && content.kind !== "attestation" && content.kind !== "attestation_with_dal") return [];
+      if (content.kind !== "preattestation" && content.kind !== "attestation" && content.kind !== "attestation_with_dal") {
+        if(typeof content.kind!=="string" || !unrelatedKinds.has(content.kind))onUnusable?.();
+        return [];
+      }
       if (
         !nonnegativeInteger(content.level) ||
         !nonnegativeInteger(content.round) ||
@@ -120,6 +128,7 @@ function asOperation(value: unknown): MonitoredOperation {
         typeof content.block_payload_hash === "string"
           ? { block_payload_hash: content.block_payload_hash }
           : {};
+      if(!("block_payload_hash" in payload) || payload.block_payload_hash.length===0)onUnusable?.();
       return [
         {
           kind: content.kind,
@@ -131,10 +140,11 @@ function asOperation(value: unknown): MonitoredOperation {
       ];
     },
   );
+  if(invalid)onUnusable?.();
   return { hash: value.hash, contents: invalid ? [] : contents, ...(typeof value.branch === "string" ? {branch:value.branch} : {}) };
 }
 
-export function asOperationBatch(value: unknown): MonitorOperationBatch {
+export function asOperationBatch(value: unknown,onUnusable?:()=>void): MonitorOperationBatch {
   if (!Array.isArray(value)) throw new Error("Invalid mempool monitor batch");
-  return value.map(asOperation);
+  return value.map(operation=>asOperation(operation,onUnusable));
 }

@@ -167,3 +167,106 @@ it("does not borrow a different observer's current head for candidate reconcilia
  const candidate={identity:"B-current-candidate",header:current,evidence:evidence(b)};
  await expect(new NetworkData("mainnet").reconcile({source:b,level:123,round:0,payload:"P",candidate,observerHead:{...current,evidence:evidence(a)}},new AbortController().signal)).rejects.toThrow("observer");
 });
+
+
+
+it("retains a coherent post-identity source snapshot as separate coverage rather than stream zero",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0];if(!record)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:2,operations:[],complete:true,reasons:[]};
+ store.accept({...proof,snapshot} as typeof proof);
+ const retained=store.target(record.identity) as unknown as {coverage?:typeof snapshot};
+ expect(retained.coverage?.complete).toBe(true);expect(retained.coverage?.evidence.receivedMonotonic).toBe(2);
+ store.stop();const interrupted=store.target(record.identity) as unknown as {coverage?:typeof snapshot;coverageStale?:boolean};
+ expect(interrupted.coverageStale).toBe(true);expect(interrupted.coverage?.evidence.receivedMonotonic).toBe(2);
+});
+
+
+it("does not revive old snapshot completeness through cached admission or raw replay after interruption",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0];if(!record)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:2,operations:[],complete:true,reasons:[]};
+ store.accept({...proof,snapshot});store.stop();store.start();store.addOperations([operation()]);store.accept({...proof,...store.generation(b),snapshot});
+ expect(store.target(record.identity)?.coverageStale).toBe(true);expect(store.target(record.identity)?.coverage?.evidence.receivedMonotonic).toBe(2);
+});
+
+
+it("records exact accepted phase maxima and one crossing in the store before any rendering",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0];if(!record)throw new Error("Fixture missing");
+ const base=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),right=base.rights[1];if(!right)throw new Error("Fixture rights missing");
+ const proof={...base,rights:[base.rights[0]!,{...right,power:1},{...right,address:"D3",slot:2,power:1}]};store.accept(proof);
+ type Phase={maximumPower:number;quorumObserved:boolean;crossed:boolean};
+ expect((store.target(record.identity) as unknown as {phases?:{pre?:Phase}})?.phases?.pre?.maximumPower).toBe(3);
+ store.addOperations([{...operation("new"),evidence:evidence(b,3),contents:[{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"P"}]}]);
+ const phase=(store.target(record.identity) as unknown as {phases?:{pre?:Phase}})?.phases?.pre;
+ expect(phase?.maximumPower).toBe(4);expect(phase?.crossed).toBe(true);expect(phase?.quorumObserved).toBe(true);
+});
+
+
+it("first authoritative quorum and numerical corrections never invent a crossing",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0];if(!record)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);store.accept(proof);
+ const corrected={...proof,...store.generation(b),rights:proof.rights.map((right,index)=>({...right,power:index===0?4:1}))};store.accept(corrected);
+ store.addOperations([{...operation("replayed-under-correction"),evidence:evidence(b,9)}]);
+ expect(store.target(record.identity)?.phases?.pre?.maximumPower).toBe(4);expect(store.target(record.identity)?.phases?.pre?.crossed).toBe(false);expect(store.acceptedEvents().filter(event=>event.kind==="crossing")).toHaveLength(0);
+ const initial=new ObservationStore<Derived>("mainnet",sources.mainnet),target=initial.addOperations([{...operation("initial-quorum"),contents:[...operation().contents,{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"P"}]}])[0];if(!target)throw new Error("Fixture missing");
+ initial.accept(await new NetworkData("mainnet").reconcile(target.target,new AbortController().signal));
+ expect(initial.target(target.identity)?.phases?.pre?.maximumPower).toBe(5);expect(initial.target(target.identity)?.phases?.pre?.crossed).toBe(false);expect(initial.acceptedEvents().map(event=>event.kind)).toEqual(["observed-quorum"]);
+});
+
+it("bounds immutable events independently and never duplicates them through replay or shared candidates",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),first=store.addOperations([operation()])[0];if(!first)throw new Error("Fixture missing");
+ store.accept(await new NetworkData("mainnet").reconcile(first.target,new AbortController().signal));
+ for(let index=0;index<14;index++){
+  const payload=`P${index}`,packet=(slot:number)=>({...operation(`${payload}-${slot}`),evidence:evidence(b,index*2+2+slot),contents:[{kind:"preattestation" as const,level:123,round:0,slot,block_payload_hash:payload}]});
+  store.addOperations([packet(0)]);store.addOperations([packet(1)]);
+ }
+ const events=store.acceptedEvents();expect(events).toHaveLength(12);expect(events.every(event=>event.kind==="crossing"&&event.power===5&&event.attribution==="payload-shared")).toBe(true);
+ const original=events.at(-1);store.addOperations([{...operation("duplicate-last"),contents:[{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"P13"}]}]);store.stop();store.start();
+ for(const identity of ["shared-candidate-one","shared-candidate-two"])store.addCandidate({identity,header:{...head(123),payload_hash:"P13"},evidence:evidence(b,99)});
+ expect(store.acceptedEvents()).toEqual(events);expect(store.acceptedEvents().at(-1)).toBe(original);expect(original?.evidence.receivedMonotonic).toBe(29);
+});
+
+it("keeps group floods bounded by retained owners and qualifies lost crossing history",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),first=store.addOperations([operation()])[0];if(!first)throw new Error("Fixture missing");store.accept(await new NetworkData("mainnet").reconcile(first.target,new AbortController().signal));
+ store.addOperations(Array.from({length:1000},(_,index)=>({...operation(`flood-${index}`),evidence:evidence(b,index+2),contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:`Payload${index}`}]})));
+ expect(store.acceptedTargets()).toHaveLength(150);expect(store.crossingState().retained).toBeLessThanOrEqual(500);expect(store.crossingState().uncertain).toBe(true);expect(store.acceptedEvents()).toHaveLength(0);
+});
+
+it.each([false,true])("does not recreate a forgotten crossing after proven reorg return (original crossed=%s)",async crossed=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),first=store.addOperations([operation()])[0];if(!first)throw new Error("Fixture missing");store.accept(await new NetworkData("mainnet").reconcile(first.target,new AbortController().signal));
+ if(crossed)store.addOperations([{...operation("original-threshold"),evidence:evidence(b,2),contents:[{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"P"}]}]);
+ const originalCrossings=store.acceptedEvents().filter(event=>event.kind==="crossing").length;
+ store.addOperations(Array.from({length:151},(_,index)=>({...operation(`retire-${index}`),evidence:evidence(b,index+3),contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:`Retire${index}`}]})));
+ expect(store.target(first.identity)).toBeUndefined();expect(store.crossingState().uncertain).toBe(true);
+ const fork={...head(122),hash:"Fork122",evidence:evidence(b,200)};store.observeHead(fork);installRpc(fork);
+ const forkRecord=store.addOperations([{...operation("fork"),evidence:{...evidence(b,201),observedHeadHash:fork.hash,observedHeadLevel:122},contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"ForkPayload"}]}])[0];if(!forkRecord)throw new Error("Fixture missing");store.accept(await new NetworkData("mainnet").reconcile(forkRecord.target,new AbortController().signal));
+ store.observeHead({...head(122),evidence:evidence(b,300)});installRpc();
+ const returning=store.addOperations([{...operation("return-below"),evidence:{...evidence(b,301),observedHeadHash:"H122",observedHeadLevel:122}}])[0];if(!returning)throw new Error("Fixture missing");store.accept(await new NetworkData("mainnet").reconcile(returning.target,new AbortController().signal));
+ store.addOperations([{...operation("return-threshold"),evidence:{...evidence(b,302),observedHeadHash:"H122",observedHeadLevel:122},contents:[{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"P"}]}]);
+ expect(store.acceptedEvents().filter(event=>event.kind==="crossing")).toHaveLength(originalCrossings);expect(store.target(returning.identity)?.phases?.pre?.uncertain).toBe(true);
+});
+
+
+it("withdraws live completeness on a failed new source snapshot while retaining the old timestamped zero",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0];if(!record)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:2,operations:[],complete:true,reasons:[]};store.accept({...proof,snapshot});
+ store.accept({...proof,...store.generation(b),snapshotError:"Pending snapshot body failed"} as typeof proof);
+ expect(store.target(record.identity)?.coverageStale).toBe(true);expect(store.target(record.identity)?.coverage?.evidence.receivedMonotonic).toBe(2);expect(store.target(record.identity)?.phases?.att?.maximumPower).toBe(0);
+ expect((store.target(record.identity)?.coverage as unknown as {operations?:unknown})?.operations).toBeUndefined();expect(store.target(record.identity)?.admission?.snapshot).toBeUndefined();
+});
+
+
+it("binds a permitted 10000-operation same-payload snapshot without duplicate power receipt or events",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),first=store.addOperations([operation()])[0];if(!first)throw new Error("Fixture missing");store.accept(await new NetworkData("mainnet").reconcile(first.target,new AbortController().signal));
+ store.addOperations(Array.from({length:10000},(_,index)=>({...operation(`same-payload-${index}`),evidence:evidence(b,index+2)})));
+ expect(store.rawOperations()).toHaveLength(10000);expect(store.acceptedTargets()).toHaveLength(1);expect(store.target(first.identity)?.evidence.receivedMonotonic).toBe(1);expect(store.target(first.identity)?.phases?.pre?.maximumPower).toBe(3);expect(store.target(first.identity)?.phases?.pre?.evidence.receivedMonotonic).toBe(1);expect(store.acceptedEvents()).toHaveLength(0);
+ const proof=store.target(first.identity)?.admission;if(!proof)throw new Error("Fixture proof missing");const group=groupsFor(store.rawOperations(),proof.rights,123)[0];expect(group?.pre.size).toBe(1);expect(signerPower(group?.pre??new Set(),proof.rights)).toBe(3);expect(store.crossingState().retained).toBe(1);
+});
+
+
+it("uses complete-body receipt rather than request start to order a coherent post-identity snapshot",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0];if(!record)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:0,operations:[],complete:true,reasons:[]};store.accept({...proof,snapshot});
+ expect(store.target(record.identity)?.coverage?.complete).toBe(true);expect(store.target(record.identity)?.coverage?.startedMonotonic).toBe(0);expect(store.target(record.identity)?.coverage?.evidence.receivedMonotonic).toBe(2);expect(store.target(record.identity)?.phases?.att?.power).toBe(0);
+});

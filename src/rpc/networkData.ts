@@ -6,7 +6,7 @@ import type {
   ObservationEvidence,
 } from "./models";
 import {proposalRound,tenderbakeFitness} from "../consensus/roundSchedule";
-import {committeeAuthority} from "../consensus/phaseEvidence";
+import {committeeAuthority,contextFacts} from "../consensus/phaseEvidence";
 import { asBlockHeader, asOperationBatch } from "./guards";
 import type {ReconciliationTarget} from "../monitor/observerReconciliation";
 import type { NetworkDerivedState } from "../monitor/networkMonitor";
@@ -76,6 +76,16 @@ export interface TargetContext {
   readonly level: number;
   readonly protocolHash: string;
   readonly key: string;
+}
+/** A fully received source-local validated category; contextual proof is separate from its unpinned receipt. */
+export interface PendingSnapshot {
+  readonly operations:readonly MonitoredOperation[];
+  readonly evidence:ObservationEvidence;
+  readonly startedMonotonic:number;
+  readonly complete:boolean;
+  readonly reasons:readonly string[];
+  readonly contextBefore:TargetContext;
+  readonly contextAfter:TargetContext;
 }
 export interface DelegateRight {
   readonly context?: TargetContext;
@@ -305,14 +315,35 @@ export class NetworkData {
     return {...header,evidence:Object.freeze({...observed.evidence,observedHeadHash:header.hash,observedBlockHash:header.hash,predecessor:header.predecessor,...(header.proto === undefined ? {} : {protocolLevel:header.proto})})};
   }
 
-  async pending(signal: AbortSignal, head?: BlockHeader): Promise<readonly MonitoredOperation[]> {
+  async pending(signal:AbortSignal,head?:BlockHeader):Promise<readonly MonitoredOperation[]>;
+  async pending(signal:AbortSignal,head:BlockHeader,context:TargetContext,onObservedHead?:(head:BlockHeader)=>void):Promise<PendingSnapshot>;
+  async pending(signal: AbortSignal, head?: BlockHeader,context?:TargetContext,onObservedHead?:(head:BlockHeader)=>void): Promise<readonly MonitoredOperation[]|PendingSnapshot> {
+    const startedMonotonic=performance.now(),generation=this.collectionGeneration;
+    const before=context?await this.head(signal,context.observer.source):undefined;
+    if(before)onObservedHead?.(before);
+    const contextBefore=context&&before?await this.targetContext(before,context.level,signal):undefined;
     const observed = await this.requestObserved(
       "/chains/main/mempool/pending_operations?version=2&refused=false&outdated=false&branch_refused=false&branch_delayed=false",
-      signal,head,
+      signal,context?undefined:head,context?.observer.source,
     );
     const raw = observed.value;
-    if (!object(raw)) throw new Error("Invalid mempool response");
-    return asOperationBatch(raw.validated ?? raw.applied ?? []).map(operation => ({...operation,evidence:observed.evidence}));
+    if(!context){
+      if (!object(raw) || !Array.isArray(raw.validated)) throw new Error("Invalid version-2 validated mempool response");
+      return asOperationBatch(raw.validated).map(operation => ({...operation,evidence:observed.evidence}));
+    }
+    const reasons:string[]=[],operations:MonitoredOperation[]=[];
+    if(!object(raw) || !Array.isArray(raw.validated))reasons.push("Missing full validated category");
+    else {
+      if(raw.validated.length>10000)reasons.push("Validated category exceeds retained operation bound");
+      for(const entry of raw.validated.slice(0,10000))try {
+        operations.push(...asOperationBatch([entry],()=>{if(!reasons.includes("Malformed or unclassifiable consensus content"))reasons.push("Malformed or unclassifiable consensus content");}).map(operation=>({...operation,evidence:observed.evidence})));
+      }catch {if(!reasons.includes("Malformed operation envelope"))reasons.push("Malformed operation envelope");}
+    }
+    const after=await this.head(signal,context.observer.source);onObservedHead?.(after);
+    const contextAfter=await this.targetContext(after,context.level,signal);
+    this.assertCollecting(generation,signal);
+    if(!contextBefore || contextFacts(contextBefore)!==contextFacts(context) || contextFacts(contextAfter)!==contextFacts(context))reasons.push("Observer context changed across validated snapshot");
+    return Object.freeze({operations:Object.freeze(operations),evidence:observed.evidence,startedMonotonic,complete:reasons.length===0,reasons:Object.freeze(reasons),contextBefore:contextBefore??context,contextAfter});
   }
 
   async derive(head: BlockHeader, signal: AbortSignal): Promise<Derived> {

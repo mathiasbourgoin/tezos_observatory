@@ -1,8 +1,8 @@
 import type {AdmissionEvidence,BlockHeader,CandidateObservation,MonitoredOperation,NetworkName,ObservationEvidence,RpcSource} from "../rpc/models";
 import {OperationStore,operationIdentity} from "../rpc/operationStore";
-import {committeeAuthority,contextFacts} from "../consensus/phaseEvidence";
+import {committeeAuthority,contextFacts,groupsFor,signerPower} from "../consensus/phaseEvidence";
 import {proposalRound} from "../consensus/roundSchedule";
-import type {Constants,DelegateRight,TargetContext,RpcContext} from "../rpc/networkData";
+import type {Constants,DelegateRight,TargetContext,RpcContext,PendingSnapshot} from "../rpc/networkData";
 import type {ReconciliationTarget} from "./observerReconciliation";
 import {headFactsKey} from "./headGeneration";
 
@@ -14,6 +14,8 @@ export interface ContextAdmission<T> {
   readonly constants:Constants;
   readonly observerGeneration?:number;
   readonly collectionGeneration?:number;
+  readonly snapshot?:PendingSnapshot;
+  readonly snapshotError?:string;
 }
 export interface ObservationTarget<T> {
   readonly identity:string;
@@ -23,6 +25,41 @@ export interface ObservationTarget<T> {
   readonly sourceContext?:ContextAdmission<T>;
   readonly error?:string;
   readonly contextInvalid:boolean;
+  readonly coverage?:PendingCoverage;
+  readonly coverageStale?:boolean;
+  readonly phases?:{readonly pre?:AcceptedPhase;readonly att?:AcceptedPhase};
+}
+/** Raw body operations have one owner, the canonical bounded raw store. */
+export type PendingCoverage=Omit<PendingSnapshot,"operations"> & {readonly normalizedOperationCount:number};
+export interface AcceptedPhase {
+  readonly key:string;
+  readonly phase:"pre"|"att";
+  readonly maximumPower:number;
+  readonly maximumTotal:number;
+  readonly maximumThreshold:number;
+  readonly maximumBasis:string;
+  readonly maximumEvidence:ObservationEvidence;
+  readonly power:number;
+  readonly threshold:number;
+  readonly basis:string;
+  readonly quorumObserved:boolean;
+  readonly crossed:boolean;
+  readonly uncertain:boolean;
+  readonly evidence:ObservationEvidence;
+}
+export interface AcceptedEvent {
+  readonly identity:string;
+  readonly kind:"crossing"|"observed-quorum";
+  readonly phase:"pre"|"att";
+  readonly level:number;
+  readonly round:number;
+  readonly payload:string;
+  readonly contextKey:string;
+  readonly chainId:string;
+  readonly attribution:"payload-shared";
+  readonly power:number;
+  readonly threshold:number;
+  readonly evidence:ObservationEvidence;
 }
 
 const instanceIdentity=(operation:MonitoredOperation,level:number,round:number,payload:string):string=>JSON.stringify(["instance",operation.evidence?.source.network??"unknown",operation.evidence?.source.baseUrl??"unknown",operation.evidence?.chainId??"unknown",operation.evidence?.observedHeadHash??"unknown",level,round,payload]);
@@ -42,6 +79,9 @@ export class ObservationStore<T> {
   private collectionGeneration=0;
   private enabled=true;
   private expectedNetwork:RpcContext|undefined;
+  private readonly phaseFacts=new Map<string,AcceptedPhase>();
+  private readonly acceptedEventFacts:AcceptedEvent[]=[];
+  private crossingHistoryUncertain=false;
 
   constructor(readonly network:NetworkName,sources:readonly RpcSource[]){this.configured=new Set(sources.filter(source=>source.network===network).map(source=>source.baseUrl));}
   private allowed(source:RpcSource|undefined):source is RpcSource {return source!==undefined && source.network===this.network && this.configured.has(source.baseUrl);}
@@ -60,7 +100,8 @@ export class ObservationStore<T> {
   }
 
   start():void {this.enabled=true;}
-  stop():void {this.enabled=false;this.collectionGeneration++;}
+  interrupt(source:RpcSource):void {for(const product of [this.unresolved,this.acceptedCandidates,this.instances])for(const [identity,record] of product)if(record.target.source.baseUrl===source.baseUrl && record.coverage)product.set(identity,Object.freeze({...record,coverageStale:true}));}
+  stop():void {this.enabled=false;this.collectionGeneration++;for(const product of [this.unresolved,this.acceptedCandidates,this.instances])for(const [identity,record] of product)if(record.coverage)product.set(identity,Object.freeze({...record,coverageStale:true}));}
   generation(source:RpcSource):{readonly observerGeneration:number;readonly collectionGeneration:number} {return {observerGeneration:this.observerGenerations.get(source.baseUrl)??0,collectionGeneration:this.collectionGeneration};}
   private headerKey(head:BlockHeader):string {return headFactsKey(head);}
   observeHead(head:BlockHeader):void {
@@ -104,8 +145,8 @@ export class ObservationStore<T> {
         return proofs && [...proofs.values()].some(proof=>proof.headHash===evidence.observedHeadHash && (evidence.chainId===undefined || evidence.chainId===proof.chainId) && (evidence.requestedHeadHash===undefined || evidence.requestedHeadHash===proof.headHash));
       });
     });
-    this.raw.add(fresh);
-    const created:ObservationTarget<T>[]=[],visited=new Set<string>();
+    const priorRaw=new Set(this.raw.values().map(operationIdentity));this.raw.add(fresh);
+    const created:ObservationTarget<T>[]=[],visited=new Set<string>(),touched=new Set<string>();
     for(const submitted of fresh){
       const operation=this.raw.get(submitted);if(!operation)continue;
       const operationKey=operationIdentity(operation);if(visited.has(operationKey))continue;visited.add(operationKey);
@@ -120,12 +161,18 @@ export class ObservationStore<T> {
           const target:ReconciliationTarget=Object.freeze({...this.generation(evidence.source),source:evidence.source,level:content.level,round:content.round,payload:content.block_payload_hash,...(observerHead?{observerHead}:{})});
           record=Object.freeze({identity,target,evidence,contextInvalid:false});this.unresolved.set(identity,record);created.push(record);
         }
-        this.tryAdmission(record);
+        touched.add(identity);
       }
     }
+    // A full snapshot may contain 10000 operations for one payload. Build its
+    // membership once, then bind once per distinct target rather than revisiting
+    // the growing member prefix for every operation.
+    for(const identity of touched){const record=this.find(identity);if(record)this.tryAdmission(record);}
     this.trim(this.unresolved,100);this.trim(this.instances,150);
-    const retained=new Set(this.raw.values().map(operationIdentity));for(const key of this.bindings.keys())if(!retained.has(key))this.bindings.delete(key);
+    const retained=new Set(this.raw.values().map(operationIdentity));if([...priorRaw].some(key=>!retained.has(key)))this.crossingHistoryUncertain=true;
+    for(const key of this.bindings.keys())if(!retained.has(key))this.bindings.delete(key);
     for(const [identity,members] of this.membership){for(const key of members)if(!retained.has(key))members.delete(key);if(members.size===0)this.membership.delete(identity);}
+    this.refreshAcceptedPhases(fresh.length>0);
     return created.map(record=>this.find(record.identity)).filter((record):record is ObservationTarget<T>=>record!==undefined);
   }
 
@@ -142,23 +189,41 @@ export class ObservationStore<T> {
     if(!this.enabled || (admission.collectionGeneration===undefined && current.collectionGeneration!==0) || (admission.observerGeneration===undefined && current.observerGeneration!==0) || (admission.collectionGeneration!==undefined && admission.collectionGeneration!==current.collectionGeneration) || (admission.observerGeneration!==undefined && admission.observerGeneration!==current.observerGeneration) || (admission.observerGeneration===undefined && latest!==undefined && this.headerKey(latest)!==this.headerKey(admission.head)))throw new Error("Admission belongs to an obsolete observer generation");
     if(!this.allowed(source) || context.observer.header.hash!==admission.head.hash || !committeeAuthority(admission.rights,admission.constants.committee,admission.constants.quorum).usable || context.level!==context.observer.header.level && context.level!==context.observer.header.level+1)throw new Error("Incoherent observer admission");
     if(admission.rights.some(right=>!right.context || contextFacts(right.context)!==contextFacts(context)) || !admission.constants.context || contextFacts(admission.constants.context)!==contextFacts(context))throw new Error("Rights/constants do not prove the admission context");
+    if(admission.snapshot){
+      const snapshot=admission.snapshot;
+      if(snapshot.evidence.source.baseUrl!==source.baseUrl || snapshot.evidence.source.network!==source.network || contextFacts(snapshot.contextBefore)!==contextFacts(context) || contextFacts(snapshot.contextAfter)!==contextFacts(context) || (snapshot.complete && snapshot.reasons.length!==0) || snapshot.operations.some(operation=>operation.evidence?.source.baseUrl!==source.baseUrl || operation.evidence.source.network!==source.network || operation.evidence.receivedMonotonic!==snapshot.evidence.receivedMonotonic))throw new Error("Incoherent source snapshot admission");
+    }
     if(!this.expectedNetwork)this.establishNetworkIdentity(context.observer);
     if(admission.head.evidence?.source.baseUrl===source.baseUrl && admission.head.evidence.observedHeadHash===admission.head.hash)this.observeHead(admission.head);
     let contexts=this.contexts.get(source.baseUrl);if(!contexts){contexts=new Map();this.contexts.set(source.baseUrl,contexts);}
     for(const [level,old] of contexts)if(old.head.hash!==admission.head.hash)contexts.delete(level);
-    contexts.set(context.level,Object.freeze(admission));this.recheck(source);
+    const {snapshot,...retainedAdmission}=admission;
+    contexts.set(context.level,Object.freeze(retainedAdmission));this.recheck(source);
+    this.refreshAcceptedPhases(false);
+    if(snapshot){
+      this.addOperations(snapshot.operations);
+      const operationKey=(operation:MonitoredOperation)=>JSON.stringify([operation.hash,operation.branch??null,operation.contents]);
+      const retained=new Set(this.raw.values().filter(operation=>this.bindings.get(operationIdentity(operation))?.has(context.key)).map(operationKey));
+      const truncated=snapshot.operations.some(operation=>operation.contents.some(content=>content.level===context.level) && !retained.has(operationKey(operation)));
+      const {operations,...facts}=snapshot;
+      const coverage:PendingCoverage=Object.freeze({...facts,normalizedOperationCount:operations.length,complete:snapshot.complete&&!truncated,reasons:Object.freeze([...snapshot.reasons,...(truncated?["Snapshot consensus facts partially retained"]:[])])});
+      this.recheck(source,coverage);this.refreshAcceptedPhases(false);
+    }
+    if(admission.snapshotError)this.interrupt(source);
   }
 
   fail(identity:string,error:unknown):void {
-    const record=this.unresolved.get(identity);if(record)this.unresolved.set(identity,Object.freeze({...record,error:String(error)}));
+    const record=this.find(identity);if(!record)return;
+    const product=this.unresolved.has(identity)?this.unresolved:this.acceptedCandidates.has(identity)?this.acceptedCandidates:this.instances;
+    product.set(identity,Object.freeze({...record,error:String(error),...(record.coverage?{coverageStale:true}:{})}));
   }
 
-  private recheck(source:RpcSource):void {
-    for(const record of [...this.unresolved.values(),...this.acceptedCandidates.values(),...this.instances.values()])if(record.target.source.baseUrl===source.baseUrl)this.tryAdmission(record);
+  private recheck(source:RpcSource,snapshot?:PendingCoverage):void {
+    for(const record of [...this.unresolved.values(),...this.acceptedCandidates.values(),...this.instances.values()])if(record.target.source.baseUrl===source.baseUrl)this.tryAdmission(record,snapshot);
     this.trim(this.acceptedCandidates,100);this.trim(this.instances,150);
   }
 
-  private tryAdmission(record:ObservationTarget<T>):boolean {
+  private tryAdmission(record:ObservationTarget<T>,snapshot?:PendingCoverage):boolean {
     const admission=this.contexts.get(record.target.source.baseUrl)?.get(record.target.level);
     const candidate=record.target.candidate;
     if(admission && this.expectedNetwork?.chainId!==admission.context.observer.chainId){
@@ -169,10 +234,13 @@ export class ObservationStore<T> {
     const incompatibleReceipt=admission!==undefined && record.evidence.observedHeadHash!==undefined && record.evidence.observedHeadHash!==admission.context.observer.header.hash && (record.evidence.observedHeadLevel===undefined || record.target.level<=record.evidence.observedHeadLevel+1);
     const staleInstance=!candidate && record.admission!==undefined && admission!==undefined && record.admission.context.key!==admission.context.key;
     if(incompatibleReceipt || staleInstance || !admission || (record.evidence.chainId!==undefined && record.evidence.chainId!==admission.context.observer.chainId) || (candidate && candidate.header.predecessor!==admission.context.anchor.header.hash)){
-      if(record.admission){const product=candidate?this.acceptedCandidates:this.instances;product.set(record.identity,Object.freeze({...record,contextInvalid:true}));}
+      if(record.admission){const product=candidate?this.acceptedCandidates:this.instances;product.set(record.identity,Object.freeze({...record,contextInvalid:true,...(record.coverage?{coverageStale:true}:{})}));}
       return false;
     }
-    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false});
+    const compatibleSnapshot=snapshot && snapshot.evidence.source.network===record.target.source.network && snapshot.evidence.source.baseUrl===record.target.source.baseUrl && snapshot.evidence.requestedHeadHash===undefined && snapshot.evidence.receivedMonotonic>=record.evidence.receivedMonotonic && snapshot.evidence.receivedMonotonic>=snapshot.startedMonotonic && contextFacts(snapshot.contextBefore)===contextFacts(admission.context) && contextFacts(snapshot.contextAfter)===contextFacts(admission.context);
+    const freshSnapshot=compatibleSnapshot && (!record.coverage || snapshot.evidence.receivedMonotonic>record.coverage.evidence.receivedMonotonic);
+    const coverage=freshSnapshot?snapshot:record.coverage;
+    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
     this.unresolved.delete(record.identity);
     const product=candidate?this.acceptedCandidates:this.instances;product.set(record.identity,updated);
     const instanceRecords=candidate?[...this.unresolved.values(),...this.instances.values()].filter(instance=>!instance.contextInvalid && (!instance.admission || instance.admission.context.key===admission.context.key) && instance.target.source.baseUrl===record.target.source.baseUrl && instance.target.level===record.target.level && instance.target.round===record.target.round && instance.target.payload===record.target.payload):[record];
@@ -194,10 +262,54 @@ export class ObservationStore<T> {
   target(identity:string):ObservationTarget<T>|undefined {return this.find(identity);}
   unresolvedTargets():readonly ObservationTarget<T>[] {return [...this.unresolved.values()];}
   acceptedTargets():readonly ObservationTarget<T>[] {return [...this.acceptedCandidates.values(),...this.instances.values()];}
+  acceptedEvents():readonly AcceptedEvent[] {return [...this.acceptedEventFacts];}
+  crossingState():{readonly retained:number;readonly uncertain:boolean} {return {retained:this.phaseFacts.size,uncertain:this.crossingHistoryUncertain};}
   rawOperations():readonly MonitoredOperation[] {return this.raw.values().map(operation=>{const proofs=this.bindings.get(operationIdentity(operation)),admissions=proofs?[...proofs.values()]:[],admission=admissions[0];return admission?Object.freeze({...operation,admission,admissions:Object.freeze(admissions)}):operation;});}
   private trim(product:Map<string,ObservationTarget<T>>,maximum:number):void {
     if(product.size<=maximum)return;
     const ordered=[...product.values()].sort((a,b)=>a.evidence.receivedMonotonic-b.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
-    for(const record of ordered.slice(0,product.size-maximum)){product.delete(record.identity);if(!this.find(record.identity))this.membership.delete(record.identity);}
+    for(const record of ordered.slice(0,product.size-maximum)){product.delete(record.identity);if(!this.find(record.identity)){this.membership.delete(record.identity);if(record.admission)this.crossingHistoryUncertain=true;}}
+  }
+
+  /** Numerical facts change only at admitted observations, never from rendering. */
+  private refreshAcceptedPhases(newVoteEvidence:boolean):void {
+    const records=this.acceptedTargets(),operations=this.rawOperations();
+    const key=(record:ObservationTarget<T>,phase:"pre"|"att")=>JSON.stringify([contextFacts(record.admission!.context),record.target.level,record.target.round,record.target.payload,"payload-shared",phase]);
+    const retained=new Set(records.filter(record=>record.admission).flatMap(record=>[key(record,"pre"),key(record,"att")]));
+    for(const identity of this.phaseFacts.keys())if(!retained.has(identity)){this.phaseFacts.delete(identity);this.crossingHistoryUncertain=true;}
+    const handled=new Set<string>();
+    for(const admissions of this.contexts.values())for(const admission of admissions.values()){
+      if(!this.contextAuthorized(admission.context))continue;
+      const groups=groupsFor(operations,admission.rights,admission.context.level);
+      const groupIndex=new Map(groups.map(group=>[JSON.stringify([group.round,group.payload,group.contextKey]),group]));
+      const owned=records.filter(record=>!record.contextInvalid && record.admission && contextFacts(record.admission.context)===contextFacts(admission.context));
+      const basis=JSON.stringify([admission.constants.committee,admission.constants.quorum,admission.rights.map(right=>[right.address,right.slot,right.power])]);
+      for(const record of owned){
+        const group=groupIndex.get(JSON.stringify([record.target.round,record.target.payload,admission.context.key]));
+        for(const phase of ["pre","att"] as const){
+          const identity=key(record,phase);if(handled.has(identity))continue;handled.add(identity);
+          const signers=group?.[phase],snapshot=record.coverage;
+          const complete=!!snapshot?.complete && snapshot.reasons.length===0 && !record.coverageStale;
+          if(!signers?.size && !complete)continue;
+          const power=signerPower(signers??new Set(),admission.rights);if(power===undefined)continue;
+          const evidence=(phase==="pre"?group?.preEvidence:group?.attEvidence)??snapshot?.evidence;if(!evidence)continue;
+          const old=this.phaseFacts.get(identity),sameBasis=old?.basis===basis;
+          const crossing=!!old && sameBasis && newVoteEvidence && !old.uncertain && !old.quorumObserved && old.maximumPower<admission.constants.quorum && power>=admission.constants.quorum;
+          const firstQuorum=power>=admission.constants.quorum && !old?.quorumObserved;
+          const newMaximum=!old || power>old.maximumPower;
+          const state:AcceptedPhase=Object.freeze({key:identity,phase,power,maximumPower:Math.max(old?.maximumPower??0,power),maximumTotal:newMaximum?admission.constants.committee:old.maximumTotal,maximumThreshold:newMaximum?admission.constants.quorum:old.maximumThreshold,maximumBasis:newMaximum?basis:old.maximumBasis,maximumEvidence:newMaximum?evidence:old.maximumEvidence,threshold:admission.constants.quorum,basis,quorumObserved:old?.quorumObserved===true||firstQuorum,crossed:old?.crossed===true||crossing,uncertain:old?.uncertain??this.crossingHistoryUncertain,evidence:old?.evidence??evidence});
+          this.phaseFacts.set(identity,state);
+          if(crossing || (!old && firstQuorum)){
+            this.acceptedEventFacts.push(Object.freeze({identity:JSON.stringify([identity,crossing?"crossing":"observed-quorum"]),kind:crossing?"crossing":"observed-quorum",phase,level:record.target.level,round:record.target.round,payload:record.target.payload!,contextKey:admission.context.key,chainId:admission.context.observer.chainId,attribution:"payload-shared",power,threshold:admission.constants.quorum,evidence}));
+            this.acceptedEventFacts.splice(0,Math.max(0,this.acceptedEventFacts.length-12));
+          }
+        }
+      }
+    }
+    if(this.phaseFacts.size>500){this.crossingHistoryUncertain=true;const ordered=[...this.phaseFacts.values()].sort((a,b)=>a.evidence.receivedMonotonic-b.evidence.receivedMonotonic||a.key.localeCompare(b.key));for(const state of ordered.slice(0,this.phaseFacts.size-500))this.phaseFacts.delete(state.key);}
+    for(const product of [this.acceptedCandidates,this.instances])for(const [identity,record] of product)if(record.admission){
+      const pre=this.phaseFacts.get(key(record,"pre")),att=this.phaseFacts.get(key(record,"att"));
+      if(pre || att)product.set(identity,Object.freeze({...record,phases:Object.freeze({...(pre?{pre}:{}),...(att?{att}:{})})}));
+    }
   }
 }

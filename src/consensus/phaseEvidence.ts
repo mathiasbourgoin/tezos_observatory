@@ -9,6 +9,8 @@ export interface Group {
   readonly contextKey: string;
   readonly evidence?: ObservationEvidence;
   readonly admission?:AdmissionEvidence;
+  readonly preEvidence?:ObservationEvidence;
+  readonly attEvidence?:ObservationEvidence;
   readonly pre: Set<string>;
   readonly att: Set<string>;
   readonly unknownSlots: readonly number[];
@@ -58,7 +60,7 @@ export function observationContextCompatible(evidence:ObservationEvidence|undefi
 export function groupsFor(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number): Group[] {
   const authorityContext=rights[0]?.context;
   const bySlot = committeeAuthority(rights).usable && authorityContext!==undefined ? new Map(rights.map(right => [right.slot,right.address])) : new Map<number,string>();
-  type AccumulatedGroup = Omit<Group,"unknownSlots"|"conflicts"> & {unknownSlots:Set<number>;conflicts:Set<string>};
+  type AccumulatedGroup = Omit<Group,"unknownSlots"|"conflicts"|"preEvidence"|"attEvidence"> & {unknownSlots:Set<number>;conflicts:Set<string>;preEvidence?:ObservationEvidence;attEvidence?:ObservationEvidence};
   const groups = new Map<string,AccumulatedGroup>();
   // Each unique signer/phase/group enters one membership. Conflict marking visits
   // those memberships once, rather than comparing every payload pair.
@@ -79,6 +81,8 @@ export function groupsFor(operations: readonly MonitoredOperation[], rights: rea
     const phase = content.kind === "preattestation" ? "pre" : "att";
     if (group[phase].has(address)) continue;
     group[phase].add(address);
+    const receipt=phase==="pre"?"preEvidence":"attEvidence";
+    if(operation.evidence && (!group[receipt] || operation.evidence.receivedMonotonic>group[receipt]!.receivedMonotonic))group[receipt]=operation.evidence;
     const membershipKey = JSON.stringify([contextKey,content.round,phase,address]);
     let membership = memberships.get(membershipKey);
     if (!membership) {

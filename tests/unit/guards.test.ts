@@ -157,3 +157,21 @@ it("rejects missing malformed or negative-encoded Tenderbake applied rounds",()=
  for(const fitness of [[],["02","00000078","","ffffffff","notround"],["02","00000078","","ffffffff","ffffffff"],["02","00000078","","ffffffff","80000000"],["00","00000078","","ffffffff","00000000"]])expect(()=>asBlockHeader({...h,fitness})).toThrow();
  expect(asBlockHeader(h).fitness[4]).toBe("00000000");
 });
+
+
+it("reports unusable consensus coverage separately from valid unrelated operations",()=>{
+ const parse=(contents:unknown[])=>{let unusable=false;const operations=asOperationBatch([{hash:"snapshot",contents}],()=>{unusable=true;});return {operations,unusable};};
+ expect(parse([{kind:"transaction",source:"D1",destination:"D2",amount:"1"}]).unusable).toBe(false);
+ expect(parse([{kind:"preattestation",level:120,round:0,slot:0}]).unusable).toBe(true);
+ expect(parse([{kind:"preattestations_aggregate",consensus_content:consensus,committee:[0,-1]}]).unusable).toBe(true);
+ expect(parse([null]).unusable).toBe(true);
+ expect(parse([{kind:"preattestation",...consensus,slot:0}]).unusable).toBe(false);
+ expect(parse([{kind:"preattestation",level:120,round:0,slot:0}]).operations[0]?.contents).toHaveLength(1);
+});
+
+
+it("does not certify unsupported kinds or empty payload identities as usable consensus coverage",()=>{
+ for(const contents of [[{kind:"future_unknown_operation"}],[{kind:"preattestation",level:120,round:0,slot:0,block_payload_hash:""}],[{kind:"attestations_aggregate",consensus_content:{...consensus,block_payload_hash:""},committee:[{slot:0}]}]]){
+  let unusable=false;asOperationBatch([{hash:"unsupported",contents}],()=>{unusable=true;});expect(unusable).toBe(true);
+ }
+});
