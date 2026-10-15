@@ -1,7 +1,7 @@
 import {expect,type Page,type TestInfo} from '@playwright/test';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
-import {captureMatrix,binding} from './v3Evidence';
+import {captureMatrix,getBinding} from './v3Evidence';
 export type MetricMode='valid'|'partial'|'insufficient'|'window-failure'|'failure'|'hold';
 declare global {interface Window {metricFixture:{mode:MetricMode;calls:{url:string;aborted:boolean;credentials:string;cache:string;redirect:string;monotonic:number}[];release:(()=>void)|undefined}}}
 export async function metricFixture(page:Page,mode:MetricMode='valid'):Promise<void>{
@@ -37,6 +37,7 @@ export async function metricObservation(page:Page){
 }
 
 export async function captureMetricSurface(page:Page,info:TestInfo,surface:string,native:Record<string,unknown>={},preserveViewport=false){
+ const binding=getBinding();
  const theme=await page.locator('html').getAttribute('data-theme');if(theme!=='light'&&theme!=='dark')throw new Error('Missing actual theme');
  const viewport=preserveViewport?await page.evaluate(()=>({width:innerWidth,height:innerHeight})):page.viewportSize();if(!viewport)throw new Error('Missing viewport');
  const directory=process.env['V3_EVIDENCE_DIR']??info.outputPath('matrix');await mkdir(directory,{recursive:true});

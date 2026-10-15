@@ -6,12 +6,12 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {join} from 'node:path';
 import {prepare,send,vote,choose} from './productionFixture';
-import {bases,binding} from './v3Evidence';
+import {bases,getBinding} from './v3Evidence';
 
 // Native title bubbles live outside browser-content screenshots. The removed OS
 // select popup is deliberately not represented as passing replacement evidence.
 test('V3 AC-36 real native title tooltip surfaces are captured in both themes at every base',async({page},info)=>{
- test.setTimeout(240000);const display=process.env['DISPLAY'],directory=process.env['V3_EVIDENCE_DIR'],xdotool=process.env['V3_XDOTOOL'];
+ const binding=getBinding();test.setTimeout(240000);const display=process.env['DISPLAY'],directory=process.env['V3_EVIDENCE_DIR'],xdotool=process.env['V3_XDOTOOL'];
  if(!display||!directory||!xdotool)throw new Error('Native capture requires isolated DISPLAY, V3_XDOTOOL and V3_EVIDENCE_DIR');
  await mkdir(directory,{recursive:true});const failures:string[]=[];page.on('pageerror',error=>failures.push(error.message));
  await page.clock.install();await prepare(page,false);await send(page,'mainnet-operations',[vote(0)]);await expect(page.locator('.mainnet .pre .gauge-exact')).toHaveText('600 / 30,000');await expect(page.locator('select')).toHaveCount(0);
@@ -46,7 +46,7 @@ test('V3 AC-36 real native title tooltip surfaces are captured in both themes at
 });
 
 test('V3 AC-32 actual browser zoom retains current and both critical branches without horizontal pan',async({page},info)=>{
- test.setTimeout(90000);const xdotool=process.env['V3_XDOTOOL'],directory=process.env['V3_EVIDENCE_DIR'];if(!xdotool||!process.env['DISPLAY']||!directory)throw new Error('Actual browser zoom requires isolated headed X11 input');
+ const binding=getBinding();test.setTimeout(90000);const xdotool=process.env['V3_XDOTOOL'],directory=process.env['V3_EVIDENCE_DIR'];if(!xdotool||!process.env['DISPLAY']||!directory)throw new Error('Actual browser zoom requires isolated headed X11 input');
  await page.setViewportSize({width:1440,height:900});await metricFixture(page);await prepare(page,false);await expect(page.locator('.mainnet .interval-mean')).toHaveText(['7200.29 s','3601.00 s','906.00 s']);await send(page,'mainnet-operations',[vote(0)]);await mkdir(directory,{recursive:true});
  const physicalWindow=()=>{const id=execFileSync(xdotool,['getwindowfocus'],{encoding:'utf8',timeout:15000}).trim();return execFileSync(xdotool,['getwindowgeometry','--shell',id],{encoding:'utf8',timeout:15000}).trim();};const nativeBaseline=physicalWindow();
  const baseline=await page.evaluate(()=>({width:innerWidth,dpr:devicePixelRatio,outerWidth,outerHeight}));await page.locator('h1').click();for(let step=0;step<12&&await page.evaluate(()=>innerWidth)>baseline.width*.55;step++){const prior=await page.evaluate(()=>innerWidth);execFileSync(xdotool,['key','--clearmodifiers','ctrl+plus'],{timeout:15000});await expect.poll(()=>page.evaluate(()=>innerWidth)).toBeLessThan(prior);}

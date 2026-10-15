@@ -8,10 +8,10 @@ import {createHash} from 'node:crypto';
 export const bases=[{width:360,height:800},{width:390,height:844},{width:768,height:1024},{width:1440,height:900},{width:1920,height:1080},{width:2560,height:1440},{width:3440,height:1440},{width:5120,height:1440},{width:390,height:568}] as const;
 const evidenceModule:unknown=await import(new URL('../../scripts/v3-evidence-contract.mjs',import.meta.url).href);
 if(typeof evidenceModule!=='object'||evidenceModule===null||!('sourceBindings' in evidenceModule)||typeof evidenceModule.sourceBindings!=='function')throw new Error('Missing production evidence binding');
-export const binding=evidenceModule.sourceBindings();
-const {revision,sourceCombined:diffHash}=binding;
+export const getBinding=evidenceModule.sourceBindings;
 /** Actual production DOM and composed colors; native popup/tooltips remain separately named surfaces. */
 export async function captureMatrix(page:Page,info:TestInfo,state:string,interaction?:(page:Page)=>Promise<void>,surface?:{theme:string;preserveViewport?:boolean;name?:string}):Promise<void>{
+ const binding=getBinding(),{revision,sourceCombined:diffHash}=binding;
  const directory=process.env['V3_EVIDENCE_DIR']??info.outputPath('matrix');await mkdir(directory,{recursive:true});await writeFile(join(directory,'source.json'),JSON.stringify(binding,null,2));
  const cells=surface?[{viewport:surface.preserveViewport?await page.evaluate(()=>({width:innerWidth,height:innerHeight})):page.viewportSize()??bases[3],theme:surface.theme}]:bases.flatMap(viewport=>['light','dark'].map(theme=>({viewport,theme})));
  for(const {viewport,theme} of cells){

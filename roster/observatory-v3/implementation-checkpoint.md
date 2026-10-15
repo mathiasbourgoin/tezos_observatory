@@ -48,3 +48,9 @@ The full original production regression, all38 foundation commands, all37 automa
 `npm run test:e2e` runs ordinary actual-product specs in both engines. `playwright.v3.config.ts` additionally discovers the five tests in `v3Release.ts` that require complete source-bound release evidence and independent receipts. The official37 command interfaces and criterion mappings are unchanged. No conditional skip or author-created GO file exists. Independent reviewer/QA sub-receipts can be issued before the aggregate release verdict; their absence remains execution ERROR.
 
 The shared source inventory includes `src/`, `tests/`, `scripts/`, package manifests, README, tsconfig, Vite/Playwright configs, both V3 inventories and both metric inventories. Contracts bind all three task specs and the authority map. Production binds every emitted dist file. Mutation of an actual consumer, compiler input or render inventory therefore invalidates the final receipts.
+
+## Independent clean-checkout correction
+
+Independent review found that dc89's discovery regression eagerly evaluated production bindings while listing tests, before CI built `dist`. Existing author build output had concealed the failure. The author reproduced it with `dist` genuinely absent (`clean-discovery-red.log`), then moved binding acquisition into actual capture execution in the three capture helpers. Listing does not inspect or synthesize build evidence; real captures still call the unchanged strict `sourceBindings()` and require actual assets.
+
+The exact clean order `npm ci → npm run check → npm test → npm run build` now passes (`clean-ci-green.log`,353 units). The dc89 matrix was interrupted with exit130 and explicitly marked `INTERRUPTED_NOT_RELEASE_EVIDENCE`; its partial cells will not be reused for the corrected source. Independent review must renew this finding on the new immutable checkpoint.
