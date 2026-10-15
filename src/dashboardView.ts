@@ -273,7 +273,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     states.set(network, {tick, update(model) {
       current = model; panel.dataset.status = model.status;
       const labels = {loading: 'Connecting', healthy: 'Observed advance', unknown:'Progress unknown',stalled: 'Prediction elapsed', degraded: 'RPC coverage degraded'};
-      set(status, labels[model.status]); set(tabStatus, labels[model.status]); tab.dataset.status = model.status; set(level, number(model.appliedLevel ?? model.level)); set(round, number(model.appliedRound ?? model.round));
+      set(status, labels[model.status]); set(tabStatus, labels[model.status]); tab.dataset.status = model.status; set(level, number(model.appliedLevel)); set(round, number(model.appliedRound));
       const levelLabel=level.parentElement?.querySelector('.eyebrow'), roundLabel=round.parentElement?.querySelector('.eyebrow');
       if(levelLabel)set(levelLabel as HTMLElement,'Applied block level');
       if(roundLabel)set(roundLabel as HTMLElement,'Applied block round');

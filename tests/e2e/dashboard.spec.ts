@@ -1024,3 +1024,32 @@ test('a fully retired first observed quorum replay retains uncertain power witho
  await send(page,'mainnet-operations',Array.from({length:10000},(_,index)=>({hash:`retired-unrelated-${index}`,contents:[{kind:'transaction',source:'tz1Source',destination:'tz1Destination',fee:'1',counter:'1',gas_limit:'100',storage_limit:'0',amount:'1'}]})));
  const priorEvents=await events.allTextContents();await send(page,'mainnet-operations',[original]);await panel.getByRole('button',{name:'Inspect payload vhRetiredOriginal',exact:true}).click();await expect(panel.locator('.pre .gauge-counts')).toContainText('5 / 5 power');await expect(panel.locator('.pre .quorum-caption')).toContainText('Quorum reached · 4 power required');await expect(panel).toContainText('Crossing history partial');await expect(events.filter({hasText:'vhRetiredOriginal'})).toHaveCount(0);await expect(events).toHaveText(priorEvents);
 });
+
+test("foundations AC-3 autonomous B authority remains readable without primary applied head",async({page},testInfo)=>{
+ await prepare(page,false,head(120),120,true,true);
+ const current=head(122);headers.get(page)?.set(current.hash,current);headers.get(page)?.set(current.predecessor,head(121));
+ await page.route("https://mainnet.smartpy.io/chains/main/blocks/head/header",route=>route.fulfill({json:{...current,chain_id:"NetFixture"}}));
+ await page.evaluate(async()=>{
+   const original=window.fetch.bind(window);let primaryHeld=false;
+   window.fetch=async(input,options)=>{
+     const url=String(input);
+     if(url.includes('/monitor/heads/')&&!url.includes('shadownet'))return new Response(new ReadableStream());
+     if(url.includes('/blocks/head/header')&&!url.includes('shadownet')&&!primaryHeld){primaryHeld=true;return new Promise<Response>(()=>undefined);}
+     return original(input,options);
+   };
+   const storeModule='/monitor/observationStore.ts',module=await import(storeModule);
+   const originalAccept=module.ObservationStore.prototype.accept;
+   module.ObservationStore.prototype.accept=function(proof:unknown){const result=originalAccept.call(this,proof);if(this.network==="mainnet")(window as unknown as {independentAccepted:number}).independentAccepted=this.acceptedTargets().find((record:{phases?:{pre?:{power:number}}})=>record.phases?.pre?.power===600)?1:0;return result;};
+   window.mockHidden=false;document.dispatchEvent(new Event('visibilitychange'));
+ });
+ await expect.poll(()=>page.evaluate(()=>Boolean(window.mockStreams['mainnet-operations']))).toBe(true);
+ await send(page,'mainnet-operations',[vote(0,123)]);
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {independentAccepted:number}).independentAccepted)).toBeGreaterThan(0);
+ const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+ await expect(panel.locator('.pre .quorum-caption')).toContainText('19,400 more power');await expect(panel.locator('.att .gauge-counts')).toContainText('Voting power unavailable');
+ await expect(panel.locator('.authority-evidence')).toContainText('authority observer https://mainnet.smartpy.io');await expect(panel.locator('.authority-evidence')).toContainText('context head BBlock122');await expect(panel.locator('.authority-evidence')).toContainText('target 123');
+ await expect(panel.locator('.applied-context')).toHaveText('Last applied block unavailable');await expect(panel.locator('.headline strong')).toHaveText(['—','—']);await expect(panel.locator('.timing-detail')).toHaveText('Independent clock estimate unavailable');
+ await panel.getByText('Sources & observation evidence',{exact:true}).click();await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await expect(panel.locator('.authority-evidence')).toContainText('Captured source/context');
+ await page.getByRole('button',{name:'Pause',exact:true}).click();const reads=await page.evaluate(()=>window.mockRequests.length);await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');await expect(panel.locator('.applied-context')).toHaveText('Last applied block unavailable');await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');await panel.getByText('Committee evidence',{exact:false}).click();expect(await page.evaluate(()=>window.mockRequests.length)).toBe(reads);
+ testInfo.annotations.push({type:'foundation-verified',description:'AC-3'});
+});

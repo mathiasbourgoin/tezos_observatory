@@ -143,12 +143,10 @@ function renderPinned(runtime:Runtime):boolean {
 function render(runtime: Runtime): void {
   const view = runtime.view;
   const snapshot = view?.snapshot;
-  if (!view || !snapshot) {
-    const error = view?.headStream.error;
+  if (!view) {
     dashboard.update(runtime.network, {
-      status: error ? "degraded" : "loading",
+      status: "loading",
       connection: !collectionAllowed() ? "Paused" : "Connecting",
-      ...(error ? { error } : {}),
       sources: sources[runtime.network].map((s) => ({
         name: s.name,
         url: s.baseUrl,
@@ -158,17 +156,21 @@ function render(runtime: Runtime): void {
     return;
   }
   if(renderPinned(runtime))return;
-  const appliedHead=snapshot.head,appliedRound=proposalRound(snapshot.head.fitness,snapshot.head.level);
+  const appliedHead=snapshot?.head,appliedRound=appliedHead?proposalRound(appliedHead.fitness,appliedHead.level):undefined;
   const retainedTargets=[...view.observationTargets,...view.unresolvedTargets];
-  const sourceLocalTargets=retainedTargets.filter(target=>target.target.source.baseUrl!==appliedHead.evidence?.source.baseUrl || (target.admission!==undefined && target.admission.head.hash!==appliedHead.hash) || target.target.level>appliedHead.level+1).sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
+  const sourceLocalTargets=retainedTargets.filter(target=>!appliedHead || target.target.source.baseUrl!==appliedHead.evidence?.source.baseUrl || (target.admission!==undefined && target.admission.head.hash!==appliedHead.hash) || target.target.level>appliedHead.level+1).sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
   const selectedIdentity=runtime.selectedIdentity??view.inspection.selectedIdentity;
   const sourceTarget=retainedTargets.find(target=>target.identity===selectedIdentity)??(runtime.followLiveSelection?undefined:sourceLocalTargets.find(target=>target.admission&&!target.contextInvalid)??sourceLocalTargets[0]);
   const admitted=sourceTarget && !sourceTarget.contextInvalid?sourceTarget.admission:undefined;
-  const head=admitted?.head??snapshot.head,derived=sourceTarget?admitted?.derived??null:snapshot.derived,operations=sourceTarget?view.rawOperations:snapshot.operations;
+  const head=admitted?.head??snapshot?.head??(sourceTarget?runtime.monitor.observedHead(sourceTarget.target.source):undefined),derived=sourceTarget?admitted?.derived??null:snapshot?.derived,operations=sourceTarget?view.rawOperations:snapshot?.operations??view.rawOperations;
+  if(!head){
+    const error=view.headStream.error;
+    dashboard.update(runtime.network,{status:error?"degraded":"loading",connection:collectionAllowed()?"Connecting":"Paused",...(error?{error}:{}),session:sessionModel(runtime),events:capturedEvents(runtime),comparison:comparisonModel(runtime),note:"Applied head unavailable; source-local context proof pending",sources:sources[runtime.network].map(source=>({name:source.name,url:source.baseUrl,status:"Standby"}))});return;
+  }
   const now = Date.now(),
     headRound = proposalRound(head.fitness,head.level);
   if(headRound===undefined) {
-    dashboard.update(runtime.network,{status:"degraded",appliedLevel:appliedHead.level,hash:appliedHead.hash,blockTimestamp:Date.parse(appliedHead.timestamp),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
+    dashboard.update(runtime.network,{status:"degraded",...(appliedHead?{appliedLevel:appliedHead.level,hash:appliedHead.hash,blockTimestamp:Date.parse(appliedHead.timestamp)}:{}),note:"Applied round unavailable: unsupported or malformed fitness; consensus authority unavailable",connection:collectionAllowed()?"Observation unavailable":"Paused"});
     return;
   }
   let constants = derived?.constants;
@@ -284,7 +286,7 @@ function render(runtime: Runtime): void {
     view.lastOperationAt !== null &&
     ((!collectionAllowed()) || (view.operationMode === "stream" &&
       view.operationStream.mode === "stream") ||
-      (view.operationGeneration === snapshot.generation &&
+      (snapshot!==null && snapshot!==undefined && view.operationGeneration === snapshot.generation &&
         schedule !== undefined &&
         view.lastOperationAt >= schedule.startedAt));
   const coverage=sourceTarget?.coverage;
@@ -312,9 +314,9 @@ function render(runtime: Runtime): void {
   };
   const degraded = view.headStream.error !== null;
   const paused = !collectionAllowed();
-  const predictionElapsed=!paused&&runtime.opportunityFacts?.some(fact=>fact.timing.state==='known'&&fact.timing.basis==='observed-selected'&&headFactsKey(fact.timing.reference)===headFactsKey(appliedHead)&&fact.timing.parameters.context.observer.header.hash===appliedHead.hash&&Math.max(0,performance.now()-fact.capturedMonotonic)>=fact.timing.remainingAtCapture);
+  const predictionElapsed=!paused&&runtime.opportunityFacts?.some(fact=>fact.timing.state==='known'&&fact.timing.basis==='observed-selected'&&appliedHead!==undefined&&headFactsKey(fact.timing.reference)===headFactsKey(appliedHead)&&fact.timing.parameters.context.observer.header.hash===appliedHead.hash&&Math.max(0,performance.now()-fact.capturedMonotonic)>=fact.timing.remainingAtCapture);
   const model: NetworkViewModel = {
-    status: degraded ? "degraded" : predictionElapsed?"stalled":view.progression?.to.header.hash===appliedHead.hash && view.progression.to.source.baseUrl===appliedHead.evidence?.source.baseUrl && ["next-level","same-level-round","skipped-levels"].includes(view.progression.kind)?"healthy":"unknown",
+    status: degraded ? "degraded" : predictionElapsed?"stalled":appliedHead!==undefined && view.progression?.to.header.hash===appliedHead.hash && view.progression.to.source.baseUrl===appliedHead.evidence?.source.baseUrl && ["next-level","same-level-round","skipped-levels"].includes(view.progression.kind)?"healthy":"unknown",
     candidates: selectable,
     session:sessionModel(runtime),
     ...(chosenIdentity ? {selectedIdentity:chosenIdentity} : {}),
@@ -324,12 +326,8 @@ function render(runtime: Runtime): void {
     level: consensusLevel,
     consensusLevel,
     ...(currentRound === undefined ? {} : { round: currentRound }),
-    appliedLevel: appliedHead.level,
-    ...(appliedRound===undefined?{}:{appliedRound}),
-    hash: appliedHead.hash,
-    blockTimestamp: Date.parse(appliedHead.timestamp),
-    ...(appliedHead.evidence?{observedMonotonic:appliedHead.evidence.receivedMonotonic}:{}),
-    ...((selectedEvidence??appliedHead.evidence)?{snapshotMonotonic:(selectedEvidence??appliedHead.evidence)!.receivedMonotonic}:{}),
+    ...(appliedHead?{appliedLevel:appliedHead.level,...(appliedRound===undefined?{}:{appliedRound}),hash:appliedHead.hash,blockTimestamp:Date.parse(appliedHead.timestamp),...(appliedHead.evidence?{observedMonotonic:appliedHead.evidence.receivedMonotonic}:{})}:{}),
+    ...((selectedEvidence??appliedHead?.evidence)?{snapshotMonotonic:(selectedEvidence??appliedHead?.evidence)!.receivedMonotonic}:{}),
     ...(view.headObservedAt === null
       ? {}
       : { observedAt: view.headObservedAt }),
@@ -429,8 +427,8 @@ function render(runtime: Runtime): void {
       .filter((r) => !att.has(r.address))
       .map(delegateView);
   }
-  const clockParameters=snapshot.derived?.constantsByLevel.get(appliedHead.level+1),clockContext=clockParameters?.context;
-  if(!paused&&!degraded&&appliedRound!==undefined&&clockParameters&&clockParameters.evidence&&clockContext&&runtime.monitor.contextAuthorized(clockContext)&&clockContext.protocolHash===clockContext.observer.protocolHash&&clockContext.observer.source.baseUrl===appliedHead.evidence?.source.baseUrl&&observedHeaderMatches(clockContext.observer.header,appliedHead)){
+  const clockParameters=appliedHead?snapshot?.derived?.constantsByLevel.get(appliedHead.level+1):undefined,clockContext=clockParameters?.context;
+  if(appliedHead&&!paused&&!degraded&&appliedRound!==undefined&&clockParameters&&clockParameters.evidence&&clockContext&&runtime.monitor.contextAuthorized(clockContext)&&clockContext.protocolHash===clockContext.observer.protocolHash&&clockContext.observer.source.baseUrl===appliedHead.evidence?.source.baseUrl&&observedHeaderMatches(clockContext.observer.header,appliedHead)){
     const boundary=conditionalRoundBoundary({referenceTimestamp:Date.parse(appliedHead.timestamp),referenceRound:appliedRound,branch:'next-level',minimum:clockParameters.minimum,increment:clockParameters.increment,roundBasis:'proven'});
     if(boundary!==undefined){const clock=roundSchedule(boundary,clockParameters.minimum,clockParameters.increment,now);if(clock)model.timing={...clock,level:appliedHead.level+1,nextRound:clock.round+1,evidence:`applied reference ${appliedHead.hash} · observer ${clockContext.observer.source.baseUrl} · parameters responder ${clockParameters.evidence?.source.baseUrl??"unavailable"} · target ${clockContext.level} · execution protocol ${clockContext.protocolHash}`};}
   }

@@ -25,3 +25,13 @@ it("classifies only completed matcher failures as behavioral red",()=>{
  expect(failure(report([test("chromium","failed",[{message:"Error: \u001b[2mexpect(received).toBe(expected) failed"}]),test("firefox")]))).toBeInstanceOf(AssertionError);
  expect(classify(report([test("chromium"),test("firefox")]),0,"AC-4")).toBe(2);
 });
+
+it("requires actual completed AC3 evidence from both implicit engines with runtime-error priority",()=>{
+ const verified=(project:string)=>({...test(project),annotations:[{type:"foundation-verified",description:"AC-3"}]});
+ expect(classify(report([verified("chromium"),verified("firefox")]),0,"AC-3")).toBe(2);
+ for(const value of [report([]),report([verified("chromium")]),report([test("chromium"),test("firefox")])])expect(()=>classify(value,0,"AC-3")).toThrow();
+ for(const reverse of [false,true]){
+  const cases=[{...verified("chromium"),results:[{status:"failed",errors:[{message:"Error: expect(received).toBe(expected) failed"}]}]},{...verified("firefox"),results:[{status:"failed",errors:[{message:"Error: fixture body could not execute"}]}]}];if(reverse)cases.reverse();
+  let error:unknown;try{classify(report(cases),1,"AC-3");}catch(caught){error=caught;}expect(error).toBeInstanceOf(Error);expect(error).not.toBeInstanceOf(AssertionError);
+ }
+});
