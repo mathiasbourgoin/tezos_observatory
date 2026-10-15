@@ -1177,9 +1177,26 @@ for(const storage of ['missing','corrupt','denied'] as const)test(`V3 AC-22 ${st
  if(storage==='denied')await expect(page.locator('.theme-notice')).toHaveText('Theme saved for this session only');else await expect(page.locator('.theme-notice')).toBeHidden();
 });
 
-test('V3 AC-13 reduced motion enabled during an actual transition cancels immediately and keeps the observed destination',async({page})=>{
+test('V3 AC-13 reduced motion enabled during an actual transition cancels immediately and keeps the observed destination',async({page},info)=>{
+ await page.addInitScript(()=>{
+  const match=window.matchMedia.bind(window),queries:MediaQueryList[]=[];
+  window.matchMedia=query=>{const media=match(query);if(query==='(prefers-reduced-motion: reduce)')queries.push(media);return media;};
+  Object.assign(window,{reducedMotionQueries:queries});
+ });
  await prepare(page,false);await send(page,'mainnet-operations',[vote(0,101,0)]);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
- await send(page,'mainnet-operations',[vote(1,101,1)]);await expect(scene).toHaveAttribute('data-direction','up');await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);await expect(panel.locator('.navigator-status')).toContainText('Reduced motion');await expect(panel.locator('.navigator-current')).toContainText('101 · r1');
+ await send(page,'mainnet-operations',[vote(1,101,1)]);await expect(scene).toHaveAttribute('data-direction','up');
+ await scene.evaluate(node=>{
+  const state=window as unknown as {reducedMotionQueries:MediaQueryList[];reducedMotionDelivery:{matches:boolean;animations:number;playState:AnimationPlayState;ghosts:number;at:number}[]};
+  const panels=[...document.querySelectorAll('.network-panel')],panel=node.closest('.network-panel'),index=panel?panels.indexOf(panel):-1,media=state.reducedMotionQueries[index],animation=node.querySelector('.navigator-stage')?.getAnimations()[0];
+  if(state.reducedMotionQueries.length!==panels.length||!media||!animation||animation.playState!=='running')throw new Error('Actual panel media query and active camera are required');
+  state.reducedMotionDelivery=[];
+  // The renderer registered first: this observer must see cancellation in that same dispatch.
+  media.addEventListener('change',event=>state.reducedMotionDelivery.push({matches:event.matches,animations:node.getAnimations({subtree:true}).length,playState:animation.playState,ghosts:node.querySelectorAll('.navigator-motion-card').length,at:performance.now()}));
+ });
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {reducedMotionDelivery:unknown[]}).reducedMotionDelivery.length)).toBe(1);
+ const delivery=await page.evaluate(()=>(window as unknown as {reducedMotionDelivery:{matches:boolean;animations:number;playState:string;ghosts:number;at:number}[]}).reducedMotionDelivery);await info.attach('reduced-motion-event-delivery',{body:JSON.stringify(delivery),contentType:'application/json'});
+ expect(delivery[0]).toMatchObject({matches:true,animations:0,playState:'idle',ghosts:0});expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);await expect(panel.locator('.navigator-status')).toContainText('Reduced motion');await expect(panel.locator('.navigator-current')).toContainText('101 · r1');
  await send(page,'mainnet-operations',[vote(2,101,2)]);await expect(panel.locator('.navigator-current')).toContainText('101 · r2');expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
 });
 
