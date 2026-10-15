@@ -218,3 +218,25 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .block-intervals>a{color:var(--copper)}
 
 .phase-provenance summary{min-height:24px;font-size:12px;cursor:pointer}.phase-evidence{overflow-wrap:anywhere}.phase-age{font-size:12px}
+
+/* Every path position owns the same bounded slot, independent of received content. */
+.navigator-junction{--navigator-slot-height:264px;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,var(--navigator-slot-height));overflow:hidden;isolation:isolate}
+.navigator-previous,.navigator-current,.navigator-junction .baker-opportunity{box-sizing:border-box;width:100%;height:100%;min-height:0;align-self:stretch;padding:12px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;display:flex;flex-direction:column;gap:5px}
+.navigator-previous{border:1px solid var(--line);background:var(--surface)}
+.navigator-junction .baker-opportunity[data-branch=same-level]{grid-column:2;grid-row:1;display:flex}
+.navigator-junction .baker-opportunity[data-branch=next-level]{grid-column:3;grid-row:2;align-self:stretch}
+.navigator-junction .baker-opportunity>*{flex-shrink:0}
+.navigator-current>*{flex-shrink:0}.navigator-current .branch-target{font-size:20px!important}
+.navigator-current::before,.navigator-junction .baker-opportunity::before,.navigator-junction .baker-opportunity::after{display:none}
+.navigator-edge{position:relative;pointer-events:none;z-index:-1;align-self:start;justify-self:end;grid-row:2;top:30px;height:0;width:var(--branch-gap-x);margin-right:calc(-1 * var(--branch-gap-x));border-top:2px dashed var(--copper)}
+.navigator-edge-previous{grid-column:1;border-top:2px dotted var(--muted)}
+.navigator-junction[data-relationship=ancestry] .navigator-edge-previous{border-top-style:solid;border-color:var(--forest)}
+.navigator-junction[data-relationship=unknown] .navigator-edge-previous{display:none}
+.navigator-edge-level{grid-column:2}
+.navigator-edge-round{grid-column:2;grid-row:1;align-self:end;justify-self:center;top:var(--branch-gap-y);height:var(--branch-gap-y);width:0;margin:0;border-top:0;border-left:2px dashed var(--copper)}
+.navigator-junction .navigator-motion-card{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;gap:5px;padding:12px;border:1px solid var(--ink);background:var(--selected);margin:0;z-index:2;pointer-events:none;overflow:hidden}.navigator-motion-card>.branch-target{font-size:20px!important}
+@media(max-width:700px){.navigator-junction{--navigator-slot-height:340px}.navigator-previous,.navigator-current,.navigator-junction .baker-opportunity{padding:8px 6px}.navigator-junction .branch-critical{max-width:none}.navigator-junction .navigator-current>.branch-target{font-size:18px!important}}
+
+/* Changing progress narration does not move the content below the path. */
+.navigator-status{box-sizing:border-box;height:4.2em;line-height:1.4;overflow:auto;overscroll-behavior:contain}
+@media(max-width:700px){.navigator-status{height:7em}}

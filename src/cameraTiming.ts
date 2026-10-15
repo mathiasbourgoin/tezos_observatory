@@ -4,9 +4,10 @@ export function cameraReceipt(previous:CameraReceipt|undefined,identity:string|u
  if(!identity||!Number.isFinite(emittedMonotonic))return undefined;
  return previous?.identity===identity?previous:Object.freeze({identity,emittedMonotonic});
 }
-/** Keep the 160ms timeline; late rendering consumes it rather than restarting it. */
+/** Readable adjacent-slot travel; late rendering consumes this bounded UI budget. */
+export const CAMERA_DURATION_MS=320;
 export function cameraElapsed(emittedMonotonic:number|undefined,now:number):number|undefined {
  if(emittedMonotonic===undefined||!Number.isFinite(emittedMonotonic)||!Number.isFinite(now))return undefined;
  const elapsed=now-emittedMonotonic;
- return elapsed>=0&&elapsed<160?elapsed:undefined;
+ return elapsed>=0&&elapsed<CAMERA_DURATION_MS?elapsed:undefined;
 }
