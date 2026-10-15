@@ -1,4 +1,5 @@
 import {burstSettlement} from './burstTiming';
+import {writeFile} from 'node:fs/promises';
 import {attachFailureTrace} from './productionFixture';
 import {annotateV3} from './v3Verification';
 import {expect, test, type Page, type Locator} from '@playwright/test';
@@ -1032,7 +1033,7 @@ test('V3 first observation renders exact paired evidence in both themes across u
 });
 
 
-test('V3 AC-29 observed junction places next round above and next level right with readable phone targets',async({page})=>{
+test('V3 AC-29 observed junction places next round above and next level right with readable phone targets',async({page},info)=>{
  await prepare(page,false);
  await send(page,'mainnet-operations',[vote(0,101,0)]);
  const panel=page.locator('.network-panel.mainnet');
@@ -1041,10 +1042,21 @@ test('V3 AC-29 observed junction places next round above and next level right wi
   const selected=panel.locator('.navigator-current'),up=panel.locator('.baker-opportunity').first(),right=panel.locator('.baker-opportunity').nth(1);
   await expect(selected).toContainText('101');await expect(selected).toContainText('r0');
   await expect(up).toContainText('Level 101 · round 1');await expect(right).toContainText('Level 102 · round 0');
-  const a=await selected.boundingBox(),b=await up.boundingBox(),c=await right.boundingBox();
-  expect(a&&b&&c).toBeTruthy();if(!a||!b||!c)throw new Error('Junction fixture geometry missing');
-  expect(b.y+b.height).toBeLessThanOrEqual(a.y);expect(Math.abs(b.x-a.x)).toBeLessThan(2);
-  expect(c.x).toBeGreaterThan(a.x);expect(Math.abs(c.y-a.y)).toBeLessThan(2);
+  const samples:unknown[]=[];
+  try {
+   // Viewport changes deliver ResizeObserver asynchronously. Read all slots in
+   // one browser task, then wait for the unchanged geometry contract to hold.
+   await expect.poll(async()=>{
+    const boxes=await panel.evaluate(node=>{
+     const rect=(selector:string)=>{const target=node.querySelector(selector);if(!target)throw new Error(`Junction fixture geometry missing: ${selector}`);const {x,y,width,height}=target.getBoundingClientRect();return {x,y,width,height};};
+     return {at:performance.now(),current:rect('.navigator-current'),up:rect('[data-branch="same-level"]'),right:rect('[data-branch="next-level"]')};
+    });
+    samples.push(boxes);const {current:a,up:b,right:c}=boxes;
+    return {above:b.y+b.height<=a.y,aligned:Math.abs(b.x-a.x)<2,right:c.x>a.x,sameRow:Math.abs(c.y-a.y)<2};
+   }).toEqual({above:true,aligned:true,right:true,sameRow:true});
+  } finally {
+   const path=info.outputPath(`junction-responsive-${width}.json`);await writeFile(path,JSON.stringify({width,samples},null,2));await info.attach(`junction-responsive-${width}`,{path,contentType:'application/json'});
+  }
   expect(await up.locator('.branch-target').evaluate(node=>parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(14);
   await expect(up.locator('.branch-critical')).toBeVisible();await expect(right.locator('.branch-critical')).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
