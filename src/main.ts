@@ -1,4 +1,5 @@
 import "./dashboard.css";
+import {SourceComparison,type ComparisonSelection} from "./rpc/sourceComparison";
 import {groupsFor, committeeAuthority, signerPower, observationContextCompatible} from "./consensus/phaseEvidence";
 import {headFactsKey} from "./monitor/headGeneration";
 import {
@@ -47,6 +48,7 @@ const dashboard = createDashboard(root, {
   onFollow(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=true;runtime.monitor.followLive();}},
   onLatest(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=!runtime.monitor.latestObservation();}},
   onRetry(network,identity){if(collectionAllowed())runtimes.get(network)?.monitor.reconcileObservation(identity);},
+  onCompare(network,url){const runtime=runtimes.get(network),source=streamSources[network].find(value=>value.baseUrl===url);if(!runtime||!source||!collectionAllowed()||[...runtimes.values()].some(value=>value.comparison.running))return;const selection=comparisonSelection(runtime);if(selection)void runtime.comparison.compare(selection,source);},
   onReconnect() {
     if (collectionAllowed()) for (const runtime of runtimes.values()) {
       stopCollection(runtime);syncCollection(runtime);runtime.monitor.refreshDerived();
@@ -60,6 +62,7 @@ interface Runtime {
   selectedIdentity?: string;
   followLiveSelection:boolean;
   data: NetworkData;
+  comparison:SourceComparison;
   monitor: NetworkMonitor<Derived>;
   view: NetworkMonitorView<Derived> | null;
   opportunities: NonNullable<NetworkViewModel["nextBakers"]>;
@@ -72,20 +75,37 @@ interface Runtime {
 
 
 function stopCollection(runtime:Runtime):void {
-  runtime.collectionActive=false;runtime.monitor.stop();runtime.data.pause();runtime.opportunityController.abort();
+  runtime.collectionActive=false;runtime.comparison.pause();runtime.monitor.stop();runtime.data.pause();runtime.opportunityController.abort();
 }
 
 function syncCollection(runtime:Runtime):void {
   if(!collectionAllowed()) {
     if(runtime.collectionActive)stopCollection(runtime);
   } else if(!runtime.collectionActive) {
-    runtime.collectionActive=true;runtime.data.resume();
+    runtime.collectionActive=true;runtime.comparison.resume();runtime.data.resume();
     runtime.opportunityController=new AbortController();runtime.opportunityKey="";runtime.opportunityAt=0;runtime.eligibilityHead="";
     runtime.monitor.start();void runtime.data.loadAliases().then(()=>scheduleRender(runtime));
   }
   scheduleRender(runtime);
 }
 
+function comparisonSelection(runtime:Runtime):ComparisonSelection|undefined {
+ const view=runtime.view;if(!view)return undefined;
+ const inspection=view.inspection,history=inspection.mode==='pin'?inspection.snapshot:undefined;
+ const selected=runtime.selectedIdentity??inspection.selectedIdentity;
+ const record=history?(history.candidates.find(candidate=>candidate.identity===inspection.selectedIdentity)??history.record):[...view.observationTargets,...view.unresolvedTargets].find(value=>value.identity===selected);
+ const admission=record?.admission,header=record?.target.candidate?.header??(record?undefined:view.snapshot?.head),source=record?.target.source??header?.evidence?.source??view.headStream.source;
+ if(!source)return undefined;
+ const level=record?.target.level??header?.level,round=record?.target.round??(header?proposalRound(header.fitness,header.level):undefined);if(level===undefined||round===undefined)return undefined;
+ const derived=record?undefined:view.snapshot?.derived,provenContext=derived?.contexts.get(level),context=admission?.context??(provenContext?.observer.header.hash===header?.hash?provenContext:undefined),rights=admission?.rights??derived?.rights.get(level),constants=admission?.constants??derived?.constantsByLevel.get(level);
+ const key=JSON.stringify([selected??header?.hash,source.baseUrl,context?.key,record?.contextInvalid??false,view.snapshot?.head.hash,inspection.mode,history?.evidence.receivedMonotonic]);
+ const chainId=context?.observer.chainId??header?.chainId;
+ return {key,source,level,round,historical:inspection.mode==='pin',coherent:!record?.contextInvalid&&(record?admission!==undefined:true),...(header?{header}:{}),...(chainId?{chainId}:{}),...(record?.target.payload?{payload:record.target.payload}:{}),...(context&&rights&&constants?{context,rights,constants}:{})};
+}
+function comparisonModel(runtime:Runtime):NonNullable<NetworkViewModel['comparison']>{
+ const selection=comparisonSelection(runtime);if(selection)runtime.comparison.setSelection(selection.key);
+ return {providers:streamSources[runtime.network].filter(source=>source.baseUrl!==selection?.source.baseUrl).map(source=>({name:source.name,url:source.baseUrl})),enabled:collectionAllowed()&&selection!==undefined,running:[...runtimes.values()].some(value=>value.comparison.running),result:()=>runtime.comparison.result()};
+}
 function sessionModel(runtime:Runtime):NonNullable<NetworkViewModel["session"]> {
  const view=runtime.view;if(!view)return {mode:"follow",frozen:false,newer:0,newerPartial:false,canPin:false,accepted:0,unresolved:0,raw:0,instances:[]};const selected=runtime.selectedIdentity??view.inspection.selectedIdentity;
  return {mode:view.inspection.mode,frozen:view.inspection.frozen,newer:view.inspection.newer,newerPartial:view.inspection.newerPartial,...(view.inspection.snapshot?{selected:view.inspection.snapshot.identity}:{}),canPin:selected!==undefined&&view.observationTargets.some(record=>record.identity===selected),accepted:view.observationTargets.filter(record=>record.target.candidate).length,unresolved:view.unresolvedTargets.length,raw:view.rawOperations.length,instances:view.history.map(snapshot=>({identity:snapshot.identity,label:`${snapshot.record.target.source.name} · ${snapshot.record.target.level}/${snapshot.record.target.round} · ${snapshot.record.target.payload??"payload unknown"} · ${snapshot.candidates.length} candidates`}))};
@@ -107,7 +127,7 @@ function renderPinned(runtime:Runtime):boolean {
  if(complete){model.missingPre=snapshot.committee.filter(right=>!snapshot.currentPre.includes(right.address)).map(delegate);model.missingAtt=snapshot.committee.filter(right=>!snapshot.currentAtt.includes(right.address)).map(delegate);}
  model.committee=snapshot.committee.map(right=>({...delegate(right),preReceipt:snapshot.currentPre.includes(right.address)?"Received":complete?"Absent in selected source snapshot":"Partial / unavailable",attReceipt:snapshot.currentAtt.includes(right.address)?"Received":complete?"Absent in selected source snapshot":"Partial / unavailable",contextNote:context?`Source ${context.observer.source.baseUrl} (observer) · rights responder ${right.evidence?.source.baseUrl??"unknown"} · chain ${context.observer.chainId} · head ${context.observer.header.hash} · target ${context.level} · protocol ${context.protocolHash}`:"Historical context unavailable"}));
  model.unknownConsensus=snapshot.unknownSlots.map(slot=>`slot ${slot} · source ${record.target.source.baseUrl} · level ${record.target.level} · round ${record.target.round} · payload ${record.target.payload??"unknown"} · unknown power`);
- dashboard.update(runtime.network,model);return true;
+ model.comparison=comparisonModel(runtime);dashboard.update(runtime.network,model);return true;
 }
 
 function render(runtime: Runtime): void {
@@ -412,6 +432,7 @@ function render(runtime: Runtime): void {
     }
   }
   model.recentConsensus=capturedRecent(runtime);
+  model.comparison=comparisonModel(runtime);
   dashboard.update(runtime.network, model);
   if (rights && runtime.eligibilityHead !== head.hash && !paused) {
     runtime.eligibilityHead = head.hash;
@@ -495,7 +516,9 @@ for (const network of ["mainnet", "shadownet"] as const) {
     fallbackHead: (signal) => data.head(signal),
     onUpdate(view) {
       if (!runtime) return;
+      runtime.comparison.setRawCapacity(10000-view.rawOperations.length);
       runtime.view = view;
+      const selected=comparisonSelection(runtime);if(selected)runtime.comparison.setSelection(selected.key);
       scheduleRender(runtime);
     },
   });
@@ -503,6 +526,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
     network,
     collectionActive:false,followLiveSelection:false,
     data,
+    comparison:new SourceComparison(network,streamSources[network],{rawCapacity:()=>10000-(runtime.view?.rawOperations.length??0),onChange:()=>{for(const value of runtimes.values())scheduleRender(value);}}),
     monitor,
     view: null,
     opportunities: [],
@@ -515,7 +539,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
   data.onChange=()=>scheduleRender(runtime);
   runtimes.set(network, runtime);
   dashboard.update(network, { status: "loading" });
-  data.pause();syncCollection(runtime);
+  runtime.comparison.pause();data.pause();syncCollection(runtime);
 }
 document.addEventListener("visibilitychange", () => {
   for(const runtime of runtimes.values())syncCollection(runtime);

@@ -1,5 +1,5 @@
-import type {AdmissionEvidence, MonitoredOperation, ObservationEvidence} from "../rpc/models";
-import type {DelegateRight,TargetContext} from "../rpc/networkData";
+import type {AdmissionEvidence,BlockHeader,RpcSource, MonitoredOperation, ObservationEvidence} from "../rpc/models";
+import type {Constants,DelegateRight,TargetContext} from "../rpc/networkData";
 import {nonnegativeInteger} from "../rpc/guards";
 
 export interface Group {
@@ -57,8 +57,38 @@ export function observationContextCompatible(evidence:ObservationEvidence|undefi
   return evidence?.source.baseUrl===context.observer.source.baseUrl && (admission?sidecar:evidence.observedHeadHash===context.observer.header.hash) && (evidence.chainId===undefined || evidence.chainId===context.observer.chainId);
 }
 
-export function groupsFor(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number): Group[] {
+export interface ComparisonAuthorityProof {
+  readonly source:RpcSource;
+  readonly chainId:string;
+  readonly head:BlockHeader;
+  readonly producingProtocolHash:string;
+  readonly context:TargetContext;
+  readonly constants:Constants;
+  readonly headEvidence:ObservationEvidence;
+  readonly pendingEvidence:ObservationEvidence;
+  readonly configuredSources:readonly RpcSource[];
+}
+const sameHeader=(a:BlockHeader,b:BlockHeader):boolean=>a.hash===b.hash&&a.level===b.level&&a.predecessor===b.predecessor&&a.timestamp===b.timestamp&&JSON.stringify(a.fitness)===JSON.stringify(b.fitness)&&(a.chainId===undefined||b.chainId===undefined||a.chainId===b.chainId)&&(a.proto===undefined||b.proto===undefined||a.proto===b.proto)&&(a.payload_hash===undefined||b.payload_hash===undefined||a.payload_hash===b.payload_hash);
+/** Comparison proves compatibility without claiming that A's helper came from B. */
+export function comparisonAuthorityUsable(rights:readonly DelegateRight[],level:number,proof:ComparisonAuthorityProof):boolean {
+  const {context,head,source,chainId,constants}=proof,observer=context.observer,anchor=context.anchor;
+  if(!proof.configuredSources.some(configured=>configured.network===source.network&&configured.baseUrl===observer.source.baseUrl))return false;
+  if(!committeeAuthority(rights,constants.committee,constants.quorum).usable||!constants.context||contextFacts(constants.context)!==contextFacts(context)||rights.some(right=>!right.context||contextFacts(right.context)!==contextFacts(context)))return false;
+  if(context.level!==level||!chainId||head.chainId!==chainId||observer.chainId!==chainId||anchor.chainId!==chainId||observer.header.chainId!==chainId||anchor.header.chainId!==chainId||observer.source.network!==source.network||anchor.source.baseUrl!==observer.source.baseUrl||anchor.source.network!==source.network||context.protocolHash!==anchor.nextProtocolHash)return false;
+  const receiptCompatible=(receipt:ObservationEvidence|undefined)=>receipt!==undefined&&receipt.source.network===source.network&&(receipt.source.baseUrl===observer.source.baseUrl||proof.configuredSources.some(configured=>configured.network===source.network&&configured.baseUrl===receipt.source.baseUrl)===true)&&receipt.chainId===chainId&&receipt.requestedHeadHash===anchor.header.hash&&receipt.contextHeadHash===observer.header.hash&&receipt.protocolHash===context.protocolHash&&receipt.targetLevel===level;
+  if(!receiptCompatible(constants.evidence)||rights.some(right=>!receiptCompatible(right.evidence)))return false;
+  if(!proof.producingProtocolHash||proof.headEvidence.source.baseUrl!==source.baseUrl||proof.pendingEvidence.source.baseUrl!==source.baseUrl||proof.headEvidence.source.network!==source.network||proof.pendingEvidence.source.network!==source.network||!Number.isFinite(proof.pendingEvidence.receivedMonotonic)||proof.pendingEvidence.receivedMonotonic<proof.headEvidence.receivedMonotonic)return false;
+  if(level===head.level){
+    if(anchor.header.hash!==head.predecessor||anchor.header.level!==head.level-1||context.protocolHash!==proof.producingProtocolHash)return false;
+    return observer.header.hash===head.hash?sameHeader(observer.header,head)&&observer.protocolHash===proof.producingProtocolHash:sameHeader(observer.header,anchor.header)&&observer.nextProtocolHash===proof.producingProtocolHash;
+  }
+  return level===head.level+1&&sameHeader(observer.header,head)&&sameHeader(anchor.header,head)&&observer.protocolHash===proof.producingProtocolHash&&context.protocolHash===observer.nextProtocolHash;
+}
+export function groupsFor(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number): Group[] {return collectGroups(operations,rights,level);}
+export function comparisonGroupsFor(operations:readonly MonitoredOperation[],rights:readonly DelegateRight[],level:number,proof:ComparisonAuthorityProof):Group[] {return collectGroups(operations,rights,level,proof);}
+function collectGroups(operations: readonly MonitoredOperation[], rights: readonly DelegateRight[], level: number,comparison?:ComparisonAuthorityProof): Group[] {
   const authorityContext=rights[0]?.context;
+  const compared=comparison!==undefined&&comparisonAuthorityUsable(rights,level,comparison);
   const bySlot = committeeAuthority(rights).usable && authorityContext!==undefined ? new Map(rights.map(right => [right.slot,right.address])) : new Map<number,string>();
   type AccumulatedGroup = Omit<Group,"unknownSlots"|"conflicts"|"preEvidence"|"attEvidence"> & {unknownSlots:Set<number>;conflicts:Set<string>;preEvidence?:ObservationEvidence;attEvidence?:ObservationEvidence};
   const groups = new Map<string,AccumulatedGroup>();
@@ -67,22 +97,24 @@ export function groupsFor(operations: readonly MonitoredOperation[], rights: rea
   const memberships = new Map<string,{address:string;groups:Set<AccumulatedGroup>}>();
   for (const operation of operations) for (const content of operation.contents) {
     if (content.level !== level || !content.block_payload_hash) continue;
-    const admission=operation.admissions?.find(proof=>proof.contextKey===authorityContext?.key && proof.targetLevel===content.level)??operation.admissions?.find(proof=>proof.targetLevel===content.level)??(operation.admission?.targetLevel===content.level?operation.admission:undefined);
-    const contextKey = evidenceContext(operation.evidence,admission);
+    const admission=comparison?undefined:operation.admissions?.find(proof=>proof.contextKey===authorityContext?.key && proof.targetLevel===content.level)??operation.admissions?.find(proof=>proof.targetLevel===content.level)??(operation.admission?.targetLevel===content.level?operation.admission:undefined);
+    const receipt=operation.evidence;
+    const compatibleCompared=compared&&comparison!==undefined&&receipt!==undefined&&receipt.source.baseUrl===comparison.source.baseUrl&&receipt.source.network===comparison.source.network&&receipt.receivedMonotonic===comparison.pendingEvidence.receivedMonotonic&&receipt.receivedAt===comparison.pendingEvidence.receivedAt&&(receipt.chainId===undefined||receipt.chainId===comparison.chainId)&&(receipt.observedHeadHash===undefined||receipt.observedHeadHash===comparison.head.hash)&&(receipt.requestedHeadHash===undefined||receipt.requestedHeadHash===comparison.head.hash);
+    const contextKey = compatibleCompared?JSON.stringify(['comparison',comparison.source.baseUrl,comparison.chainId,comparison.head.hash,comparison.head.predecessor,comparison.context.protocolHash,level]):evidenceContext(operation.evidence,admission);
     const key = JSON.stringify([contextKey,content.round,content.block_payload_hash]);
     let group = groups.get(key);
     if (!group) {
       group = {level,round:content.round,payload:content.block_payload_hash,contextKey,pre:new Set(),att:new Set(),unknownSlots:new Set(),conflicts:new Set(),...(operation.evidence ? {evidence:operation.evidence} : {}),...(admission?{admission}:{})};
       groups.set(key,group);
     }
-    const compatible=authorityContext!==undefined && (authorityContext.level===content.level && observationContextCompatible(operation.evidence,authorityContext,admission));
+    const compatible=comparison?compatibleCompared:authorityContext!==undefined && (authorityContext.level===content.level && observationContextCompatible(operation.evidence,authorityContext,admission));
     const address = compatible ? bySlot.get(content.slot) : undefined;
     if (!address) {group.unknownSlots.add(content.slot);continue;}
     const phase = content.kind === "preattestation" ? "pre" : "att";
     if (group[phase].has(address)) continue;
     group[phase].add(address);
-    const receipt=phase==="pre"?"preEvidence":"attEvidence";
-    if(operation.evidence && (!group[receipt] || operation.evidence.receivedMonotonic>group[receipt]!.receivedMonotonic))group[receipt]=operation.evidence;
+    const phaseReceipt=phase==="pre"?"preEvidence":"attEvidence";
+    if(operation.evidence && (!group[phaseReceipt] || operation.evidence.receivedMonotonic>group[phaseReceipt]!.receivedMonotonic))group[phaseReceipt]=operation.evidence;
     const membershipKey = JSON.stringify([contextKey,content.round,phase,address]);
     let membership = memberships.get(membershipKey);
     if (!membership) {

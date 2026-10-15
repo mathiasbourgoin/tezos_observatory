@@ -5,9 +5,9 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
-const browserChecks=new Set(['AC-4','AC-5','AC-6','AC-8','AC-13','AC-16','AC-17','AC-20','AC-22','AC-23','AC-24','AC-25','AC-26','AC-27','AC-31','AC-32']);
+const browserChecks=new Set(['AC-4','AC-5','AC-6','AC-7','AC-8','AC-13','AC-16','AC-17','AC-19','AC-20','AC-21','AC-22','AC-23','AC-24','AC-25','AC-26','AC-27','AC-28','AC-29','AC-30','AC-31','AC-32','AC-35','AC-36','AC-37','AC-38']);
 // Preserve the contractual native command spelling while requiring production evidence too.
-const implicitBrowserChecks=new Set(['AC-16','AC-17','AC-23']);
+const implicitBrowserChecks=new Set(['AC-16','AC-17','AC-19','AC-23']);
 const implemented = new Set(['AC-1','AC-2','AC-3','AC-9','AC-10','AC-11','AC-12','AC-14','AC-18','AC-19',...browserChecks]);
 export function classifyBrowserReport(report,runnerStatus,criterion) {
   let completed=0;
@@ -71,7 +71,35 @@ try {
     return {observer,anchor:observer,level:120,protocolHash:'PFixture',key:JSON.stringify([observerSource.baseUrl,'NetFixture','Parent','Grandparent','PFixture',120])};
   };
   rights=[{address:'D1',slot:0,power:3,context:authorityContextFor(source)},{address:'D2',slot:1,power:2,context:authorityContextFor(source)}];
-  if(['AC-2','AC-14','AC-16','AC-19','AC-22','AC-23','AC-24','AC-25','AC-31','AC-32'].includes(criterion)) {
+  if(['AC-7','AC-28','AC-29','AC-30','AC-35','AC-36','AC-37','AC-38'].includes(criterion)) {
+    const {SourceComparison}=await server.ssrLoadModule('/rpc/sourceComparison.ts');
+    const originalFetch=globalThis.fetch,originalNow=Object.getOwnPropertyDescriptor(performance,'now');let clock=1000;
+    const a=streamSources.mainnet[0],b=streamSources.mainnet[1],reads=[];
+    const applied={chainId:'NetFixture',level:120,hash:'H120',predecessor:'H119',timestamp:'2026-10-15T00:00:00Z',fitness:['02','00000078','','ffffffff','00000002'],payload_hash:'P'};
+    const selected={key:'native-comparison-H120',source:a,chainId:'NetFixture',header:applied,level:120,round:2,payload:'P',historical:false,coherent:true};
+    try{
+      Object.defineProperty(performance,'now',{configurable:true,value:()=>clock});
+      globalThis.fetch=async(input)=>{const url=new URL(String(input));reads.push(url.href);if(url.pathname.endsWith('/chain_id'))return Response.json('NetFixture');if(url.pathname.endsWith('/header'))return Response.json({...applied,chain_id:'NetFixture',protocol:'PFixture'});if(url.pathname.includes('pending_operations'))return Response.json({validated:[individual('P',0)],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]});throw new Error(`Unexpected comparison endpoint ${url}`);};
+      const service=new SourceComparison('mainnet',[a,b]);service.setSelection(selected.key);
+      check(reads.length,0,'Constructing and selecting comparison starts no collection');
+      const result=await service.compare(selected,b);
+      check(reads.map(url=>new URL(url).pathname),['/chains/main/chain_id','/chains/main/blocks/head/header','/chains/main/mempool/pending_operations'],'Actual comparison service prioritizes identity/head/defaultpending within three reads');
+      check(reads.every(url=>url.startsWith(b.baseUrl)),true,'One explicitly configured comparison source without cascade');
+      check(result.outcome,'head-agreement','Exact proven head match means limited head agreement');
+      check([result.head.hash,result.head.level,result.protocolHash,result.chainId],['H120',120,'PFixture','NetFixture'],'Actual read head and producing protocol/chain retained');
+      check([result.rawOperations[0].evidence.source.baseUrl,result.rawOperations[0].evidence.requestedHeadHash,result.powers],[b.baseUrl,undefined,undefined],'Unpinned B raw stays unknown-power without fabricated A/B context');
+      const receipt=result.evidence;clock+=59999;check(service.result().stale,false,'Comparison fresh below monotonic sixty-second boundary');clock++;check(service.result().stale,true,'Comparison stale at exact sixty-second boundary');check(service.result().evidence,receipt,'Age retains immutable wall and monotonic receipt');
+      service.setSelection('away');service.setSelection(selected.key);check(service.result().invalidated,true,'Context invalidation remains sticky on selection return');check(reads.length,3,'Age and invalidation never auto-refresh');
+      if(criterion==='AC-30'){
+        const data=new NetworkData('shadownet'),endpoint=sources.shadownet[0],delegate={address:'D1',slot:0,power:3};
+        const shadHead={...applied,evidence:{source:endpoint,receivedAt:Date.now(),receivedMonotonic:clock}};
+        globalThis.fetch=async input=>{const url=String(input);if(url.endsWith('/header'))return Response.json({...applied,chain_id:'NetFixture'});if(url.endsWith('/protocols'))return Response.json({protocol:'PFixture',next_protocol:'PFixture'});if(url.endsWith('/is_forbidden'))return Response.json(false);throw new Error(`Unexpected eligibility endpoint ${url}`);};
+        await data.loadEligibility(shadHead,[delegate],new AbortController().signal);const eligibility=data.eligibilityStatus('D1');check(eligibility.value,false,'Actual Shadownet eligibility is context-proven before aging');clock+=59999;check(data.eligibilityStatus('D1').stale,false,'Eligibility fresh below exact sixty-second boundary');clock++;check([data.eligibilityStatus('D1').stale,data.eligibilityStatus('D1').value],[true,undefined],'Eligibility loses authority at exact boundary');check(data.eligibilityStatus('D1').evidence,eligibility.evidence,'Eligibility retains original receipt after staleness');
+        await data.loadEligibility(shadHead,[delegate],new AbortController().signal);const refreshed=data.eligibilityStatus('D1');check(refreshed.value,false,'Explicit eligibility load may establish a fresh same-context receipt');
+        const fork={...shadHead,hash:'Fork120'};await data.loadEligibility(fork,[],new AbortController().signal);check([data.eligibilityStatus('D1').contextInvalid,data.eligibilityStatus('D1').value],[true,undefined],'Same-height fork immediately invalidates eligibility');await data.loadEligibility(shadHead,[],new AbortController().signal);check(data.eligibilityStatus('D1').contextInvalid,true,'Eligibility context invalidation stays sticky on exact head return');data.pause();
+      }
+    }finally{globalThis.fetch=originalFetch;if(originalNow)Object.defineProperty(performance,'now',originalNow);else delete performance.now;}
+  } else if(['AC-2','AC-14','AC-16','AC-19','AC-22','AC-23','AC-24','AC-25','AC-31','AC-32'].includes(criterion)) {
     const {ObservationStore}=await server.ssrLoadModule('/monitor/observationStore.ts');
     const originalFetch=globalThis.fetch,completed=[],reads=[],signal=new AbortController().signal;
     const observer=sources.mainnet[0];let body={validated:[]},headReads=0,changeContext=false;
