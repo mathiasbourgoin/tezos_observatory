@@ -1,5 +1,9 @@
 import type {NetworkViewModel,ObservedNavigatorView} from './dashboardView';
 
+export function sameCameraPosition(before:ObservedNavigatorView|undefined,after:ObservedNavigatorView|undefined):boolean {
+ return !!before?.coherent&&!!after?.coherent&&!!before.chain&&!!before.protocol&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol&&before.level===after.level&&before.round===after.round;
+}
+
 /** Presentation continuity only: this never admits votes or establishes ancestry. */
 export function navigatorDirection(before:ObservedNavigatorView,after:ObservedNavigatorView):'static'|'up'|'right' {
  if(!before.coherent||!after.coherent||!before.chain||!before.protocol||before.source!==after.source||before.chain!==after.chain||before.protocol!==after.protocol||after.receivedMonotonic<before.receivedMonotonic)return 'static';
