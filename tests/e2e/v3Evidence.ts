@@ -45,14 +45,24 @@ export async function captureMatrix(page:Page,info:TestInfo,state:string,interac
     if(element instanceof HTMLInputElement&&element.type==='radio'&&element.checked){const surface=background(element.closest('fieldset')??element);graphics.push({selector:'input[type=radio]:checked',surface:'selection-dot-against-inset',ratio:ratio(bg,surface),required:3});}
     if(style.outlineStyle!=='none'&&parseFloat(style.outlineWidth)>0){const outside=background(element.parentElement??element);graphics.push({selector:`${element.tagName}:focus`,surface:'outside',ratio:ratio(over(parse(style.outlineColor),outside),outside),required:3});}
    }
+   const frame=document.querySelector(`${panel} .navigator-junction`),frameBox=frame?.getBoundingClientRect();
+   // The path world is deliberately wider than its independently clipped camera.
+   // Only its three internal slots may leave the page bounds; the viewport may not.
+   const clippedPathRegions=frame&&frameBox&&frameBox.width>0&&frameBox.height>0&&frameBox.left>=-1&&frameBox.right<=innerWidth+1&&getComputedStyle(frame).overflowX==='hidden'&&getComputedStyle(frame).overflowY==='hidden'
+    ?[`${panel} .navigator-current`,`${panel} .baker-opportunity[data-branch=same-level]`,`${panel} .baker-opportunity[data-branch=next-level]`].filter(selector=>{const node=document.querySelector(selector);return node!==null&&frame.contains(node);}) :[];
+   const pathClips=clippedPathRegions.map(selector=>{
+    const box=regions[selector]!,left=Math.max(box.x,frameBox!.left),right=Math.min(box.right,frameBox!.right),top=Math.max(box.y,frameBox!.top),bottom=Math.min(box.bottom,frameBox!.bottom);
+    return {selector,left,right,top,bottom,width:Math.max(0,right-left),height:Math.max(0,bottom-top)};
+   });
    const geometryFailures:string[]=[];
-   for(const [name,box] of Object.entries(regions))if(box.width<=0||box.x< -1||box.right>innerWidth+1)geometryFailures.push(`${name}: clipped or absent`);
+   for(const clip of pathClips)if(clip.width<=0||clip.height<=0||clip.left< -1||clip.right>innerWidth+1)geometryFailures.push(`${clip.selector}: absent or overflowing clipped intersection`);
+   for(const [name,box] of Object.entries(regions))if(box.width<=0||!clippedPathRegions.includes(name)&&(box.x< -1||box.right>innerWidth+1))geometryFailures.push(`${name}: clipped or absent`);
    const app=regions['.consensus-app'];if(app&&innerWidth>=1440&&app.width<innerWidth*.9)geometryFailures.push('Workspace capped below 90% of viewport');
    for(const names of [[`${panel} .selected-inspector`,`${panel} .committee-evidence`,`${panel} .session-rail`,`${panel} .source-pane`],[`${panel} .navigator-current`,`${panel} .baker-opportunity[data-branch=same-level]`,`${panel} .baker-opportunity[data-branch=next-level]`]])for(let a=0;a<names.length;a++)for(let b=a+1;b<names.length;b++){const left=regions[names[a]??''],right=regions[names[b]??''];if(left&&right&&Math.min(left.right,right.right)-Math.max(left.x,right.x)>1&&Math.min(left.bottom,right.bottom)-Math.max(left.y,right.y)>1)geometryFailures.push(`${names[a]} overlaps ${names[b]}`);}
    for(const control of controls)if(control.width<control.minimum-1||control.height<control.minimum-1)geometryFailures.push(`Target ${control.name}: ${control.width}x${control.height} below ${control.minimum}`);
    const graphicsFailures=graphics.filter(value=>value.ratio+.01<value.required);
    const failures=texts.filter(value=>value.ratio+.01<value.required||value.fontSize<value.minimum);
-   return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,regions,texts,controls,graphics,graphicsFailures,geometryFailures,failures};
+   return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,regions,clippedPathRegions,pathClips,texts,controls,graphics,graphicsFailures,geometryFailures,failures};
   },network);
   const stem=`${info.project.name}-${viewport.width}x${viewport.height}-${theme}-${surface?.name??state}`;
   await page.screenshot({path:join(directory,`${stem}.png`),fullPage:true});
@@ -60,6 +70,6 @@ export async function captureMatrix(page:Page,info:TestInfo,state:string,interac
   await writeFile(join(directory,`${stem}.json`),JSON.stringify({revision,diffHash,sourceCombined:binding.sourceCombined,contractCombined:binding.contractCombined,productionCombined:binding.productionCombined,state,engine:info.project.name,viewport,theme,screenshot:`${stem}.png`,screenshotSha256,measurement,status:measurement.failures.length||measurement.graphicsFailures.length||measurement.geometryFailures.length||(surface?measurement.documentWidth>viewport.width:measurement.documentWidth!==viewport.width)?'FAIL':'PASS'},null,2));
   if(surface)expect(measurement.documentWidth,`${stem}: document overflow`).toBeLessThanOrEqual(viewport.width);else expect(measurement.documentWidth,`${stem}: document overflow`).toBe(viewport.width);expect(measurement.failures,`${stem}: composed text contrast / minimum metadata size`).toEqual([]);expect(measurement.graphicsFailures,`${stem}: marker/focus contrast`).toEqual([]);
   expect(measurement.geometryFailures,`${stem}: region overlap, clipping, useful width and target bounds`).toEqual([]);
-  for(const [name,box] of Object.entries(measurement.regions)){expect(box.width,`${stem} ${name} width`).toBeGreaterThan(0);expect(box.x,`${stem} ${name} left clipping`).toBeGreaterThanOrEqual(-1);expect(box.right,`${stem} ${name} right clipping`).toBeLessThanOrEqual(viewport.width+1);}
+  for(const [name,box] of Object.entries(measurement.regions)){expect(box.width,`${stem} ${name} width`).toBeGreaterThan(0);if(!measurement.clippedPathRegions.includes(name)){expect(box.x,`${stem} ${name} left clipping`).toBeGreaterThanOrEqual(-1);expect(box.right,`${stem} ${name} right clipping`).toBeLessThanOrEqual(viewport.width+1);}}
  }
 }
