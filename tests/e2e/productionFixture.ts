@@ -137,12 +137,12 @@ export async function inspectRetainedPayload(panel:Locator,payload:string,contex
 export const capturedCandidate=(panel:Locator,hash:string):Locator=>panel.locator('.captured-candidates').getByRole('button',{name:`Inspect candidate ${hash}`,exact:true,includeHidden:true});
 
 /** Pin the retained instance, then inspect its exact captured block without adding votes. */
-export async function inspectRetainedCandidate(panel:Locator,hash:string):Promise<void>{
+export async function inspectRetainedCandidate(panel:Locator,hash:string,source?:string):Promise<void>{
  const observed=headers.get(panel.page())?.get(hash);
  if(!observed)throw new Error(`Fixture header unavailable for retained candidate ${hash}`);
  // Follow updates on the next render; old pinned controls can still exist here.
  // Select history explicitly before relying on its captured-only hash controls.
- await inspectRetainedPayload(panel,observed.payload_hash,{level:observed.level,round:Number.parseInt(observed.fitness[4]??'0',16)});
+ await inspectRetainedPayload(panel,observed.payload_hash,{level:observed.level,round:Number.parseInt(observed.fitness[4]??'0',16),...(source?{source}:{})});
  await inspectCapturedCandidate(panel,hash);
 }
 
