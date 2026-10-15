@@ -1,10 +1,10 @@
 {
   "task": "observatory-live-performance",
-  "date": "2026-10-15T12:57:03.026007+00:00",
+  "date": "2026-10-15T13:34:16.691522+00:00",
   "status": "GO",
   "mode": "fast",
-  "source_sha": "2a80a8f60204c38ae81dd12c05389a841b41603f",
-  "scope": "Actual independent bounded source review and focused QA; maintainer freezes improvements and authorizes publication after validation.",
+  "source_sha": "6a378bac66929b4d12aa733d73bdab3a63200cd0",
+  "scope": "Independent bounded source review after actual CI634195pass119fail; source Pin and epoch fixes plus causal test compatibility corrections; mandatory newCI before deployment.",
   "full_contract_go": false,
   "publication_ready": false,
   "findings": [
@@ -280,6 +280,69 @@
       "pre_fix_sha": "2bcef1a32389496029c125fd7740a6974fb21b29",
       "check_blob": null,
       "fid": "src/dashboardView.ts:229:correctness#647308bc"
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 5,
+      "path": "src/monitor/observationStore.ts",
+      "line": 395,
+      "category": "correctness",
+      "summary": "Enabled Pin cannot resolve an accepted raw alias after its canonical snapshot representative changes",
+      "evidence": "CI narration and Historical phase cases reproduced enabled Pin returningfalse: old raw identity unknown/unknown vs samefullcontext retained representative unknown/BBlock100. Source344f163 resolves only exact authorized session with both generations; newunit proves frozenphase/receipt/nootherobserver borrowing; independent4originalbrowsercases passbothengines pluscheck/build.",
+      "fix": "Resolve an accepted alias through full contextFacts,tuple and matching generations; preserve frozen lookup first.",
+      "fingerprint": "src/monitor/observationStore.ts:395:correctness",
+      "specialist": "reviewer",
+      "status": "RESOLVED",
+      "first_seen_round": 2,
+      "resolved_round": 2,
+      "check": null,
+      "check_encodable": true,
+      "red_verified": null,
+      "pre_fix_sha": "6344c8e1a997cb2dbde49cb82f116f6a11339590",
+      "check_blob": null,
+      "fid": "src/monitor/observationStore.ts:395:correctness#fa4c08ff"
+    },
+    {
+      "severity": "MEDIUM",
+      "confidence": 5,
+      "path": "src/dashboard.css",
+      "line": 106,
+      "category": "correctness",
+      "summary": "New voted-proposal disclosure has a21px mobile touch target",
+      "evidence": "CI6344c8e64matrix failures require target>=24px. Source4cb0986 gives44px+padding; fullmetric base/theme matrices bothengines and focusedcommitteechecks pass. Independent source reviewGO.",
+      "fix": "Reserve44px touch target for the native summary without clipping.",
+      "fingerprint": "src/dashboard.css:106:correctness",
+      "specialist": "reviewer",
+      "status": "RESOLVED",
+      "first_seen_round": 2,
+      "resolved_round": 2,
+      "check": null,
+      "check_encodable": true,
+      "red_verified": null,
+      "pre_fix_sha": "6344c8e1a997cb2dbde49cb82f116f6a11339590",
+      "check_blob": null,
+      "fid": "src/dashboard.css:106:correctness#7e652756"
+    },
+    {
+      "severity": "MEDIUM",
+      "confidence": 5,
+      "path": "src/main.ts",
+      "line": 552,
+      "category": "correctness",
+      "summary": "Selected branch facts remain unavailable after a same-context observer epoch change",
+      "evidence": "Actual S9 trace: known timing/proposer facts reached capture while Follow selected candidate; token observerGeneration1 vs retained admission2; store correctly rejected. main opportunity key omitted epochs and permanently suppressed current reload. Source3b17f83 includes full captured opportunityToken in key and reuses it; author16units and6S9browsercases pass, unchanged candidate replay adds0bakingreads. Independent source reviewGO; browsercheckpending at report assembly.",
+      "fix": "Include full capture context and generations in selection dedup key and return that captured token; preserve all store rejection guards and event-driven loading.",
+      "fingerprint": "src/main.ts:552:correctness",
+      "specialist": "reviewer",
+      "status": "RESOLVED",
+      "first_seen_round": 2,
+      "resolved_round": 2,
+      "check": null,
+      "check_encodable": true,
+      "red_verified": null,
+      "pre_fix_sha": "fc94e895e121c5ca35af1f8f6d91133867149e09",
+      "check_blob": null,
+      "fid": "src/main.ts:552:correctness#f2398374"
     }
   ],
   "summary": {
@@ -295,7 +358,7 @@
     "failed_acs": []
   },
   "no_go_round": 0,
-  "round": 1,
+  "round": 2,
   "cycle": 1,
   "rounds_audit": [
     {
@@ -306,6 +369,19 @@
         {
           "name": "reviewer",
           "selection_reason": "Actual independent source review and focused scenario evidence, including final committee frame geometry"
+        }
+      ],
+      "strike": false,
+      "trace_schema_version": "1.0"
+    },
+    {
+      "round": 2,
+      "reviewed_sha": "6a378bac66929b4d12aa733d73bdab3a63200cd0",
+      "fix_sha": "6a378bac66929b4d12aa733d73bdab3a63200cd0",
+      "specialists_run": [
+        {
+          "name": "reviewer",
+          "selection_reason": "Actual independent review/check/build and Pin4+S9sameheight2 browser cases; source exact-context guards and unchanged-epoch dedup"
         }
       ],
       "strike": false,
@@ -321,6 +397,7 @@
     "Full unchanged local browser matrix and formal-contract recertification not run; CI remains mandatory.",
     "No full specialist fanout or alternate runtime claimed; actual independent classic Sol review performed.",
     "Request budget not universally solved: final live69requests/25.132s; no exact reduction claim.",
-    "Publication remains pending actual CI and artifact verification."
+    "Publication remains pending actual CI and artifact verification.",
+    "One prior mobile committee geometry failure remains causal-unknown; focused baseline/proof/indexed orderings pass. New CI is mandatory; raw frame file now persisted before assertions."
   ]
 }
