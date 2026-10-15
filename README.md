@@ -46,7 +46,7 @@ the display selects the strongest by combined voting power and reports alternati
 Recent consensus rows retain peak power observed during this browser session:
 they are historical observations, not current-round participation or a chain archive.
 
-Adjacent observed block and round changes move the chain cards and connectors together for a full visible 850ms journey. This follow-up user policy starts motion at rendering, replacing the earlier receipt-to-settlement budget; receipts older than two seconds snap to the current destination. Bursts coalesce, and reduced motion, pins or observation gaps remain stationary.
+Adjacent observed block and round changes move the chain cards and connectors together for a full visible 1800ms journey at a constant speed. This follow-up user policy starts motion at rendering, replacing the earlier receipt-to-settlement budget; receipts older than two seconds snap to the current destination. Bursts coalesce, and reduced motion, pins or observation gaps remain stationary.
 
 Each gauge sums committee voting power once per delegate, using attestation
 rights pinned to the observed head hash. A signer count is not an operation count

@@ -466,7 +466,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
         }
         stage.append(departing);departures=departing;if(direction==='right')previousNode.style.opacity='0';for(const scroll of scrolls){scroll.node.scrollTop=scroll.top;scroll.node.scrollLeft=scroll.left;}
         // Begin a complete visible journey. Receipt age only fences stale work.
-        const animation=stage.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],{duration:CAMERA_DURATION_MS,easing:'cubic-bezier(.4,0,.2,1)'});
+        const animation=stage.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],{duration:CAMERA_DURATION_MS,easing:'linear'});
         cameraAnimation=animation;
         animation.onfinish=()=>{if(cameraAnimation===animation){departing.remove();departures=undefined;cameraAnimation=undefined;previousNode.style.opacity='';}};
       }
