@@ -24,6 +24,7 @@ it('follows strongest phase support within the latest qualified tuple, keeps tie
  const proof=await data.reconcile(weak.target,signal);store.accept(proof);expect(store.inspection().selectedIdentity).toBe(weak.identity);
  const strong=store.addOperations([packet('strong','Strong',0,1)])[0]!;store.accept({...proof,...store.generation(b)});
  expect(store.inspection().selectedIdentity).toBe(strong.identity);
+ expect(store.latest()).toBe(true);expect(store.inspection().selectedIdentity).toBe(weak.identity);store.followLive();expect(store.inspection().selectedIdentity).toBe(strong.identity);
  const phase=store.target(strong.identity)?.phases?.pre;
  expect(observedPhasePowers(store.target(strong.identity)!)).toEqual({prePower:3});
  store.observeHead({...head(122),evidence:evidence(b,150)});expect(store.target(strong.identity)?.phases?.pre?.power).toBe(3);expect(store.target(strong.identity)?.phases?.pre?.currentEvidence).toBe(phase?.currentEvidence);
