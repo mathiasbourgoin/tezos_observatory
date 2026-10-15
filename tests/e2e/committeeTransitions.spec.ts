@@ -1,4 +1,5 @@
 import {expect,test} from '@playwright/test';
+import {writeFile} from 'node:fs/promises';
 import {head,prepare,selectNetwork,send,vote} from './productionFixture';
 
 for(const width of [1440,390])test(`committee head transition stays anchored and restores current table at ${width}px`,async({page},info)=>{
@@ -29,6 +30,7 @@ for(const width of [1440,390])test(`committee head transition stays anchored and
   }
   return frames;
  });
+ await writeFile(info.outputPath('actual-unproven-committee-transition.json'),JSON.stringify({before,frames}));
  await info.attach('actual-unproven-committee-transition',{body:JSON.stringify({before,frames}),contentType:'application/json'});
  const unknown=committee.locator('.committee-unknown');
  await expect(unknown).toHaveJSProperty('tagName','DETAILS');
