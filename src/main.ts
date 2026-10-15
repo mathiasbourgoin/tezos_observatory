@@ -23,6 +23,7 @@ import {
   pendingPhaseComplete,
   sources,
   streamSources,
+  rawStreamSources,
   type Derived,
   type DelegateRight,
 } from "./rpc/networkData";
@@ -568,8 +569,10 @@ for (const network of ["mainnet", "shadownet"] as const) {
   const monitor = new NetworkMonitor<Derived>({
     network,
     headSources: streamSources[network],
-    operationSources: streamSources[network],
-    proposalSources:network==="mainnet"?streamSources.mainnet.slice(0,1):sources.shadownet,
+    operationSources: rawStreamSources[network],
+    sourceLocalOperationFallback:network==="mainnet",
+    ...(network==="mainnet"?{fallbackIntervalMs:6_000}:{}),
+    proposalSources:rawStreamSources[network],
     derive: (head, signal) => data.derive(head, signal),
     reconcile:async(target,signal,onObservedHead)=>{
       const proof=await data.reconcile(target,signal,onObservedHead);
@@ -581,7 +584,14 @@ for (const network of ["mainnet", "shadownet"] as const) {
       }catch(error){if(changed || signal.aborted)throw error;return {...proof,snapshotError:String(error)};}
     },
     onCandidatesAdmitted:records=>runtime?.producers.admitted(records),
-    fallbackOperations: (head, signal) => data.pending(signal,head),
+    fallbackOperations: async(head,signal,derived) => {
+      if(network!=="mainnet")return data.pending(signal,head);
+      const context=derived?.contexts.get(head.level+1);
+      if(!context || context.observer.header.hash!==head.hash)throw new Error("Observer snapshot context not ready");
+      const snapshot=await data.pending(signal,head,context);
+      if(!snapshot.complete)throw new Error(snapshot.reasons.join("; "));
+      return snapshot.operations;
+    },
     fallbackHead: (signal) => data.head(signal),
     onUpdate(view) {
       if (!runtime) return;

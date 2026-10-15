@@ -80,7 +80,10 @@ export interface NetworkMonitorOptions<T extends NetworkDerivedState> {
   readonly fallbackOperations: (
     head: BlockHeader,
     signal: AbortSignal,
+    derived: T | null,
   ) => Promise<MonitorOperationBatch>;
+  /** Keep coherent snapshots running when another observer supplies only raw streams. */
+  readonly sourceLocalOperationFallback?: boolean;
   readonly onUpdate: (view: NetworkMonitorView<T>) => void;
   readonly onCandidatesAdmitted?:(records:readonly ObservationTarget<T>[])=>void;
   readonly reconciliationClock?:()=>number;
@@ -124,6 +127,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private proposalStreaming = false;
   private operationMode: "stream" | "fallback" | "paused" = "paused";
   private fallbackTimer: number | null = null;
+  private fallbackRunning = false;
+  private fallbackAfterCurrent = false;
   private fallbackRequests = 0;
   private running = false;
   private headObservedAt: number | null = null;
@@ -135,6 +140,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private bootstrapTimer: number | null = null;
   private headFallbackTimer: number | null = null;
   private operationStreaming = false;
+  private operationSource: RpcSource | null = null;
   private headStreaming = false;
   private headFallbackActive = false;
   private derivingGeneration: number | null = null;
@@ -187,8 +193,9 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             onValue: (batch, source) => {
               if (!this.running) return;
               this.operationStreaming = true;
-              this.operationMode = "stream";
-              this.clearOperationFallback();
+              this.operationSource = source;
+              if(this.needsOperationFallback())this.enableFallback();
+              else {this.operationMode = "stream";this.clearOperationFallback();}
               this.operationStatus = {
                 ...this.operationStatus,
                 mode: "stream",
@@ -265,6 +272,9 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     this.headStreaming = false;
     this.headFallbackActive = false;
     this.operationStreaming = false;
+    this.operationSource = null;
+    this.fallbackRunning = false;
+    this.fallbackAfterCurrent = false;
     this.proposalStreaming = false;
     this.operationMode =
       this.operationTransport === null ? "fallback" : "stream";
@@ -278,7 +288,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     this.bootstrapTimer = window.setTimeout(() => {
       this.bootstrapTimer = null;
       if (!this.headStreaming) this.enableHeadFallback();
-      if (!this.operationStreaming) this.enableFallback();
+      if (this.needsOperationFallback()) this.enableFallback();
     }, this.options.streamBootstrapTimeoutMs ?? 8_000);
     const snapshot = this.state.snapshot();
     if (snapshot !== null && snapshot.derived === null)
@@ -329,6 +339,10 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     this.observations.observeHead(head);
     this.headObservedAt = Date.now();
     const generation = this.state.transition(head);
+    if(this.options.sourceLocalOperationFallback){
+      if(this.needsOperationFallback())this.operationMode="fallback";
+      else {this.operationMode="stream";this.clearOperationFallback();}
+    }
     const headRound=proposalRound(head.fitness,head.level);
     const previousProposalRound=this.latestProposal?proposalRound(this.latestProposal.fitness,this.latestProposal.level):undefined;
     if (
@@ -366,6 +380,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             if(!rights || !constants || !derived)continue;
             try{this.observations.accept({head,derived,context,rights,constants,...epochs});}catch{/* retain raw facts without contradictory authority */}
           }
+          if(this.options.sourceLocalOperationFallback && this.needsOperationFallback())this.enableFallback(true);
           this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());
         }
       })
@@ -488,23 +503,35 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private clearOperationFallback(): void {
     if (this.fallbackTimer !== null) window.clearTimeout(this.fallbackTimer);
     this.fallbackTimer = null;
+    this.fallbackAfterCurrent = false;
+  }
+  private needsOperationFallback():boolean {
+    if(!this.operationStreaming)return true;
+    if(!this.options.sourceLocalOperationFallback)return false;
+    const source=this.state.snapshot()?.head.evidence?.source;
+    return !source || source.network!==this.operationSource?.network || source.baseUrl!==this.operationSource?.baseUrl;
   }
   private clearHeadFallback(): void {
     if (this.headFallbackTimer !== null)
       window.clearTimeout(this.headFallbackTimer);
     this.headFallbackTimer = null;
   }
-  private enableFallback(): void {
-    if (!this.running || this.fallbackTimer !== null) return;
+  private enableFallback(immediate=false): void {
+    if (!this.running) return;
     this.operationMode = "fallback";
+    if(this.fallbackRunning){if(immediate)this.fallbackAfterCurrent=true;return;}
+    if(this.fallbackTimer!==null){if(!immediate)return;window.clearTimeout(this.fallbackTimer);}
     const lifecycle = this.lifecycle;
     const run = async () => {
+      this.fallbackTimer = null;
       if (
         !this.running ||
         lifecycle !== this.lifecycle ||
-        this.operationStreaming
+        !this.needsOperationFallback()
       )
         return;
+      this.fallbackRunning = true;
+      this.fallbackAfterCurrent = false;
       const snapshot = this.state.snapshot();
       if (snapshot !== null) {
         this.fallbackRequests += 1;
@@ -512,11 +539,12 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
           const batch = await this.options.fallbackOperations(
             snapshot.head,
             this.lifecycleController.signal,
+            snapshot.derived,
           );
           if (
             this.running &&
             lifecycle === this.lifecycle &&
-            !this.operationStreaming &&
+            this.needsOperationFallback() &&
             this.state.currentGeneration() === snapshot.generation
           )
             this.acceptOperations(batch);
@@ -524,14 +552,16 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
           /* retain last coherent snapshot */
         }
       }
+      if(lifecycle!==this.lifecycle)return;
+      this.fallbackRunning = false;
       if (
         this.running &&
         lifecycle === this.lifecycle &&
-        !this.operationStreaming
+        this.needsOperationFallback()
       )
         this.fallbackTimer = window.setTimeout(() => {
           void run();
-        }, this.options.fallbackIntervalMs ?? 30_000);
+        }, this.fallbackAfterCurrent ? 0 : this.options.fallbackIntervalMs ?? 30_000);
     };
     this.fallbackTimer = window.setTimeout(() => {
       void run();

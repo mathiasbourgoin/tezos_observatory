@@ -310,6 +310,46 @@ it("bootstraps with head RPC when streams hang, and cancels fallback after strea
   monitor.stop();
 });
 
+it('keeps source-local fallback running beside another observer raw stream until coherent stream recovery',async()=>{
+ vi.useFakeTimers();
+ const other={...source,name:'Raw observer',baseUrl:'https://raw'},fallbackOperations=vi.fn(async()=>[]);
+ const {monitor,heads,operations,views}=setup({operationSources:[source,other],sourceLocalOperationFallback:true,fallbackIntervalMs:6000,fallbackOperations});
+ heads.value(header(120));operations.value([{hash:'raw-only',contents:[{kind:'preattestation',level:121,round:0,slot:0,block_payload_hash:'P'}]}],other);
+ await vi.advanceTimersByTimeAsync(0);
+ expect(views.at(-1)?.operationMode).toBe('fallback');expect(views.at(-1)?.rawOperations[0]?.evidence?.source).toEqual(other);
+ expect(fallbackOperations).toHaveBeenCalledTimes(1);
+ await vi.advanceTimersByTimeAsync(6000);expect(fallbackOperations).toHaveBeenCalledTimes(2);
+ operations.value([],source);expect(views.at(-1)?.operationMode).toBe('stream');
+ await vi.advanceTimersByTimeAsync(12000);expect(fallbackOperations).toHaveBeenCalledTimes(2);
+ heads.value(header(121),other);await vi.advanceTimersByTimeAsync(0);
+ expect(views.at(-1)?.operationMode).toBe('fallback');expect(fallbackOperations).toHaveBeenCalledTimes(3);
+ monitor.stop();await vi.advanceTimersByTimeAsync(12000);expect(fallbackOperations).toHaveBeenCalledTimes(3);
+});
+
+it('rejects obsolete source-local fallback completion after a head transition',async()=>{
+ vi.useFakeTimers();let finish:(batch:import('../../src/rpc/models').MonitorOperationBatch)=>void=()=>undefined;
+ const other={...source,baseUrl:'https://raw'},fallbackOperations=vi.fn(()=>new Promise<import('../../src/rpc/models').MonitorOperationBatch>(resolve=>{finish=resolve;}));
+ const {monitor,heads,operations,views}=setup({operationSources:[other],sourceLocalOperationFallback:true,fallbackOperations});
+ heads.value(header(120));operations.value([],other);await vi.advanceTimersByTimeAsync(0);
+ expect(fallbackOperations).toHaveBeenCalledTimes(1);heads.value(header(121));
+ finish([{hash:'old-snapshot',evidence:{source,receivedAt:1,receivedMonotonic:1},contents:[{kind:'preattestation',level:121,round:0,slot:0,block_payload_hash:'P'}]}]);
+ await vi.advanceTimersByTimeAsync(0);expect(views.at(-1)?.rawOperations).toEqual([]);monitor.stop();
+});
+
+it('samples each proven head promptly without overlapping an older source-local snapshot',async()=>{
+ vi.useFakeTimers();const releases:Array<()=>void>=[];let active=0,maximum=0;
+ const other={...source,baseUrl:'https://raw'},fallbackOperations=vi.fn(()=>new Promise<import('../../src/rpc/models').MonitorOperationBatch>(resolve=>{
+  active++;maximum=Math.max(maximum,active);releases.push(()=>{active--;resolve([]);});
+ }));
+ const {monitor,heads,operations}=setup({operationSources:[other],sourceLocalOperationFallback:true,fallbackIntervalMs:6000,fallbackOperations});
+ heads.value(header(120));operations.value([],other);await vi.advanceTimersByTimeAsync(0);expect(fallbackOperations).toHaveBeenCalledTimes(1);
+ heads.value(header(121));await vi.advanceTimersByTimeAsync(0);expect(fallbackOperations).toHaveBeenCalledTimes(1);
+ releases[0]!();await vi.advanceTimersByTimeAsync(0);expect(fallbackOperations).toHaveBeenCalledTimes(2);expect(maximum).toBe(1);
+ releases[1]!();await vi.advanceTimersByTimeAsync(0);
+ heads.value(header(122));await vi.advanceTimersByTimeAsync(0);expect(fallbackOperations).toHaveBeenCalledTimes(3);expect(maximum).toBe(1);
+ releases[2]!();await vi.advanceTimersByTimeAsync(0);monitor.stop();
+});
+
 it("retains state on refresh and ignores an obsolete fallback result", async () => {
   vi.useFakeTimers();
   vi.stubGlobal("window", globalThis);
