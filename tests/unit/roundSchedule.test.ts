@@ -2,27 +2,31 @@ import { describe, expect, it } from "vitest";
 import { roundSchedule, proposalRound, tenderbakeFitness, conditionalRoundBoundary, protocolRoundStart } from "../../src/consensus/roundSchedule";
 
 describe("Tenderbake schedule", () => {
+  it('leaves computed clock endpoints outside the renderable calendar unavailable',()=>{
+    expect(roundSchedule(1792030001000,1,8640000000000,1792030005000)).toBeUndefined();
+    expect(roundSchedule(8640000000000000,1,0,8640000000000000)).toBeUndefined();
+  });
   it.each([2,3,20])('keeps future and exact round zero finite when increment %s is at least twice the minimum',increment=>{
     expect(roundSchedule(10000,1,increment,9000)).toEqual({round:0,startedAt:10000,endsAt:11000});
     expect(roundSchedule(10000,1,increment,10000)).toEqual({round:0,startedAt:10000,endsAt:11000});
     for(const now of [10000.000001,10000.001,10999.999])expect(roundSchedule(10000,1,increment,now)).toEqual({round:0,startedAt:10000,endsAt:11000});
     expect(roundSchedule(10000,1,increment,11000)).toEqual({round:1,startedAt:11000,endsAt:12000+increment*1000});
-    expect(roundSchedule(10000,1,increment,11000.001).round).toBe(1);
+    expect(roundSchedule(10000,1,increment,11000.001)?.round).toBe(1);
   });
   it("advances on the exact boundary and uses cumulative durations", () => {
-    expect(roundSchedule(1000, 6, 3, 6999).round).toBe(0);
+    expect(roundSchedule(1000, 6, 3, 6999)?.round).toBe(0);
     expect(roundSchedule(1000, 6, 3, 7000)).toEqual({
       round: 1,
       startedAt: 7000,
       endsAt: 16000,
     });
     const start121 = 1000 + (121 * 6 + (3 * 121 * 120) / 2) * 1000;
-    expect(roundSchedule(1000, 6, 3, start121).round).toBe(121);
-    expect(roundSchedule(1000, 6, 3, start121).endsAt - start121).toBe(369000);
+    expect(roundSchedule(1000, 6, 3, start121)?.round).toBe(121);
+    expect(roundSchedule(1000, 6, 3, start121)!.endsAt - start121).toBe(369000);
   });
   it("supports a zero increment and a future round-zero boundary", () => {
-    expect(roundSchedule(1000, 6, 0, 13000).round).toBe(2);
-    expect(roundSchedule(1000, 6, 3, 0).startedAt).toBe(1000);
+    expect(roundSchedule(1000, 6, 0, 13000)?.round).toBe(2);
+    expect(roundSchedule(1000, 6, 3, 0)?.startedAt).toBe(1000);
   });
 });
 

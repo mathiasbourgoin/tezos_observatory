@@ -11,7 +11,7 @@ export function roundSchedule(
   minimum: number,
   increment: number,
   now: number,
-): { round: number; startedAt: number; endsAt: number } {
+): { round: number; startedAt: number; endsAt: number } | undefined {
   if (
     ![anchor, minimum, increment, now].every(Number.isFinite) ||
     minimum <= 0 ||
@@ -31,11 +31,9 @@ export function roundSchedule(
   round = Math.max(0, round);
   if (before(round) > elapsed) round = Math.max(0, round - 1);
   if (before(round + 1) <= elapsed) round += 1;
-  return {
-    round,
-    startedAt: anchor + before(round) * 1000,
-    endsAt: anchor + before(round + 1) * 1000,
-  };
+  const startedAt=anchor+before(round)*1000,endsAt=anchor+before(round+1)*1000;
+  if(!Number.isSafeInteger(round)||round<0||round>=0x7fffffff||!validCalendarMilliseconds(startedAt)||!validCalendarMilliseconds(endsAt)||endsAt<=startedAt)return undefined;
+  return {round,startedAt,endsAt};
 }
 
 export interface TenderbakeFitness {

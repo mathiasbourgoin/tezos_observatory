@@ -33,3 +33,5 @@ Under Node22.23.3:
 - `git diff --check` and exact manifest scope check: exit0.
 
 The S9 base’s all38-command inventory and source hashes remain historical evidence for that source. The changed numerical paths were rerun above; S10/final QA must execute all38 originals against the final accepted tree. Old screenshot files were restored because these corrections change supported temporal boundary handling, not the approved presentation artifacts. S10 parity/glossary draft files are excluded from this correction commit. No library/dependency/framework was added; the correction reuses the existing domain arithmetic and calendar bound.
+
+Further computed-output/calendar and visible clock-attribution findings against this correction are fixed and verified separately in [computed clock corrections](observatory-foundations-slice-9-computed-clock-fixes.md). Prior gates above remain evidence of their historical source.

@@ -23,7 +23,7 @@ export interface NetworkViewModel {
   observedAt?: number; observedMonotonic?:number; snapshotMonotonic?:number; blockTimestamp?: number; lastOperationAt?: number;
   source?: string; connection?: string; error?: string; note?: string;
   preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;committeeTotal?:number;
-  timing?: {level?: number; round: number; nextRound: number; endsAt: number; startedAt?: number};
+  timing?: {evidence?:string; level?: number; round: number; nextRound: number; endsAt: number; startedAt?: number};
   nextBakers?: {label: string; alias?: string; address: string; round: number; level: number}[];
   opportunityFacts?:readonly OpportunityFact[];
   opportunitiesHistorical?:boolean;
@@ -235,7 +235,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection, candidateControls, candidateEvidence,retry, gauges);
     const opportunities = el('section', 'opportunities'), timingHeader = el('div', 'section-heading'); timingHeader.append(el('h3', '', 'Next baking opportunities'));
     const countdown = el('span', 'countdown', 'Timing unavailable'); timingHeader.append(countdown);
-    const timing = el('p', 'timing-detail', 'Calculated opportunity round unavailable');
+    const timing = el('p', 'timing-detail address-text', 'Independent clock estimate unavailable');
     const bakerRows = el('div', 'baker-rows'); opportunities.append(timingHeader, timing, bakerRows);
     const missing = el('section', 'missing-section'); missing.append(el('h3', '', 'Expected bakers not observed'));
     const recent = recentConsensus();
@@ -265,10 +265,10 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       set(meta.get('Snapshot age')!, snapshotAge === undefined ? 'Unavailable' : `${Math.floor(snapshotAge)}s`);
       set(meta.get('Block age')!, current.blockTimestamp === undefined ? 'Unavailable' : current.observedAt===undefined||age===undefined?'Unavailable':`${Math.max(0,Math.floor((current.observedAt-current.blockTimestamp)/1000+age))}s`);
       const t = current.timing;
-      if (!t) {set(countdown, 'Timing unavailable'); set(timing, 'Calculated opportunity round unavailable'); return;}
+      if (!t) {set(countdown, 'Timing unavailable'); set(timing, 'Independent clock estimate unavailable'); return;}
       const remaining = Math.ceil((t.endsAt - now) / 1000);
       set(countdown, remaining > 0 ? `${Math.floor(remaining / 60)}m ${String(remaining % 60).padStart(2, '0')}s` : 'Awaiting next opportunity');
-      set(timing, `Scheduled opportunity · level ${number(t.level ?? current.consensusLevel)} · estimated round ${t.round} → ${t.nextRound} · boundary ${clock(t.endsAt)}${remaining <= 0 ? ' · waiting for fresh timing' : ''}`);
+      set(timing, `Independent clock estimate · level ${number(t.level ?? current.consensusLevel)} · estimated round ${t.round} → ${t.nextRound} · next estimated round boundary ${new Date(t.endsAt).toISOString()} · separate from selected branch deadlines${t.evidence?` · ${t.evidence}`:""}${remaining <= 0 ? ' · waiting for fresh timing' : ''}`);
     };
     states.set(network, {tick, update(model) {
       current = model; panel.dataset.status = model.status;

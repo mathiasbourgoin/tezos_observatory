@@ -85,6 +85,8 @@ try {
     }
     for(const boundary of [8640000000000000,-8640000000000000]){check(validCalendarMilliseconds(boundary),true,'Last renderable calendar millisecond remains valid');check(validCalendarMilliseconds(boundary+Math.sign(boundary)),false,'Next unrenderable calendar millisecond is rejected');}
     check(validCalendarMilliseconds(Number.MAX_SAFE_INTEGER),false,'A safe integer is not sufficient calendar evidence');
+    check(roundSchedule(1792030001000,1,8640000000000,1792030005000),undefined,'Computed clock endpoint outside the calendar remains unavailable independently of valid branch deadlines');
+    check(roundSchedule(8640000000000000,1,0,8640000000000000),undefined,'A valid anchor cannot authorize an unrenderable next boundary');
   } else if(['AC-7','AC-28','AC-29','AC-30','AC-35','AC-36','AC-37','AC-38'].includes(criterion)) {
     const {SourceComparison}=await server.ssrLoadModule('/rpc/sourceComparison.ts');
     const originalFetch=globalThis.fetch,originalNow=Object.getOwnPropertyDescriptor(performance,'now');let clock=1000;

@@ -260,7 +260,7 @@ test('stalled applied head keeps estimated round 37 separate from selected obser
   await expect(panel.locator('.headline')).toHaveText('Applied block level5,489,251Applied block round101');
   await expect(panel.locator('.candidate-controls button[aria-pressed="true"]')).toHaveAttribute('title','Level 5489251 · round 101 · payload vhPayload5489251');
   await panel.locator('button[title="Level 5489252 · round 0 · payload vhPayload5489252"]').click();
-  await expect(panel.locator('.timing-detail')).toContainText('Scheduled opportunity · level 5,489,252 · estimated round 37');
+  await expect(panel.locator('.timing-detail')).toContainText('Independent clock estimate · level 5,489,252 · estimated round 37');
   await expect(panel.locator('.applied-context')).toContainText('Last applied block · level 5,489,251 · round 101 · block timestamp');
   await expect(panel.locator('.applied-context')).toBeVisible();
   await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
@@ -995,4 +995,21 @@ test('valid timing with a large increment keeps a future round-zero clock estima
  await expect(panel.locator('.timing-detail')).not.toContainText('NaN');
  await expect(panel.locator('.timing-detail')).not.toContainText('Invalid Date');
  await expect(panel.locator('.headline')).toContainText('Applied block round0');
+});
+
+test('an unsupported computed clock boundary stays unavailable while valid branch deadlines remain independent',async({page})=>{
+ const observed=head(100,0);await page.clock.install({time:new Date(Date.parse(observed.timestamp)+5000)});
+ await page.addInitScript(()=>{const original=window.fetch.bind(window);window.fetch=async(input,options)=>{const response=await original(input,options),url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url);if(url.pathname.endsWith('/context/constants'))return Response.json({...await response.json(),minimal_block_delay:'1',delay_increment_per_round:'8640000000000'});return response;};});
+ await prepare(page,false,observed);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');
+ await expect(panel.locator('.timing-detail')).not.toContainText('Invalid Date');await expect(panel.locator('.timing-detail')).not.toContainText('NaN');
+ await expect(panel.locator('.countdown')).toHaveText('Timing unavailable');await expect(panel.locator('.timing-detail')).toContainText('Independent clock estimate unavailable');
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('Level 100 · round 1');await expect(panel.locator('.headline')).toContainText('Applied block round0');
+});
+
+test('the independent clock estimate identifies its applied reference and actual helper separately from selected branch deadlines',async({page})=>{
+ const observed=head(100,2);await prepare(page,false,observed);const panel=page.locator('.network-panel.mainnet'),rows=panel.locator('.baker-opportunity'),detail=panel.locator('.timing-detail');
+ await expect(rows.first()).toContainText('Conditional timer');await expect(detail).toContainText('Independent clock estimate');await expect(detail).toContainText('next estimated round boundary');await expect(detail).toContainText('separate from selected branch deadlines');
+ await expect(detail).toContainText('applied reference BBlock100');await expect(detail).toContainText('observer https://rpc.tzkt.io/mainnet');await expect(detail).toContainText('parameters responder https://mainnet.smartpy.io');await expect(detail).toContainText('target 101');await expect(detail).toContainText('execution protocol PFixture');
+ await expect(detail).toContainText(new Date(Date.parse(observed.timestamp)+18000).toISOString());
+ for(const row of [rows.first(),rows.nth(1)])await expect(row).toContainText(`deadline ${new Date(Date.parse(observed.timestamp)+12000).toISOString()}`);
 });

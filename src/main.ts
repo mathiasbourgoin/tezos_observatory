@@ -194,13 +194,13 @@ function render(runtime: Runtime): void {
     const candidates=operations.flatMap(operation=>operation.contents).filter(content=>{
       if(!content.block_payload_hash || content.level<head.level||content.level>head.level+1)return false;
       const ceiling=content.level===head.level?headRound:constants&&successorAnchor!==undefined?
-        roundSchedule(successorAnchor,constants.minimum,constants.increment,now).round+1:0;
+        (roundSchedule(successorAnchor,constants.minimum,constants.increment,now)?.round??-1)+1:0;
       return content.round<=ceiling && (content.level!==head.level||content.round>=headRound);
     }).sort((a,b)=>b.level-a.level||b.round-a.round);
     const latest=candidates[0];if(latest)observedInstance={level:latest.level,round:latest.round};
   } else if(constants&&successorAnchor!==undefined) {
-    const scheduled=roundSchedule(successorAnchor,constants.minimum,constants.increment,now).round;
-    if(operations.some(operation=>operation.contents.some(content=>content.block_payload_hash&&content.level===head.level+1&&content.round===scheduled)))
+    const scheduled=roundSchedule(successorAnchor,constants.minimum,constants.increment,now)?.round;
+    if(scheduled!==undefined&&operations.some(operation=>operation.contents.some(content=>content.block_payload_hash&&content.level===head.level+1&&content.round===scheduled)))
       observedInstance={level:head.level+1,round:scheduled};
   }
   const proposal=view.latestProposal;
@@ -430,9 +430,9 @@ function render(runtime: Runtime): void {
       .map(delegateView);
   }
   const clockParameters=snapshot.derived?.constantsByLevel.get(appliedHead.level+1),clockContext=clockParameters?.context;
-  if(!paused&&!degraded&&appliedRound!==undefined&&clockParameters&&clockContext&&runtime.monitor.contextAuthorized(clockContext)&&clockContext.protocolHash===clockContext.observer.protocolHash&&clockContext.observer.source.baseUrl===appliedHead.evidence?.source.baseUrl&&observedHeaderMatches(clockContext.observer.header,appliedHead)){
+  if(!paused&&!degraded&&appliedRound!==undefined&&clockParameters&&clockParameters.evidence&&clockContext&&runtime.monitor.contextAuthorized(clockContext)&&clockContext.protocolHash===clockContext.observer.protocolHash&&clockContext.observer.source.baseUrl===appliedHead.evidence?.source.baseUrl&&observedHeaderMatches(clockContext.observer.header,appliedHead)){
     const boundary=conditionalRoundBoundary({referenceTimestamp:Date.parse(appliedHead.timestamp),referenceRound:appliedRound,branch:'next-level',minimum:clockParameters.minimum,increment:clockParameters.increment,roundBasis:'proven'});
-    if(boundary!==undefined){const clock=roundSchedule(boundary,clockParameters.minimum,clockParameters.increment,now);model.timing={...clock,level:appliedHead.level+1,nextRound:clock.round+1};}
+    if(boundary!==undefined){const clock=roundSchedule(boundary,clockParameters.minimum,clockParameters.increment,now);if(clock)model.timing={...clock,level:appliedHead.level+1,nextRound:clock.round+1,evidence:`applied reference ${appliedHead.hash} · observer ${clockContext.observer.source.baseUrl} · parameters responder ${clockParameters.evidence?.source.baseUrl??"unavailable"} · target ${clockContext.level} · execution protocol ${clockContext.protocolHash}`};}
   }
   if(!paused)void loadOpportunities(runtime);
   model.recentConsensus=capturedRecent(runtime);
