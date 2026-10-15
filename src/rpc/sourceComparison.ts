@@ -1,5 +1,5 @@
 import type {BlockHeader,MonitoredOperation,NetworkName,ObservationEvidence,RpcSource} from './models';
-import type {Constants,DelegateRight,TargetContext} from './networkData';
+import type {Constants,DelegateRight,TargetContext,RpcContext} from './networkData';
 import {asBlockHeader,asOperationBatch} from './guards';
 import {proposalRound} from '../consensus/roundSchedule';
 import {operationIdentity} from './operationStore';
@@ -23,6 +23,7 @@ export interface ComparisonResult {
   readonly selection:ComparisonSelection;
   readonly source:RpcSource;
   readonly outcome:'head-agreement'|'divergence'|'partial'|'unavailable';
+  readonly headOutcome:ComparisonResult['outcome'];
   readonly differences:readonly string[];
   readonly chainId?:string;
   readonly head?:BlockHeader;
@@ -42,6 +43,20 @@ export interface ComparisonResult {
   readonly startedMonotonic:number;
   readonly invalidated:boolean;
   readonly stale:boolean;
+}
+
+/** Capture the typed numerical/provenance graph before the first asynchronous read. */
+function captureSelection(selection:ComparisonSelection):ComparisonSelection {
+  const contexts=new Map<TargetContext,TargetContext>();
+  const source=(value:RpcSource):RpcSource=>Object.freeze({...value});
+  const evidence=(value:ObservationEvidence):ObservationEvidence=>Object.freeze({...value,source:source(value.source)});
+  const header=(value:BlockHeader):BlockHeader=>Object.freeze({...value,fitness:Object.freeze([...value.fitness]),...(value.evidence?{evidence:evidence(value.evidence)}:{})});
+  const reference=(value:RpcContext):RpcContext=>Object.freeze({...value,source:source(value.source),header:header(value.header),evidence:evidence(value.evidence)});
+  const context=(value:TargetContext):TargetContext=>{
+    const existing=contexts.get(value);if(existing)return existing;
+    const captured=Object.freeze({...value,observer:reference(value.observer),anchor:reference(value.anchor)});contexts.set(value,captured);return captured;
+  };
+  return Object.freeze({...selection,source:source(selection.source),...(selection.header?{header:header(selection.header)}:{}),...(selection.context?{context:context(selection.context)}:{}),...(selection.rights?{rights:Object.freeze(selection.rights.map(right=>Object.freeze({...right,...(right.context?{context:context(right.context)}:{}),...(right.evidence?{evidence:evidence(right.evidence)}:{})})))}:{}),...(selection.constants?{constants:Object.freeze({...selection.constants,...(selection.constants.context?{context:context(selection.constants.context)}:{}),...(selection.constants.evidence?{evidence:evidence(selection.constants.evidence)}:{})})}:{})});
 }
 
 /** One explicit, bounded observer comparison; never a source of LIVE authority. */
@@ -72,7 +87,7 @@ export class SourceComparison {
   compare(selection:ComparisonSelection,source:RpcSource):Promise<ComparisonResult|undefined>{
     if(this.task)return this.task.promise;
     source=Object.freeze({...source});
-    selection=Object.freeze({...selection,source:Object.freeze({...selection.source}),...(selection.header?{header:Object.freeze({...selection.header,fitness:Object.freeze([...selection.header.fitness])})}:{})});
+    selection=captureSelection(selection);
     this.setSelection(selection.key);
     const controller=new AbortController(),generation=this.generation;
     let complete!:(value:ComparisonResult|undefined)=>void,fail!:(error:unknown)=>void;
@@ -126,7 +141,7 @@ export class SourceComparison {
           if(unusable)pendingReasons.push('Malformed or unsupported validated entries; snapshot partial');
           if(normalized.length>10000)pendingReasons.push('Local shared raw retention limit; snapshot partial');
           const cachedRights=selection.rights;
-          if(selection.coherent&&selection.context&&selection.constants&&cachedRights&&protocolHash){
+          if(selection.coherent&&selection.context&&selection.context.level===selection.level&&selection.constants&&cachedRights&&protocolHash){
             const proof:ComparisonAuthorityProof={source,chainId,head,producingProtocolHash:protocolHash,context:selection.context,constants:selection.constants,headEvidence,pendingEvidence,configuredSources:this.configured};
             if(comparisonAuthorityUsable(cachedRights,selection.context.level,proof)){
               const authority=committeeAuthority(cachedRights,selection.constants.committee,selection.constants.quorum);
@@ -137,7 +152,9 @@ export class SourceComparison {
       }catch(error){errors.push(error instanceof Error?error.message:String(error));}
     }else errors.push('Comparison requires collection and two distinct configured network providers');
     const evidence=pendingEvidence??headEvidence??identityEvidence;
+    const headProven=head!==undefined&&headEvidence!==undefined&&chainId!==undefined&&head.chainId===chainId;
+    const headOutcome:ComparisonResult['outcome']=!headProven?'unavailable':!selection.coherent||!selection.header||!selectedChain||selectedChain!==chainId?'partial':differences.length?'divergence':'head-agreement';
     const outcome:ComparisonResult['outcome']=!allowed||!identityEvidence?'unavailable':!selection.coherent?'partial':differences.length?'divergence':errors.length||!head||!selection.header||!selectedChain?'partial':'head-agreement';
-    return Object.freeze({selection,source,outcome,differences:Object.freeze(differences),...(chainId?{chainId}:{}),...(head?{head}:{}),...(protocolHash?{protocolHash}:{}),...(evidence?{evidence}:{}),...(identityEvidence?{identityEvidence}:{}),...(headEvidence?{headEvidence}:{}),...(pendingEvidence?{pendingEvidence}:{}),rawOperations,pendingReasons:Object.freeze(pendingReasons),...(powers?{powers}:{}),...(rights?{rights}:{}),...(rightsProof?{rightsProof}:{}),reads:Object.freeze(reads),errors:Object.freeze(errors),startedAt,startedMonotonic,invalidated:false,stale:false});
+    return Object.freeze({selection,source,outcome,headOutcome,differences:Object.freeze(differences),...(chainId?{chainId}:{}),...(head?{head}:{}),...(protocolHash?{protocolHash}:{}),...(evidence?{evidence}:{}),...(identityEvidence?{identityEvidence}:{}),...(headEvidence?{headEvidence}:{}),...(pendingEvidence?{pendingEvidence}:{}),rawOperations,pendingReasons:Object.freeze(pendingReasons),...(powers?{powers}:{}),...(rights?{rights}:{}),...(rightsProof?{rightsProof}:{}),reads:Object.freeze(reads),errors:Object.freeze(errors),startedAt,startedMonotonic,invalidated:false,stale:false});
   }
 }

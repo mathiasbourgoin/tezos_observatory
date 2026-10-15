@@ -42,11 +42,12 @@ const dashboard = createDashboard(root, {
     if (!runtime) return;
     runtime.followLiveSelection=false;runtime.selectedIdentity = identity;
     if(runtime.view?.inspection.mode==="pin" || runtime.view?.history.some(snapshot=>snapshot.identity===identity)){if(!runtime.monitor.pinObservation(identity))runtime.monitor.followLive();}
+    fenceComparisonSelection(runtime);
     scheduleRender(runtime);
   },
-  onPin(network){const runtime=runtimes.get(network),identity=runtime?.selectedIdentity??runtime?.view?.inspection.selectedIdentity;if(runtime&&identity)runtime.monitor.pinObservation(identity);},
-  onFollow(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=true;runtime.monitor.followLive();}},
-  onLatest(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=!runtime.monitor.latestObservation();}},
+  onPin(network){const runtime=runtimes.get(network),identity=runtime?.selectedIdentity??runtime?.view?.inspection.selectedIdentity;if(runtime&&identity){runtime.monitor.pinObservation(identity);fenceComparisonSelection(runtime);}},
+  onFollow(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=true;runtime.monitor.followLive();fenceComparisonSelection(runtime);}},
+  onLatest(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=!runtime.monitor.latestObservation();fenceComparisonSelection(runtime);}},
   onRetry(network,identity){if(collectionAllowed())runtimes.get(network)?.monitor.reconcileObservation(identity);},
   onCompare(network,url){const runtime=runtimes.get(network),source=streamSources[network].find(value=>value.baseUrl===url);if(!runtime||!source||!collectionAllowed()||[...runtimes.values()].some(value=>value.comparison.running))return;const selection=comparisonSelection(runtime);if(selection)void runtime.comparison.compare(selection,source);},
   onReconnect() {
@@ -102,8 +103,13 @@ function comparisonSelection(runtime:Runtime):ComparisonSelection|undefined {
  const chainId=context?.observer.chainId??header?.chainId;
  return {key,source,level,round,historical:inspection.mode==='pin',coherent:!record?.contextInvalid&&(record?admission!==undefined:true),...(header?{header}:{}),...(chainId?{chainId}:{}),...(record?.target.payload?{payload:record.target.payload}:{}),...(context&&rights&&constants?{context,rights,constants}:{})};
 }
+/** User selection changes fence work synchronously, before the next animation frame. */
+function fenceComparisonSelection(runtime:Runtime):void {
+ const selection=comparisonSelection(runtime);
+ runtime.comparison.setSelection(selection?.key??JSON.stringify(['unavailable-selection',runtime.selectedIdentity,runtime.view?.inspection.mode]));
+}
 function comparisonModel(runtime:Runtime):NonNullable<NetworkViewModel['comparison']>{
- const selection=comparisonSelection(runtime);if(selection)runtime.comparison.setSelection(selection.key);
+ const selection=comparisonSelection(runtime);fenceComparisonSelection(runtime);
  return {providers:streamSources[runtime.network].filter(source=>source.baseUrl!==selection?.source.baseUrl).map(source=>({name:source.name,url:source.baseUrl})),enabled:collectionAllowed()&&selection!==undefined,running:[...runtimes.values()].some(value=>value.comparison.running),result:()=>runtime.comparison.result()};
 }
 function sessionModel(runtime:Runtime):NonNullable<NetworkViewModel["session"]> {
@@ -518,7 +524,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
       if (!runtime) return;
       runtime.comparison.setRawCapacity(10000-view.rawOperations.length);
       runtime.view = view;
-      const selected=comparisonSelection(runtime);if(selected)runtime.comparison.setSelection(selected.key);
+      fenceComparisonSelection(runtime);
       scheduleRender(runtime);
     },
   });

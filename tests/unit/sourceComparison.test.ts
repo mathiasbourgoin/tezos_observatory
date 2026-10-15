@@ -236,3 +236,25 @@ it('retains the selected head and source facts captured when the explicit workfl
  const work=new SourceComparison('mainnet',[a,b]).compare(mutable,b);mutable.header.hash='ChangedSelectedHead';mutable.header.fitness[4]='00000003';mutable.source.baseUrl='https://changed-selection.invalid';release(Response.json('NetFixture'));
  const result=await work;expect(result?.selection.header?.hash).toBe('H120');expect(result?.selection.source.baseUrl).toBe(a.baseUrl);expect(result?.outcome).toBe('head-agreement');
 });
+
+
+it('never authorizes a cached successor target as though it were the selected current target',async()=>{
+ const cached=successorSelection('PSuccessor'),successorOperation={...operation(),contents:[{kind:'preattestation',level:121,round:2,slot:1,block_payload_hash:'P'}]};
+ vi.stubGlobal('fetch',rpc({operations:[successorOperation]}));
+ const result=await new SourceComparison('mainnet',[a,b]).compare({...cached,level:120},b);
+ expect(result?.rawOperations).toHaveLength(1);expect(result?.powers).toBeUndefined();expect(result?.rightsProof).toBeUndefined();
+});
+it('captures nested committee and constants numerical facts before any asynchronous response completes',async()=>{
+ const cached=cachedSelection(),rights=cached.rights!.map(right=>({...right})),constants={...cached.constants!};
+ let release!:(value:Response)=>void;const normal=rpc();vi.stubGlobal('fetch',(input:string|URL|Request)=>String(input).endsWith('/chain_id')?new Promise<Response>(resolve=>{release=resolve;}):normal(input));
+ const work=new SourceComparison('mainnet',[a,b]).compare({...cached,rights,constants},b);
+ rights[0]!.power=100;rights[1]!.power=200;constants.committee=300;constants.quorum=201;release(Response.json('NetFixture'));
+ const result=await work;expect(result?.powers?.[0]?.pre).toBe(2);expect(result?.powers?.[0]?.total).toBe(5);expect(result?.rights?.map(right=>right.power)).toEqual([3,2]);
+});
+
+
+it.each([['matching',{},'head-agreement'],['conflicting',{hash:'OtherKnownHead'},'divergence']] as const)('retains independently proven %s head outcome when optional pending fails',async(_label,changed,expected)=>{
+ const normal=rpc({head:changed});vi.stubGlobal('fetch',(input:string|URL|Request)=>new URL(String(input)).pathname===pendingPath?Promise.resolve(new Response('Pending unavailable',{status:503})):normal(input));
+ const result=await new SourceComparison('mainnet',[a,b]).compare(selection,b);
+ expect(result?.headOutcome).toBe(expected);expect(result?.errors.join(' ')).toContain('503');expect(result?.rawOperations).toHaveLength(0);expect(result?.reads).toHaveLength(3);
+});
