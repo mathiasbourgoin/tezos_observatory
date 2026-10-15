@@ -1,0 +1,15 @@
+{
+  "original_normalizer_output": "briefs/observatory-v3-normalize-original.json",
+  "schema_adaptations": [
+    {
+      "source": "briefs/observatory-v3-combined-primary-findings.json",
+      "change": "moved extra bounded_correction object into evidence string; raw retained"
+    },
+    {
+      "source": "briefs/observatory-v3-combined-spec-audit.json",
+      "change": "root maps original probability0.99 to integerconfidence5 after independent confirmation; raw retained"
+    }
+  ],
+  "findings_retained": 38,
+  "no_findings_discarded": true
+}

@@ -1,0 +1,64 @@
+{
+  "task": "header-layout-hotfix",
+  "date": "2026-10-14T19:41:27.045989+00:00",
+  "status": "GO",
+  "runtime": "Node22.23.3",
+  "provenance": {
+    "root": "/tmp/observatory-header-qa-huqix2aw",
+    "head": "6c2d7fdccc0bce30cb3f5bb4883dba20222000b7",
+    "files": {
+      "src/dashboardView.ts": "d1be0209cc45b6ae2bf8c31c3d99369192962f1fd72e51021543882b970ba37f",
+      "src/dashboard.css": "a8693d8d29ab43d6a28cd905012b411a1e09f79c400ea5bcb380a757c035e82c",
+      "src/main.ts": "6f98d05cfb6393ecd3e2bf27d9137851698b7531f16297a2cf2b51033b9f59f3",
+      "tests/e2e/header.spec.ts": "86cde1549e1f419eb84699c9dcda1ed41b93920265f697fb0b352d9b51219cab",
+      "tests/e2e/dashboard.spec.ts": "e3e2f1e7a3f907aa32ff6ba66ac63a657090de2da2562583854e02c4c436da9b",
+      "src/public/observatory-mark.svg": "9c7ab800f5c1a6408859c8208509bc8bd19a6891d6aacba03337e6f96e9d18ad",
+      "src/public/favicon.svg": "b28c4a86038388de0da1c3c6cefb7b937351476bc0bce6a830f2fc31b3c1d06b"
+    },
+    "scope_sha256": "2ac1a532d563ec84994f76a4e20c696edb2f190f2cc677078f3a33e0a4849e87"
+  },
+  "gates": [
+    {
+      "gate": "install",
+      "command": "npm ci",
+      "exit_code": 0,
+      "duration_seconds": 0.624,
+      "log": "/tmp/observatory-header-qa-huqix2aw/install.log"
+    },
+    {
+      "gate": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "duration_seconds": 0.395,
+      "log": "/tmp/observatory-header-qa-huqix2aw/build.log"
+    },
+    {
+      "gate": "typecheck",
+      "command": "npm run check",
+      "exit_code": 0,
+      "duration_seconds": 2.484,
+      "log": "/tmp/observatory-header-qa-huqix2aw/typecheck.log"
+    },
+    {
+      "gate": "unit",
+      "command": "npm test",
+      "exit_code": 0,
+      "duration_seconds": 0.492,
+      "log": "/tmp/observatory-header-qa-huqix2aw/unit.log"
+    },
+    {
+      "gate": "browser",
+      "command": "npm run test:e2e",
+      "exit_code": 0,
+      "duration_seconds": 8.043,
+      "log": "/tmp/observatory-header-qa-huqix2aw/browser.log"
+    }
+  ],
+  "unit_tests": 38,
+  "browser_tests": 30,
+  "cross_runtime": "Root urgent-lane waiver consistent prior hotfix; not PASS",
+  "limitations": [
+    "Mocked provider behavior, no live RPC certification",
+    "Optional240px full-dashboard overflow outside supported scope"
+  ]
+}

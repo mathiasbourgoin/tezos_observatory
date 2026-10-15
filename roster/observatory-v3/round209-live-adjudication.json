@@ -1,0 +1,88 @@
+{
+  "scope": "Bounded old deployed screenshot audit; not V3 acceptance, finalized inclusion proof, provider independence proof or root cause of stalled progression",
+  "firstReadUTC": "2026-10-15T08:26:09.270Z",
+  "firstFinishedUTC": "2026-10-15T08:26:09.879Z",
+  "level": 5489252,
+  "round": 209,
+  "hash": "BKmuZETHGdMe2Mi8jcm9A3BSiDmuWjzHdQGyRMbqemqouY6vc6g",
+  "payload": "vh2UU6hbNevSDJeE3puQs47mSHxdNAdHnPumiJWNQio3kT9ghbFB",
+  "timestamp": "2026-10-15T08:17:21Z",
+  "committeePower": 7000,
+  "quorum": 4667,
+  "votes": {
+    "preattestation": {
+      "slots": [
+        0,
+        1,
+        4,
+        9,
+        14,
+        15,
+        17
+      ],
+      "signers": 7,
+      "power": 5065
+    },
+    "attestation": {
+      "slots": [
+        0,
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        13,
+        14,
+        15,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "signers": 21,
+      "power": 6696
+    }
+  },
+  "followupReadUTC": "2026-10-15T08:33:30.108Z",
+  "followupHeads": [
+    {
+      "url": "https://tezos-shadownet.octez.io/chains/main/blocks/head/header",
+      "level": 5489298,
+      "round": 1,
+      "hash": "BL2MSBc782iJcsctdJjDkukgVKqZgpV4mB3AK1NVXpLYV9qVLZc",
+      "timestamp": "2026-10-15T08:33:24Z"
+    },
+    {
+      "url": "https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header",
+      "level": 5489298,
+      "round": 1,
+      "hash": "BL2MSBc782iJcsctdJjDkukgVKqZgpV4mB3AK1NVXpLYV9qVLZc",
+      "timestamp": "2026-10-15T08:33:24Z"
+    },
+    {
+      "url": "https://shadownet.smartpy.io/chains/main/blocks/head/header",
+      "level": 5489298,
+      "round": 1,
+      "hash": "BL2MSBc782iJcsctdJjDkukgVKqZgpV4mB3AK1NVXpLYV9qVLZc",
+      "timestamp": "2026-10-15T08:33:24Z"
+    }
+  ],
+  "rawReceipts": [
+    {
+      "path": "/var/tmp/observatory-round209-audit/responses.json",
+      "sha256": "54cbf6b048ca9f377b1a6d11da10b9d9634a688163e4d20d0047690ceae05b6b"
+    },
+    {
+      "path": "/var/tmp/observatory-round209-audit/responses-followup.json",
+      "sha256": "79b8168a3c74b0dbe33b3483c208322b2fca245bbc887bddf2923793422a087d"
+    }
+  ]
+}

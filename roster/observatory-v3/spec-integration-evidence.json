@@ -1,0 +1,57 @@
+{
+  "at": "2026-10-14T20:55:50.949700+00:00",
+  "root_approval": "explicit quiz Q1/Q2/Q3 and separate one-shot integration authorization",
+  "canonical_spec": "specs/observatory-v3.md",
+  "canonical_spec_sha256": "928e1b5a669fef3a8bf513a4c8056766cf8bbacfd266207bf757b14a2417ad7c",
+  "reviewed_draft_sha256": "541468853ada77076f8b8b05d472a857ca157abfafbfa37f6b1b29e6c05c03f5",
+  "normative_statements_and_commands_unchanged": true,
+  "runtime_node": "26.11.1",
+  "validate": {
+    "exit_code": 0,
+    "claims": 323,
+    "managed_documents": 2,
+    "valid": true,
+    "model_digest": "5c03c7a62d889f67edfaa3ade81eca950351071ecd7a1ac2da7ecb0f2ebca532"
+  },
+  "project": {
+    "exit_code": 0,
+    "model_digest": "5c03c7a62d889f67edfaa3ade81eca950351071ecd7a1ac2da7ecb0f2ebca532",
+    "freshness_digest": "ceb740eb6e894bacaa792db0bb79070c521775172cb2391a01c5f3bb1bed51fc",
+    "files": [
+      "kb/index.md",
+      "kb/spec.md",
+      "kb/properties.md"
+    ]
+  },
+  "check": {
+    "exit_code": 0,
+    "fresh": true,
+    "all_three_default_views": "fresh",
+    "expected_digest": "ceb740eb6e894bacaa792db0bb79070c521775172cb2391a01c5f3bb1bed51fc"
+  },
+  "context_manifest": {
+    "path": "roster/observatory-v3/context.manifest.json",
+    "mandatory_claim_count": 323,
+    "foundation_claims": 170,
+    "v3_claims": 153,
+    "sources": [
+      "specs/observatory-foundations.md",
+      "specs/observatory-v3.md"
+    ],
+    "embeddings": "disabled",
+    "optional_candidates_replacing_mandatory": 0
+  },
+  "preserved_sha256": {
+    "specs/observatory-foundations.md": "851b2b63b9d75554825a8429fcd6405882d9d28703350dc55113e2130907a7fa",
+    "kb/context/v3-contract.md": "fc62399c05296d3df707197263d7ed942a5e5f960d668e9c7c7b0cbb5c15c694",
+    "kb/context/required-properties.md": "7102f74e60f93e6470dc5c815e670eba3735243fd047787627f53a20a37191f6",
+    "kb/architecture.md": "1b710470d2150825aa288ac55121da82042f2c35b834bfe3de55e573558cd64b",
+    "kb/glossary.md": "009e7391c1fd11d853963cbf1e6d334a7fce7efdf400f4cfad621dfc665131fc",
+    "kb/risks.md": "5c11e044f70d77027ac0e10989bcab6bb8537da5068dbae8b01a81876ff639ac"
+  },
+  "intake_single_source_complete": true,
+  "production_v3_checks_run": false,
+  "independent_implementation_qa_run": false,
+  "published": false,
+  "committed_by_spec_agent": false
+}

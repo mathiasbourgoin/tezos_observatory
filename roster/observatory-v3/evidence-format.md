@@ -1,0 +1,33 @@
+# Production evidence reception
+
+This bundle records the V3 implementation. It does not certify the separate interval-metrics implementation. An author capture or packaged manifest is not independent acceptance.
+
+## Reproduction and source identity
+
+Use clean Node22 dependencies and the existing Playwright configurations. `playwright.v3.config.ts` builds Vite and serves only production `dist` on5188. `playwright.native.config.ts` uses that same production server in a headed browser. Native capture requires an isolated X11 display and the existing ImageMagick/xdotool tools; absent tools, display or pixels are execution errors.
+
+Set `V3_EVIDENCE_DIR` to the new bundle's `matrix` directory for `tests/e2e/v3Matrix.spec.ts` and the `metric visual matrix` cases in `tests/e2e/blockIntervals.spec.ts`. The registry in `render-variants.json` declares70 applicable variants, each required in36 cells:9 viewports,2 themes,2 engines. Every measurement names its screenshot hash and exact source, contract and production-asset inventories. Measurements include composited text/graphics contrast, font sizes, targets, clipping and meaningful region bounds. The build identity comes from actual emitted assets, not development URLs.
+
+Run `tests/e2e/nativeSurfaces.ts` through the native configuration with `V3_EVIDENCE_DIR` pointing to a sibling native directory. Its36 native-title records contain actual screen geometry, X11 before/after screenshots, isolated changed components and repeated solid pixel colors. Its4 zoom records use real browser keyboard zoom at unchanged physical window size. Native pixel interpretation still requires independent visual confirmation that the sampled foreground is actual tooltip text. Removed OS select menus are inapplicable because the production DOM contains no select element; real labelled radio/disclosure states remain mandatory.
+
+Use the JSON reporter for ordinary browser gates. Preserve its inline attachments: camera frames, admitted contexts, keyboard journeys, announcements and bounded failure diagnostics. The original protocol/scenario assertions remain executable through the foundation runner. The V3 runner saves the entire raw JSON and stderr before classification in a unique subdirectory of `V3_CHECK_REPORT_DIR` (or TMPDIR), and reports its path/hash. No later run overwrites that receipt.
+
+## Packaging
+
+The bundle root contains `matrix/`, native captures and JSON records, durable gate/trace reports, `surface-evidence.json`, and optionally independently delivered `independent-receipts.json`. `surface-evidence.json` maps every additional surface in the registry to actual relative artifact paths. Native and zoom entries must include their JSON records; referenced screenshots must be in the artifact inventory.
+
+Run `node scripts/package-v3-evidence.mjs <bundle-root>` from the exact clean candidate after building it. The command refuses a different matrix revision/source/contracts/build and emits PACKAGED_NOT_ACCEPTED. The loader additionally rejects missing variants/cells, duplicate cells, failed measurements, absent surfaces, escaped paths and mismatched hashes. Packaging alone never produces GO.
+
+Set `V3_RELEASE_EVIDENCE` to that root for the official guards and full browser suite. CHECK25 consumes the complete deterministic bundle. CHECK08/24 require source-bound semantic reviewer and deterministic QA receipts; CHECK08/34 require an independent visual receipt. The dependent CHECK21/33 mappings inherit the visual requirement. CHECK38 remains the independent manual AND gate.
+
+Each receipt has a real actor, role, kind, applicable criteria, sourceCombined, contractCombined, productionCombined, verdict, report artifact and cited evidence artifacts. Root independently verifies role history: a JSON actor string is not proof of independence. The author never creates these receipts. Missing or incomplete prerequisites return execution ERROR>=2, genuine assertions1, genuine completed passes0. The official command interface remains `node scripts/check-observatory-v3.mjs AC-NN --browsers chromium,firefox` for01–37.
+
+An author preflight may explicitly omit the five receipt/bundle-consumer tests while assembling evidence. It must be labelled preflight, never full acceptance. After the independent sub-receipts exist, rerun the unfiltered browser suite and all official guards. Preserve failed historical runs and qualified unresolved observations; a later passing sample does not retroactively explain an earlier failure.
+
+## Ordinary CI and release verification
+
+`npm run test:e2e` runs the production behavior and regression specs in both engines, including the compiled inspection entry. Negative evidence-consumer unit tests run in the ordinary unit suite. The five tests that require externally produced independent release receipts live in `tests/e2e/v3Release.ts`; the ordinary `*.spec.ts` matcher does not discover that distinct release suite.
+
+`playwright.v3.config.ts` explicitly includes both the ordinary specs and `v3Release.ts`. Every official V3 guarded command uses this configuration and its unchanged criterion mapping. Missing source-bound bundle or required independent receipts remains execution ERROR; ordinary CI success does not imply release acceptance. Final combined QA must run ordinary regression, all 38 foundation commands, all 37 V3 automatic commands, independent manual CHECK38, and all 20 metric commands with the complete immutable bundle.
+
+Capture the additional metric/native surfaces in a separate `surfaces` directory, not the canonical matrix directory. Link the eleven metric sidecar matrices under `surfaceEvidence["observatory-block-intervals/<variant>"]`; link the ten additional surfaces using their effective `metric-*` inventory names. Native tooltip/zoom and passed keyboard/system/motion/lifecycle trace attachments must be linked as actual artifacts, not inferred from screenshot counts.

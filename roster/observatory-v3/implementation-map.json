@@ -1,0 +1,91 @@
+{
+  "status": "implementation in progress, no review or QA verdict",
+  "baseline": "bf0f2d5c395ecdcf155064ba56f1577bfb73cc4c",
+  "claims": {
+    "count": 323,
+    "model": "5c03c7a62d889f67edfaa3ade81eca950351071ecd7a1ac2da7ecb0f2ebca532",
+    "freshness": "ceb740eb6e894bacaa792db0bb79070c521775172cb2391a01c5f3bb1bed51fc"
+  },
+  "consumers": [
+    {
+      "scope": "Selected identity and paired phase evidence",
+      "authority": "main.ts render / renderPinned; phaseEvidence; ObservationStore",
+      "view": "dashboardView selected inspector / gauges",
+      "acceptance": [
+        "AC-01",
+        "AC-09",
+        "AC-10",
+        "AC-26"
+      ]
+    },
+    {
+      "scope": "Observed navigator and motion",
+      "authority": "accepted ObservationTarget / context admission, existing source progression",
+      "view": "dashboardView branching navigator",
+      "acceptance": [
+        "AC-02",
+        "AC-11",
+        "AC-13",
+        "AC-29",
+        "AC-31",
+        "AC-37"
+      ]
+    },
+    {
+      "scope": "Conditional opportunities and immutable history",
+      "authority": "OpportunityFact; captureOpportunityFacts; collection/observer token",
+      "view": "dashboardView branches and accessible proofs",
+      "acceptance": [
+        "AC-03",
+        "AC-12",
+        "AC-14",
+        "AC-15",
+        "AC-32",
+        "AC-35"
+      ]
+    },
+    {
+      "scope": "Session selection and retention",
+      "authority": "ObservationStore inspection/history; main sessionModel and lifecycle",
+      "view": "session controls and receipt history",
+      "acceptance": [
+        "AC-04",
+        "AC-16",
+        "AC-17",
+        "AC-27",
+        "AC-30"
+      ]
+    },
+    {
+      "scope": "Committee and independent comparison",
+      "authority": "NetworkData eligibility; SourceComparison; phase evidence",
+      "view": "delegateList / source-comparison",
+      "acceptance": [
+        "AC-05",
+        "AC-18",
+        "AC-19",
+        "AC-20",
+        "AC-28"
+      ]
+    },
+    {
+      "scope": "Responsive composition, theme, accessibility, complete evidence",
+      "authority": "native DOM/CSS; original production RPC fixtures",
+      "view": "workspace and all controls",
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-21",
+        "AC-22",
+        "AC-23",
+        "AC-24",
+        "AC-25",
+        "AC-33",
+        "AC-34",
+        "AC-36"
+      ]
+    }
+  ],
+  "independentManual": "CHECK-38 remains required after feature completion; author visual iteration is not independent approval"
+}

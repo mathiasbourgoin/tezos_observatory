@@ -1,0 +1,1690 @@
+{
+  "requirements": [
+    {
+      "id": "FR-001",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S1",
+        "US-1-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-001",
+        "observatory-foundations/FR-002",
+        "observatory-foundations/FR-003",
+        "observatory-foundations/FR-004",
+        "observatory-foundations/FR-005",
+        "observatory-foundations/FR-006",
+        "observatory-foundations/FR-007"
+      ]
+    },
+    {
+      "id": "FR-002",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-003",
+        "observatory-foundations/FR-004"
+      ]
+    },
+    {
+      "id": "FR-003",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-001",
+        "observatory-foundations/FR-005",
+        "observatory-foundations/FR-006",
+        "observatory-foundations/FR-007"
+      ]
+    },
+    {
+      "id": "FR-004",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-005",
+        "observatory-foundations/FR-006",
+        "observatory-foundations/FR-007"
+      ]
+    },
+    {
+      "id": "FR-005",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S1",
+        "US-1-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-015",
+        "observatory-foundations/FR-016",
+        "observatory-foundations/FR-017",
+        "observatory-foundations/FR-018",
+        "observatory-foundations/FR-019",
+        "observatory-foundations/FR-020",
+        "observatory-foundations/FR-021",
+        "observatory-foundations/FR-093"
+      ]
+    },
+    {
+      "id": "FR-006",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-015",
+        "observatory-foundations/FR-016",
+        "observatory-foundations/FR-017",
+        "observatory-foundations/FR-018",
+        "observatory-foundations/FR-019",
+        "observatory-foundations/FR-020",
+        "observatory-foundations/FR-021",
+        "observatory-foundations/FR-093"
+      ]
+    },
+    {
+      "id": "FR-007",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-030",
+        "observatory-foundations/FR-031"
+      ]
+    },
+    {
+      "id": "FR-008",
+      "story": "US-1",
+      "scenarios": [
+        "US-1-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-077",
+        "observatory-foundations/FR-078",
+        "observatory-foundations/FR-079",
+        "observatory-foundations/FR-080",
+        "observatory-foundations/FR-081",
+        "observatory-foundations/FR-092"
+      ]
+    },
+    {
+      "id": "FR-009",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-010",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-011",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-012",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S1",
+        "US-2-S4"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-013",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S4"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-014",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-015",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029",
+        "observatory-foundations/FR-031"
+      ]
+    },
+    {
+      "id": "FR-016",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S1",
+        "US-2-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-017",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-018",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-031"
+      ]
+    },
+    {
+      "id": "FR-019",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-031"
+      ]
+    },
+    {
+      "id": "FR-020",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S3",
+        "US-2-S4"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054"
+      ]
+    },
+    {
+      "id": "FR-021",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-022",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-023",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-024",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S1",
+        "US-3-S2",
+        "US-3-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-025",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-026",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-027",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026",
+        "observatory-foundations/FR-031"
+      ]
+    },
+    {
+      "id": "FR-028",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S2",
+        "US-3-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026",
+        "observatory-foundations/FR-031"
+      ]
+    },
+    {
+      "id": "FR-029",
+      "story": "US-3",
+      "scenarios": [
+        "US-3-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-030",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S1",
+        "US-4-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054"
+      ]
+    },
+    {
+      "id": "FR-031",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S1",
+        "US-4-S2",
+        "US-4-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054"
+      ]
+    },
+    {
+      "id": "FR-032",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054"
+      ]
+    },
+    {
+      "id": "FR-033",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054"
+      ]
+    },
+    {
+      "id": "FR-034",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054",
+        "observatory-foundations/FR-091"
+      ]
+    },
+    {
+      "id": "FR-035",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054"
+      ]
+    },
+    {
+      "id": "FR-036",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054"
+      ]
+    },
+    {
+      "id": "FR-037",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-054",
+        "observatory-foundations/FR-091"
+      ]
+    },
+    {
+      "id": "FR-038",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-050",
+        "observatory-foundations/FR-051",
+        "observatory-foundations/FR-052",
+        "observatory-foundations/FR-053",
+        "observatory-foundations/FR-091"
+      ]
+    },
+    {
+      "id": "FR-039",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-050",
+        "observatory-foundations/FR-051",
+        "observatory-foundations/FR-052",
+        "observatory-foundations/FR-053",
+        "observatory-foundations/FR-091"
+      ]
+    },
+    {
+      "id": "FR-040",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S4"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-040",
+        "observatory-foundations/FR-041",
+        "observatory-foundations/FR-042",
+        "observatory-foundations/FR-043",
+        "observatory-foundations/FR-073",
+        "observatory-foundations/FR-074",
+        "observatory-foundations/FR-075"
+      ]
+    },
+    {
+      "id": "FR-041",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S4"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-040",
+        "observatory-foundations/FR-041",
+        "observatory-foundations/FR-042",
+        "observatory-foundations/FR-043",
+        "observatory-foundations/FR-073",
+        "observatory-foundations/FR-074",
+        "observatory-foundations/FR-075"
+      ]
+    },
+    {
+      "id": "FR-042",
+      "story": "US-4",
+      "scenarios": [
+        "US-4-S1",
+        "US-4-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-046",
+        "observatory-foundations/FR-047",
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-093"
+      ]
+    },
+    {
+      "id": "FR-043",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-055",
+        "observatory-foundations/FR-056",
+        "observatory-foundations/FR-057",
+        "observatory-foundations/FR-058",
+        "observatory-foundations/FR-059",
+        "observatory-foundations/FR-060",
+        "observatory-foundations/FR-061",
+        "observatory-foundations/FR-062",
+        "observatory-foundations/FR-063"
+      ]
+    },
+    {
+      "id": "FR-044",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-055",
+        "observatory-foundations/FR-056",
+        "observatory-foundations/FR-057",
+        "observatory-foundations/FR-058",
+        "observatory-foundations/FR-059",
+        "observatory-foundations/FR-060",
+        "observatory-foundations/FR-061",
+        "observatory-foundations/FR-062",
+        "observatory-foundations/FR-063"
+      ]
+    },
+    {
+      "id": "FR-045",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-055",
+        "observatory-foundations/FR-056",
+        "observatory-foundations/FR-057",
+        "observatory-foundations/FR-058",
+        "observatory-foundations/FR-059",
+        "observatory-foundations/FR-060",
+        "observatory-foundations/FR-061",
+        "observatory-foundations/FR-062",
+        "observatory-foundations/FR-063"
+      ]
+    },
+    {
+      "id": "FR-046",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S1",
+        "US-5-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-015",
+        "observatory-foundations/FR-016",
+        "observatory-foundations/FR-017",
+        "observatory-foundations/FR-018",
+        "observatory-foundations/FR-019",
+        "observatory-foundations/FR-020",
+        "observatory-foundations/FR-021",
+        "observatory-foundations/FR-055",
+        "observatory-foundations/FR-056",
+        "observatory-foundations/FR-057",
+        "observatory-foundations/FR-058",
+        "observatory-foundations/FR-059",
+        "observatory-foundations/FR-060",
+        "observatory-foundations/FR-061",
+        "observatory-foundations/FR-062",
+        "observatory-foundations/FR-063"
+      ]
+    },
+    {
+      "id": "FR-047",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-015",
+        "observatory-foundations/FR-016",
+        "observatory-foundations/FR-017",
+        "observatory-foundations/FR-018",
+        "observatory-foundations/FR-019",
+        "observatory-foundations/FR-020",
+        "observatory-foundations/FR-021"
+      ]
+    },
+    {
+      "id": "FR-048",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-064",
+        "observatory-foundations/FR-065",
+        "observatory-foundations/FR-066",
+        "observatory-foundations/FR-067",
+        "observatory-foundations/FR-068",
+        "observatory-foundations/FR-069",
+        "observatory-foundations/FR-070",
+        "observatory-foundations/FR-071",
+        "observatory-foundations/FR-072",
+        "observatory-foundations/FR-073",
+        "observatory-foundations/FR-074",
+        "observatory-foundations/FR-075",
+        "observatory-foundations/FR-076",
+        "observatory-foundations/FR-090",
+        "observatory-foundations/FR-094"
+      ]
+    },
+    {
+      "id": "FR-049",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-064",
+        "observatory-foundations/FR-065",
+        "observatory-foundations/FR-066",
+        "observatory-foundations/FR-067",
+        "observatory-foundations/FR-068",
+        "observatory-foundations/FR-069",
+        "observatory-foundations/FR-070",
+        "observatory-foundations/FR-090",
+        "observatory-foundations/FR-094"
+      ]
+    },
+    {
+      "id": "FR-050",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-094"
+      ]
+    },
+    {
+      "id": "FR-051",
+      "story": "US-5",
+      "scenarios": [
+        "US-5-S3"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-073",
+        "observatory-foundations/FR-074",
+        "observatory-foundations/FR-075",
+        "observatory-foundations/FR-076"
+      ]
+    },
+    {
+      "id": "FR-052",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S1"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-053",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S1"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-054",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-055",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S1",
+        "US-6-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-056",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S2"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-057",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S2"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-058",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S1",
+        "US-6-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-059",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-060",
+      "story": "US-6",
+      "scenarios": [
+        "US-6-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-061",
+      "story": "US-7",
+      "scenarios": [
+        "US-7-S1"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-062",
+      "story": "US-7",
+      "scenarios": [
+        "US-7-S1"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-063",
+      "story": "US-7",
+      "scenarios": [
+        "US-7-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026"
+      ]
+    },
+    {
+      "id": "FR-064",
+      "story": "US-7",
+      "scenarios": [
+        "US-7-S2"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-065",
+      "story": "US-7",
+      "scenarios": [
+        "US-7-S2"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-066",
+      "story": "US-7",
+      "scenarios": [
+        "US-7-S2",
+        "US-7-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-067",
+      "story": "US-7",
+      "scenarios": [
+        "US-7-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-068",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-001",
+        "observatory-foundations/FR-002",
+        "observatory-foundations/FR-003",
+        "observatory-foundations/FR-004",
+        "observatory-foundations/FR-005",
+        "observatory-foundations/FR-006",
+        "observatory-foundations/FR-007",
+        "observatory-foundations/FR-008",
+        "observatory-foundations/FR-009",
+        "observatory-foundations/FR-010",
+        "observatory-foundations/FR-011",
+        "observatory-foundations/FR-012",
+        "observatory-foundations/FR-013",
+        "observatory-foundations/FR-014",
+        "observatory-foundations/FR-015",
+        "observatory-foundations/FR-016",
+        "observatory-foundations/FR-017",
+        "observatory-foundations/FR-018",
+        "observatory-foundations/FR-019",
+        "observatory-foundations/FR-020",
+        "observatory-foundations/FR-021",
+        "observatory-foundations/FR-022",
+        "observatory-foundations/FR-023",
+        "observatory-foundations/FR-024",
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-028",
+        "observatory-foundations/FR-029",
+        "observatory-foundations/FR-030",
+        "observatory-foundations/FR-031",
+        "observatory-foundations/FR-032",
+        "observatory-foundations/FR-033",
+        "observatory-foundations/FR-034",
+        "observatory-foundations/FR-035",
+        "observatory-foundations/FR-036",
+        "observatory-foundations/FR-037",
+        "observatory-foundations/FR-038",
+        "observatory-foundations/FR-039",
+        "observatory-foundations/FR-040",
+        "observatory-foundations/FR-041",
+        "observatory-foundations/FR-042",
+        "observatory-foundations/FR-043",
+        "observatory-foundations/FR-044",
+        "observatory-foundations/FR-045",
+        "observatory-foundations/FR-046",
+        "observatory-foundations/FR-047",
+        "observatory-foundations/FR-048",
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-050",
+        "observatory-foundations/FR-051",
+        "observatory-foundations/FR-052",
+        "observatory-foundations/FR-053",
+        "observatory-foundations/FR-054",
+        "observatory-foundations/FR-055",
+        "observatory-foundations/FR-056",
+        "observatory-foundations/FR-057",
+        "observatory-foundations/FR-058",
+        "observatory-foundations/FR-059",
+        "observatory-foundations/FR-060",
+        "observatory-foundations/FR-061",
+        "observatory-foundations/FR-062",
+        "observatory-foundations/FR-063",
+        "observatory-foundations/FR-064",
+        "observatory-foundations/FR-065",
+        "observatory-foundations/FR-066",
+        "observatory-foundations/FR-067",
+        "observatory-foundations/FR-068",
+        "observatory-foundations/FR-069",
+        "observatory-foundations/FR-070",
+        "observatory-foundations/FR-071",
+        "observatory-foundations/FR-072",
+        "observatory-foundations/FR-073",
+        "observatory-foundations/FR-074",
+        "observatory-foundations/FR-075",
+        "observatory-foundations/FR-076",
+        "observatory-foundations/FR-077",
+        "observatory-foundations/FR-078",
+        "observatory-foundations/FR-079",
+        "observatory-foundations/FR-080",
+        "observatory-foundations/FR-081",
+        "observatory-foundations/FR-082",
+        "observatory-foundations/FR-083",
+        "observatory-foundations/FR-084",
+        "observatory-foundations/FR-085",
+        "observatory-foundations/FR-086",
+        "observatory-foundations/FR-087",
+        "observatory-foundations/FR-088",
+        "observatory-foundations/FR-089",
+        "observatory-foundations/FR-090",
+        "observatory-foundations/FR-091",
+        "observatory-foundations/FR-092",
+        "observatory-foundations/FR-093",
+        "observatory-foundations/FR-094"
+      ]
+    },
+    {
+      "id": "FR-069",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S1"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-001",
+        "observatory-foundations/FR-002",
+        "observatory-foundations/FR-003",
+        "observatory-foundations/FR-004",
+        "observatory-foundations/FR-005",
+        "observatory-foundations/FR-006",
+        "observatory-foundations/FR-007",
+        "observatory-foundations/FR-008",
+        "observatory-foundations/FR-009",
+        "observatory-foundations/FR-010",
+        "observatory-foundations/FR-011",
+        "observatory-foundations/FR-012",
+        "observatory-foundations/FR-013",
+        "observatory-foundations/FR-014",
+        "observatory-foundations/FR-015",
+        "observatory-foundations/FR-016",
+        "observatory-foundations/FR-017",
+        "observatory-foundations/FR-018",
+        "observatory-foundations/FR-019",
+        "observatory-foundations/FR-020",
+        "observatory-foundations/FR-021",
+        "observatory-foundations/FR-022",
+        "observatory-foundations/FR-023",
+        "observatory-foundations/FR-024",
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-026",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-028",
+        "observatory-foundations/FR-029",
+        "observatory-foundations/FR-030",
+        "observatory-foundations/FR-031",
+        "observatory-foundations/FR-032",
+        "observatory-foundations/FR-033",
+        "observatory-foundations/FR-034",
+        "observatory-foundations/FR-035",
+        "observatory-foundations/FR-036",
+        "observatory-foundations/FR-037",
+        "observatory-foundations/FR-038",
+        "observatory-foundations/FR-039",
+        "observatory-foundations/FR-040",
+        "observatory-foundations/FR-041",
+        "observatory-foundations/FR-042",
+        "observatory-foundations/FR-043",
+        "observatory-foundations/FR-044",
+        "observatory-foundations/FR-045",
+        "observatory-foundations/FR-046",
+        "observatory-foundations/FR-047",
+        "observatory-foundations/FR-048",
+        "observatory-foundations/FR-049",
+        "observatory-foundations/FR-050",
+        "observatory-foundations/FR-051",
+        "observatory-foundations/FR-052",
+        "observatory-foundations/FR-053",
+        "observatory-foundations/FR-054",
+        "observatory-foundations/FR-055",
+        "observatory-foundations/FR-056",
+        "observatory-foundations/FR-057",
+        "observatory-foundations/FR-058",
+        "observatory-foundations/FR-059",
+        "observatory-foundations/FR-060",
+        "observatory-foundations/FR-061",
+        "observatory-foundations/FR-062",
+        "observatory-foundations/FR-063",
+        "observatory-foundations/FR-064",
+        "observatory-foundations/FR-065",
+        "observatory-foundations/FR-066",
+        "observatory-foundations/FR-067",
+        "observatory-foundations/FR-068",
+        "observatory-foundations/FR-069",
+        "observatory-foundations/FR-070",
+        "observatory-foundations/FR-071",
+        "observatory-foundations/FR-072",
+        "observatory-foundations/FR-073",
+        "observatory-foundations/FR-074",
+        "observatory-foundations/FR-075",
+        "observatory-foundations/FR-076",
+        "observatory-foundations/FR-077",
+        "observatory-foundations/FR-078",
+        "observatory-foundations/FR-079",
+        "observatory-foundations/FR-080",
+        "observatory-foundations/FR-081",
+        "observatory-foundations/FR-082",
+        "observatory-foundations/FR-083",
+        "observatory-foundations/FR-084",
+        "observatory-foundations/FR-085",
+        "observatory-foundations/FR-086",
+        "observatory-foundations/FR-087",
+        "observatory-foundations/FR-088",
+        "observatory-foundations/FR-089",
+        "observatory-foundations/FR-090",
+        "observatory-foundations/FR-091",
+        "observatory-foundations/FR-092",
+        "observatory-foundations/FR-093",
+        "observatory-foundations/FR-094"
+      ]
+    },
+    {
+      "id": "FR-070",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S1"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-071",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S2"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-072",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S2"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-073",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S2"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-074",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S2"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-075",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-076",
+      "story": "US-8",
+      "scenarios": [
+        "US-8-S3"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "FR-077",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S5"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    },
+    {
+      "id": "FR-078",
+      "story": "US-2",
+      "scenarios": [
+        "US-2-S5"
+      ],
+      "dependencies": [
+        "observatory-foundations/FR-025",
+        "observatory-foundations/FR-027",
+        "observatory-foundations/FR-029"
+      ]
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-01",
+      "stories": [
+        "US-1"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-007",
+        "FR-008"
+      ]
+    },
+    {
+      "id": "AC-02",
+      "stories": [
+        "US-2"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-017",
+        "FR-066"
+      ]
+    },
+    {
+      "id": "AC-03",
+      "stories": [
+        "US-3"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-021",
+        "FR-022",
+        "FR-023",
+        "FR-024",
+        "FR-026",
+        "FR-027",
+        "FR-028",
+        "FR-029",
+        "FR-063"
+      ]
+    },
+    {
+      "id": "AC-04",
+      "stories": [
+        "US-4"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-030",
+        "FR-031",
+        "FR-032",
+        "FR-033",
+        "FR-034",
+        "FR-036",
+        "FR-037",
+        "FR-042"
+      ]
+    },
+    {
+      "id": "AC-05",
+      "stories": [
+        "US-5"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-043",
+        "FR-044",
+        "FR-046"
+      ]
+    },
+    {
+      "id": "AC-06",
+      "stories": [
+        "US-6"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-052",
+        "FR-053",
+        "FR-054",
+        "FR-055",
+        "FR-056"
+      ]
+    },
+    {
+      "id": "AC-07",
+      "stories": [
+        "US-7"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-061",
+        "FR-062",
+        "FR-063",
+        "FR-064",
+        "FR-065",
+        "FR-067"
+      ]
+    },
+    {
+      "id": "AC-08",
+      "stories": [
+        "US-8"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-068",
+        "FR-069",
+        "FR-070",
+        "FR-071",
+        "FR-072",
+        "FR-073",
+        "FR-076"
+      ]
+    },
+    {
+      "id": "AC-09",
+      "stories": [
+        "US-1"
+      ],
+      "challenges": [
+        "C-1"
+      ],
+      "for": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004"
+      ]
+    },
+    {
+      "id": "AC-10",
+      "stories": [
+        "US-1",
+        "US-5"
+      ],
+      "challenges": [
+        "C-2"
+      ],
+      "for": [
+        "FR-005",
+        "FR-006",
+        "FR-046",
+        "FR-047"
+      ]
+    },
+    {
+      "id": "AC-11",
+      "stories": [
+        "US-2"
+      ],
+      "challenges": [
+        "C-3"
+      ],
+      "for": [
+        "FR-010",
+        "FR-011",
+        "FR-014",
+        "FR-016"
+      ]
+    },
+    {
+      "id": "AC-12",
+      "stories": [
+        "US-2",
+        "US-4"
+      ],
+      "challenges": [
+        "C-4"
+      ],
+      "for": [
+        "FR-018",
+        "FR-019",
+        "FR-027",
+        "FR-028"
+      ]
+    },
+    {
+      "id": "AC-13",
+      "stories": [
+        "US-2",
+        "US-7"
+      ],
+      "challenges": [
+        "C-5"
+      ],
+      "for": [
+        "FR-012",
+        "FR-013",
+        "FR-014",
+        "FR-015",
+        "FR-064"
+      ]
+    },
+    {
+      "id": "AC-14",
+      "stories": [
+        "US-3"
+      ],
+      "challenges": [
+        "C-6"
+      ],
+      "for": [
+        "FR-021",
+        "FR-022",
+        "FR-058"
+      ]
+    },
+    {
+      "id": "AC-15",
+      "stories": [
+        "US-3",
+        "US-4"
+      ],
+      "challenges": [
+        "C-7"
+      ],
+      "for": [
+        "FR-027",
+        "FR-028",
+        "FR-037",
+        "FR-039"
+      ]
+    },
+    {
+      "id": "AC-16",
+      "stories": [
+        "US-4"
+      ],
+      "challenges": [
+        "C-8"
+      ],
+      "for": [
+        "FR-034",
+        "FR-038",
+        "FR-039"
+      ]
+    },
+    {
+      "id": "AC-17",
+      "stories": [
+        "US-4"
+      ],
+      "challenges": [
+        "C-9"
+      ],
+      "for": [
+        "FR-034",
+        "FR-035"
+      ]
+    },
+    {
+      "id": "AC-18",
+      "stories": [
+        "US-4",
+        "US-5"
+      ],
+      "challenges": [
+        "C-10"
+      ],
+      "for": [
+        "FR-040",
+        "FR-041",
+        "FR-051"
+      ]
+    },
+    {
+      "id": "AC-19",
+      "stories": [
+        "US-5"
+      ],
+      "challenges": [
+        "C-11"
+      ],
+      "for": [
+        "FR-043",
+        "FR-044",
+        "FR-045",
+        "FR-047"
+      ]
+    },
+    {
+      "id": "AC-20",
+      "stories": [
+        "US-5"
+      ],
+      "challenges": [
+        "C-12"
+      ],
+      "for": [
+        "FR-048",
+        "FR-049",
+        "FR-050"
+      ]
+    },
+    {
+      "id": "AC-21",
+      "stories": [
+        "US-6",
+        "US-8"
+      ],
+      "challenges": [
+        "C-13"
+      ],
+      "for": [
+        "FR-052",
+        "FR-053",
+        "FR-073"
+      ]
+    },
+    {
+      "id": "AC-22",
+      "stories": [
+        "US-6"
+      ],
+      "challenges": [
+        "C-14"
+      ],
+      "for": [
+        "FR-056",
+        "FR-057"
+      ]
+    },
+    {
+      "id": "AC-23",
+      "stories": [
+        "US-7"
+      ],
+      "challenges": [
+        "C-15"
+      ],
+      "for": [
+        "FR-061",
+        "FR-062",
+        "FR-063",
+        "FR-065",
+        "FR-066"
+      ]
+    },
+    {
+      "id": "AC-24",
+      "stories": [
+        "US-8"
+      ],
+      "challenges": [
+        "C-16"
+      ],
+      "for": [
+        "FR-068",
+        "FR-069",
+        "FR-070"
+      ]
+    },
+    {
+      "id": "AC-25",
+      "stories": [
+        "US-8"
+      ],
+      "challenges": [
+        "C-17"
+      ],
+      "for": [
+        "FR-071",
+        "FR-074"
+      ]
+    },
+    {
+      "id": "AC-26",
+      "stories": [
+        "US-1",
+        "US-2",
+        "US-8"
+      ],
+      "challenges": [
+        "C-18"
+      ],
+      "for": [
+        "FR-008",
+        "FR-069"
+      ]
+    },
+    {
+      "id": "AC-27",
+      "stories": [
+        "US-2",
+        "US-4",
+        "US-6"
+      ],
+      "challenges": [
+        "C-19"
+      ],
+      "for": [
+        "FR-020",
+        "FR-030",
+        "FR-031",
+        "FR-032",
+        "FR-033",
+        "FR-039",
+        "FR-052"
+      ]
+    },
+    {
+      "id": "AC-28",
+      "stories": [
+        "US-5",
+        "US-6",
+        "US-8"
+      ],
+      "challenges": [
+        "C-20"
+      ],
+      "for": [
+        "FR-048",
+        "FR-052",
+        "FR-075"
+      ]
+    },
+    {
+      "id": "AC-29",
+      "stories": [
+        "US-2",
+        "US-3"
+      ],
+      "challenges": [
+        "C-21"
+      ],
+      "for": [
+        "FR-009",
+        "FR-021",
+        "FR-023",
+        "FR-025"
+      ]
+    },
+    {
+      "id": "AC-30",
+      "stories": [
+        "US-4",
+        "US-5"
+      ],
+      "challenges": [
+        "C-22"
+      ],
+      "for": [
+        "FR-031",
+        "FR-036",
+        "FR-037",
+        "FR-040",
+        "FR-043"
+      ]
+    },
+    {
+      "id": "AC-31",
+      "stories": [
+        "US-2",
+        "US-4",
+        "US-6"
+      ],
+      "challenges": [
+        "C-23"
+      ],
+      "for": [
+        "FR-009",
+        "FR-020",
+        "FR-034",
+        "FR-052"
+      ]
+    },
+    {
+      "id": "AC-32",
+      "stories": [
+        "US-2",
+        "US-3",
+        "US-7"
+      ],
+      "challenges": [
+        "C-24"
+      ],
+      "for": [
+        "FR-009",
+        "FR-021",
+        "FR-022",
+        "FR-023",
+        "FR-063"
+      ]
+    },
+    {
+      "id": "AC-33",
+      "stories": [
+        "US-6",
+        "US-7"
+      ],
+      "challenges": [
+        "C-25"
+      ],
+      "for": [
+        "FR-054",
+        "FR-055",
+        "FR-061",
+        "FR-062",
+        "FR-067",
+        "FR-073"
+      ]
+    },
+    {
+      "id": "AC-34",
+      "stories": [
+        "US-6",
+        "US-8"
+      ],
+      "challenges": [
+        "C-26"
+      ],
+      "for": [
+        "FR-052",
+        "FR-073"
+      ]
+    },
+    {
+      "id": "AC-35",
+      "stories": [
+        "US-3",
+        "US-8"
+      ],
+      "challenges": [
+        "C-27"
+      ],
+      "for": [
+        "FR-024",
+        "FR-025",
+        "FR-026",
+        "FR-027",
+        "FR-075"
+      ]
+    },
+    {
+      "id": "AC-36",
+      "stories": [
+        "US-6",
+        "US-7",
+        "US-8"
+      ],
+      "challenges": [
+        "C-28"
+      ],
+      "for": [
+        "FR-058",
+        "FR-059",
+        "FR-060",
+        "FR-062",
+        "FR-072"
+      ]
+    },
+    {
+      "id": "AC-37",
+      "stories": [
+        "US-2"
+      ],
+      "challenges": [],
+      "for": [
+        "FR-077",
+        "FR-078"
+      ]
+    }
+  ]
+}

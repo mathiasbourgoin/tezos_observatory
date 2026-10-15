@@ -1,0 +1,13 @@
+# Independent review — observation-label-hotfix
+
+**GO**, narrow urgent scope, round 1/5. No blocking correctness/security finding and no auto-fix. Review bundle 1.7.0 verified; normalizer 2.0.0 and full convergence gate actually ran (exit 0, no warnings or violations). Task trace records actual review and explicitly skipped extra specialist/runtime invocations.
+
+The RPC applied block supplies the primary level and round (`src/main.ts:235`; `src/dashboardView.ts:217`). Calculated successor round belongs to the clearly labelled scheduled opportunity (`src/dashboardView.ts:212`). Current gauges require a selected payload-bound group and valid observed instance (`src/main.ts:196`); payloadless contents cannot create a group (`src/main.ts:79`). A proposal label requires matching level, round and payload (`src/dashboardView.ts:222`). Valid selected votes still publish committee power; unavailable evidence publishes no vote model (`src/main.ts:325`). Old-instance gauges clear across round changes.
+
+Independent commands: type check, build, 38 unit tests, 20 dashboard browser cases, then all 26 Chromium/Firefox browser cases, all exit 0. The exact production fixture confirms applied 5,489,251 / round 101, scheduled successor 5,489,252 / round 37 and unavailable gauges (`tests/e2e/dashboard.spec.ts:183`). Proposal A / votes B and payloadless fixtures preserve correct attribution and real measured power (`tests/e2e/dashboard.spec.ts:199`). Reviewed SHA256 identities are in the JSON artifact.
+
+Relevant `kb/spec.md` and `kb/properties.md` attribution/unavailable requirements checked directly. Broader candidate retention, pinning, health and V3 redesign remain outside this hotfix. Browser mocks do not certify live provider coverage. Root explicitly waived extra cross-runtime agent for this urgent narrow review; scope gate skipped by FAST contract. Separate specialist fanout skipped under root role boundary, recorded in trace. Publication requires maintainer approval separately.
+
+## Authorized CI scope extension
+
+GO also covers `package.json:14`, matching `package-lock.json` root declaration and resolved dev-only Node22 types / undici-types, and `vite.config.ts:1` importing the existing installed Vitest config typing for its test field. No runtime package added. Manifest and lock agree with the installed tree (`npm ls` exit 0). Independent Node v22.23.3 type check, production build and 38 unit tests all passed against this exact six-file patch. Fresh canonical review cycle2/round1 convergence passed with no warnings or violations; original trace and original GO evidence retained. An initial lifecycle counter mismatch warning was corrected before persistence and retained honestly in the JSON friction field.

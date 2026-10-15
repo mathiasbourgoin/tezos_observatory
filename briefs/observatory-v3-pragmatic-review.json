@@ -1,0 +1,115 @@
+{
+  "candidate": "5ad5122f5d97a5683b5f59585dcb4f5f504e5daf",
+  "reviewer": "/root/v3_combined_full_review",
+  "scope": "pragmatic corrective source and targeted behavior review",
+  "verdict": "SCOPED_CORRECTIONS_APPROVED",
+  "source_high_clearance": true,
+  "full_contract_go": false,
+  "bindings": {
+    "sourceCombined": "450a5be4c9166e7ad495b5ba693ae2505a933574cd35032207d5f97ea142881d",
+    "contractCombined": "d7cbf8eb896bab0f8a7339ce65085ed6c33ad5a72222b995e0ec004aee9e7414",
+    "productionCombined": "cd4a6aafcd5d1ccfb51d57c3283518d87f05d12f86d928e52d6e1fade1e5a81b"
+  },
+  "closed_highs": [
+    "exhaustive emitted production asset inventory",
+    "coherent admission-to-settlement timing evidence origin",
+    "authentic independent current phase provenance/age including retained and frozen"
+  ],
+  "gates": {
+    "clean_ci": 0,
+    "typecheck": 0,
+    "units": {
+      "exit": 0,
+      "passed": 358
+    },
+    "build": 0,
+    "focused_corrective_browser": {
+      "exit": 0,
+      "passed": 10,
+      "engines": [
+        "chromium",
+        "firefox"
+      ],
+      "skipped": 0,
+      "flaky": 0
+    },
+    "core_parity_browser": {
+      "exit": 0,
+      "passed": 8,
+      "engines": [
+        "chromium",
+        "firefox"
+      ],
+      "skipped": 0,
+      "flaky": 0
+    }
+  },
+  "timings_ms": {
+    "chromium": [
+      198,
+      187.09999999403954
+    ],
+    "firefox": [
+      174,
+      164
+    ]
+  },
+  "open_findings": [],
+  "limitations": [
+    "198ms Chromium sample has only2ms headroom; this is sampled evidence",
+    "Full ordinary regression is owned by fresh QA on final delivery SHA",
+    "Essential native touch/keyboard and practical visual captures remain separate delivery gates",
+    "Full393 obligations, exhaustive70x36 matrix, all95 official interfaces and complete manualCHECK38 audit remain deferred, not passed",
+    "Root must verify final delivery source byte equivalence and canonical specialist/governance evidence"
+  ],
+  "evidence": [
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/build.log",
+      "sha256": "1ae8e0630a920ea37e904877cbf50131079f199520e497dad1b77f7629435e4c"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/check.log",
+      "sha256": "edb0084172bd41fd84c2d83ca5d108aa78e5933be1a4eb8d5cac58300583a5fb"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/ci.log",
+      "sha256": "d9a459648f8d422dd3dd272567c84b64c43357e96e9885fcb34d4734738c8cc0"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/core-parity.json",
+      "sha256": "4f8e8da9bf3011a5afe193346f0bbbefc68eca34a3d89bfe7b97846371585b21"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/core-parity.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/production-inventory-probe.mjs",
+      "sha256": "d61c75361a7a79831e0cb90c314f62e7d0273c8f13da70d22578d7b7566cb52b"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/production-inventory-result.json",
+      "sha256": "acf3dd9843476cc1256bd8fb3ec4f1b7498f664b1fc9cf194ffa6007566bc71c"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/source-bindings.json",
+      "sha256": "33255c45d4de0758ada2924a2f81a9276ed7cc4fb660895b10535b46e7f8b54a"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/targeted-browser.json",
+      "sha256": "ce532abd04fc8d299bc41e2fe5f059ffb2c9d8b03dd2f4af9f8204bcc5f719ed"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/targeted-browser.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/timing-negative-probe.json",
+      "sha256": "e5174aa41403e1da9c62c573b635d17d616a3e7d855440148d6fcca50af10af1"
+    },
+    {
+      "path": "/var/tmp/observatory-primary-evidence-5ad/unit.log",
+      "sha256": "e1947acecb0149b212a4fe73b896a827b8d51a9fdd5468937f031855d7ffdb66"
+    }
+  ]
+}

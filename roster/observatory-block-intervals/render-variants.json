@@ -1,0 +1,29 @@
+{
+  "namespace": "observatory-block-intervals",
+  "variants": [
+    "metric-values",
+    "metric-partial",
+    "metric-insufficient",
+    "metric-window-unavailable",
+    "metric-no-prior-unavailable",
+    "metric-loading",
+    "metric-refreshing-retained",
+    "metric-stale-retained",
+    "metric-whole-failure-retained",
+    "metric-long-details",
+    "metric-prohibited-not-collected"
+  ],
+  "additionalSurfaces": [
+    "metric-system-light",
+    "metric-system-dark",
+    "metric-storage-missing",
+    "metric-storage-corrupt",
+    "metric-storage-denied",
+    "metric-zoom-200",
+    "metric-refresh-focus",
+    "metric-refresh-disabled",
+    "metric-details-open",
+    "metric-reader-preservation"
+  ],
+  "note": "Every variant requires all9viewports x light/dark x Chromium/Firefox. Additional surfaces inherit wholeV3 obligations and must actually include the metric region; root merges this inventory into the final common bundle. This file is obligations, not rendered evidence."
+}

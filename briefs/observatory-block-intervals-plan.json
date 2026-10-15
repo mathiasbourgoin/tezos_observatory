@@ -1,0 +1,102 @@
+{
+  "task": "observatory-block-intervals",
+  "mode": "full",
+  "schema_version": "1.0",
+  "steps": [
+    {
+      "id": "step-1",
+      "skill": "roster-implement",
+      "inputs": [
+        "briefs/observatory-block-intervals-implementer.md",
+        "briefs/observatory-block-intervals-plan.md",
+        "roster/observatory-block-intervals/plan-check-interfaces.md",
+        "briefs/observatory-block-intervals-intake.md",
+        "briefs/observatory-block-intervals-integration-handoff.md"
+      ],
+      "outputs": [
+        "roster/observatory-block-intervals/implementation-interface-handoff.md"
+      ],
+      "hook": false
+    },
+    {
+      "id": "step-2",
+      "skill": "roster-implement",
+      "inputs": [
+        "briefs/observatory-block-intervals-implementer.md",
+        "briefs/observatory-block-intervals-plan.md",
+        "roster/observatory-block-intervals/plan-check-interfaces.md"
+      ],
+      "outputs": [
+        "src/rpc/blockIntervals.ts",
+        "src/main.ts",
+        "src/dashboardView.ts"
+      ],
+      "hook": false
+    },
+    {
+      "id": "step-3",
+      "skill": "roster-implement",
+      "inputs": [
+        "briefs/observatory-block-intervals-implementer.md",
+        "briefs/observatory-block-intervals-plan.md",
+        "roster/observatory-block-intervals/plan-check-interfaces.md"
+      ],
+      "outputs": [
+        "src/rpc/blockIntervals.ts",
+        "tests/unit/blockIntervals.test.ts",
+        "tests/e2e/productionFixture.ts"
+      ],
+      "hook": false
+    },
+    {
+      "id": "step-4",
+      "skill": "roster-implement",
+      "inputs": [
+        "briefs/observatory-block-intervals-implementer.md",
+        "briefs/observatory-block-intervals-plan.md",
+        "roster/observatory-block-intervals/plan-check-interfaces.md"
+      ],
+      "outputs": [
+        "src/main.ts",
+        "src/dashboardView.ts",
+        "src/dashboard.css",
+        "README.md",
+        "scripts/check-observatory-block-intervals.mjs",
+        "roster/observatory-block-intervals/combined-implementation-evidence.md"
+      ],
+      "hook": false
+    },
+    {
+      "id": "step-5",
+      "skill": "roster-review",
+      "inputs": [
+        "briefs/observatory-block-intervals-reviewer.md",
+        "briefs/observatory-block-intervals-plan.md",
+        "roster/observatory-block-intervals/plan-check-interfaces.md"
+      ],
+      "outputs": [
+        "briefs/observatory-block-intervals-review.md"
+      ],
+      "hook": false
+    },
+    {
+      "id": "step-6",
+      "skill": "roster-qa",
+      "inputs": [
+        "briefs/observatory-block-intervals-qa-scope.md",
+        "briefs/observatory-block-intervals-plan.md",
+        "roster/observatory-block-intervals/plan-check-interfaces.md",
+        "briefs/observatory-block-intervals-review.md"
+      ],
+      "outputs": [
+        "briefs/observatory-block-intervals-qa.md"
+      ],
+      "hook": false
+    }
+  ],
+  "quality_gates": {
+    "build": "rtk npm run build",
+    "test": "rtk npm test",
+    "lint": ""
+  }
+}

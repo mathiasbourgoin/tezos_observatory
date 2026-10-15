@@ -1,0 +1,9 @@
+# V3 progress admission: investigation evidence
+
+Evidence handoff, 15 October 2026. Exact investigated application: `b68953928c0202f387e2bccd16fb7ab3d75ff254`, source-identical to the earlier failing `6b84225`. Full evidence and limits: `briefs/observatory-v3-skipped-progress-investigation.md`.
+
+Raw applied-head receipt and committed source-qualified progression are distinct. In actual passing production traces, applied104 appears before derivation completes; the skipped-level discriminator appears only after the exact observer104 context commits. `NetworkData.derive` populates contexts before committee/constants acquisition (`src/rpc/networkData.ts:390`); `NetworkMonitor` records progress from qualified contexts independently of committee availability (`src/monitor/networkMonitor.ts:356`). A generic incomplete committee display does not identify the failed identity proof.
+
+The committee-only suppression hypothesis and simple skipped-label mapping error were refuted as general explanations by source inspection and actual traces. A deliberately failed exact104 header yields unknown current authority and retains the earlier qualified progression in both engines; this is correct refusal to invent a transition, not reproduction of the historical intermittent cause.
+
+The historical failure remains unexplained. Original24, instrumented40 and broader168 production executions passed; the failing original run lacks committed-context/request-ownership evidence. Pending/rejected context or generation/source mismatch remain hypotheses, not conclusions. Preserve original assertions and collect bounded failure-only state, context errors, source/generation and request/body ownership evidence if it recurs. No label relaxation, product fix or release approval follows from these passing samples.

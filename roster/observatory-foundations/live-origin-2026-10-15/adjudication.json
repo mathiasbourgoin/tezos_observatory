@@ -1,0 +1,162 @@
+{
+  "sourceRevision": "5fbdc09",
+  "capturedAt": "2026-10-15T03:58:00.553Z",
+  "runs": [
+    {
+      "engine": "chromium",
+      "heads": [
+        {
+          "network": "mainnet",
+          "source": "https://tezos-mainnet.octez.io",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        },
+        {
+          "network": "mainnet",
+          "source": "https://rpc.tzkt.io/mainnet",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        },
+        {
+          "network": "mainnet",
+          "source": "https://octez-mainnet-archive.octez.io",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        },
+        {
+          "network": "shadownet",
+          "source": "https://tezos-shadownet.octez.io",
+          "chainId": "NetXsqzbfFenSTS",
+          "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "level": 5489251,
+          "round": 182,
+          "timestamp": "2026-10-15T03:51:18Z"
+        },
+        {
+          "network": "shadownet",
+          "source": "https://shadownet.smartpy.io",
+          "chainId": "NetXsqzbfFenSTS",
+          "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "level": 5489251,
+          "round": 182,
+          "timestamp": "2026-10-15T03:51:18Z"
+        },
+        {
+          "network": "shadownet",
+          "source": "https://rpc.shadownet.teztnets.com",
+          "chainId": "NetXsqzbfFenSTS",
+          "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "level": 5489251,
+          "round": 182,
+          "timestamp": "2026-10-15T03:51:18Z"
+        },
+        {
+          "network": "mainnet",
+          "source": "https://mainnet.smartpy.io",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        }
+      ],
+      "shadownetRights": {
+        "targetLevel": 5489252,
+        "uniqueDelegates": 25,
+        "uniqueSlots": 25,
+        "power": 7000,
+        "threshold": 4667,
+        "zeroPowerDelegates": 1,
+        "thresholdShare": 66.67142857142858
+      },
+      "mainnetRights": "HTTP403; unavailable in this sample"
+    },
+    {
+      "engine": "firefox",
+      "heads": [
+        {
+          "network": "mainnet",
+          "source": "https://tezos-mainnet.octez.io",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        },
+        {
+          "network": "mainnet",
+          "source": "https://rpc.tzkt.io/mainnet",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        },
+        {
+          "network": "mainnet",
+          "source": "https://mainnet.smartpy.io",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        },
+        {
+          "network": "shadownet",
+          "source": "https://tezos-shadownet.octez.io",
+          "chainId": "NetXsqzbfFenSTS",
+          "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "level": 5489251,
+          "round": 182,
+          "timestamp": "2026-10-15T03:51:18Z"
+        },
+        {
+          "network": "shadownet",
+          "source": "https://shadownet.smartpy.io",
+          "chainId": "NetXsqzbfFenSTS",
+          "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "level": 5489251,
+          "round": 182,
+          "timestamp": "2026-10-15T03:51:18Z"
+        },
+        {
+          "network": "mainnet",
+          "source": "https://octez-mainnet-archive.octez.io",
+          "chainId": "NetXdQprcVkpaWU",
+          "hash": "BLEqQ7RUdivdH1kT7MUzWkFvxGnudoZ8SzLUsgW76YBjxtQPgjd",
+          "level": 15378860,
+          "round": 0,
+          "timestamp": "2026-10-15T03:57:52Z"
+        },
+        {
+          "network": "shadownet",
+          "source": "https://rpc.shadownet.teztnets.com",
+          "chainId": "NetXsqzbfFenSTS",
+          "hash": "BM9tsMpCrCmMfeak29rMGVGFYYKZuAiPqbzgSpRKPs7YoQ3AVw8",
+          "level": 5489251,
+          "round": 182,
+          "timestamp": "2026-10-15T03:51:18Z"
+        }
+      ],
+      "shadownetRights": {
+        "targetLevel": 5489252,
+        "uniqueDelegates": 25,
+        "uniqueSlots": 25,
+        "power": 7000,
+        "threshold": 4667,
+        "zeroPowerDelegates": 1,
+        "thresholdShare": 66.67142857142858
+      },
+      "mainnetRights": "HTTP403; unavailable in this sample"
+    }
+  ]
+}

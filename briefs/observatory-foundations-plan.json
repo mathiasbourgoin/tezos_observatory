@@ -1,0 +1,54 @@
+{
+  "task": "observatory-foundations",
+  "mode": "full",
+  "schema_version": "1.0",
+  "steps": [
+    {
+      "id": "step-1",
+      "skill": "roster-implement",
+      "inputs": [
+        "briefs/observatory-foundations-plan.md",
+        "briefs/observatory-foundations-implementer.md",
+        "briefs/observatory-foundations-intake.md",
+        "briefs/observatory-foundations-spec.md",
+        "roster/observatory-foundations/context.manifest.json"
+      ],
+      "outputs": [
+        "briefs/observatory-foundations-impl.md"
+      ],
+      "hook": false
+    },
+    {
+      "id": "step-2",
+      "skill": "roster-review",
+      "inputs": [
+        "briefs/observatory-foundations-impl.md",
+        "briefs/observatory-foundations-reviewer.md"
+      ],
+      "outputs": [
+        "briefs/observatory-foundations-review.json",
+        "briefs/observatory-foundations-review-trace.jsonl"
+      ],
+      "hook": false
+    },
+    {
+      "id": "step-3",
+      "skill": "roster-qa",
+      "inputs": [
+        "briefs/observatory-foundations-review.json",
+        "briefs/observatory-foundations-qa-scope.md",
+        "briefs/observatory-foundations-impl.md"
+      ],
+      "outputs": [
+        "briefs/observatory-foundations-qa.md",
+        "briefs/observatory-foundations-qa-state.json"
+      ],
+      "hook": false
+    }
+  ],
+  "quality_gates": {
+    "build": "rtk npm run build",
+    "test": "rtk npm test",
+    "lint": ""
+  }
+}

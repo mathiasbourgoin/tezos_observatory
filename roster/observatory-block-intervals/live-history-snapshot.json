@@ -1,0 +1,137 @@
+{
+  "scope": "Independent real provider snapshot and raw endpoint arithmetic, not final UI/deploy acceptance; whole crossing interval included; intermediate ancestry not independently verified",
+  "rawReceipt": "/var/tmp/observatory-live-history-20261015/responses.json",
+  "rawSha256": "244767df1cbb1a888a8dd738ad8cd5cbd01af2979f36d6b87b9cc66f13e0fb9e",
+  "networks": [
+    {
+      "source": "https://api.tzkt.io",
+      "at": "2026-10-15T09:09:20.550Z",
+      "end": {
+        "level": 15381958,
+        "timestamp": "2026-10-15T09:09:19Z",
+        "hash": "BLQk5B49c9v9Rn8CRM61NgMFzwidRgZJWVRAKBhaDkSsPNhGPCJ"
+      },
+      "endpointAgeAtStartSeconds": 1.55,
+      "initialMetadata": {
+        "tzkt-known-level": "15381958",
+        "tzkt-level": "15381958",
+        "tzkt-synced-at": "2026-10-15T09:09:20Z",
+        "tzkt-version": "1.17.4.0"
+      },
+      "windows": [
+        {
+          "requestedSeconds": 604800,
+          "start": {
+            "level": 15281883,
+            "timestamp": "2026-10-08T09:09:19Z",
+            "hash": "BKqmVXSGSGsvpG9UkX3NSP6ZySLCWJ5vh49SmDgtMfKy8NkmECQ"
+          },
+          "count": 100075,
+          "spanSeconds": 604800.0,
+          "meanSeconds": 6.043467399450412,
+          "formattedMeanSeconds": "6.04",
+          "coverageExceedsRequested": false
+        },
+        {
+          "requestedSeconds": 86400,
+          "start": {
+            "level": 15367752,
+            "timestamp": "2026-10-14T09:09:16Z",
+            "hash": "BLHZ5cd1YmN6tLpFZCrKveyiwmSBSyVz46jnVjzNdCepTXwohpN"
+          },
+          "count": 14206,
+          "spanSeconds": 86403.0,
+          "meanSeconds": 6.082148388005068,
+          "formattedMeanSeconds": "6.08",
+          "coverageExceedsRequested": true
+        },
+        {
+          "requestedSeconds": 3600,
+          "start": {
+            "level": 15381359,
+            "timestamp": "2026-10-15T08:09:16Z",
+            "hash": "BLh95e9mk9aua84PynCkkfoAZRPsMyWVmKyhJFVog7JKcP7bRMU"
+          },
+          "count": 599,
+          "spanSeconds": 3603.0,
+          "meanSeconds": 6.015025041736227,
+          "formattedMeanSeconds": "6.02",
+          "coverageExceedsRequested": true
+        }
+      ],
+      "readCount": 5,
+      "readUrls": [
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T09%3A09%3A20.550Z&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-08T09%3A09%3A20.550Z&level.le=15381958&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-14T09%3A09%3A20.550Z&level.le=15381958&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T08%3A09%3A20.550Z&level.le=15381958&sort.desc=level",
+        "https://api.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&level=15381958"
+      ]
+    },
+    {
+      "source": "https://api.shadownet.tzkt.io",
+      "at": "2026-10-15T09:09:20.705Z",
+      "end": {
+        "level": 5489655,
+        "timestamp": "2026-10-15T09:09:18Z",
+        "hash": "BLxDNU3M7KaQKPva3pnWPpRoLLJnqP4iwmjsVwazgCs7Cvu7uwm"
+      },
+      "endpointAgeAtStartSeconds": 2.705,
+      "initialMetadata": {
+        "tzkt-known-level": "5489655",
+        "tzkt-level": "5489655",
+        "tzkt-synced-at": "2026-10-15T09:09:19Z",
+        "tzkt-version": "1.17.4.0"
+      },
+      "windows": [
+        {
+          "requestedSeconds": 604800,
+          "start": {
+            "level": 5404637,
+            "timestamp": "2026-10-08T09:09:18Z",
+            "hash": "BKtibPKof4V1H6hzzEAVuv93zDVGra6YwfBzrnkthtwYWwGAAqi"
+          },
+          "count": 85018,
+          "spanSeconds": 604800.0,
+          "meanSeconds": 7.113787668493731,
+          "formattedMeanSeconds": "7.11",
+          "coverageExceedsRequested": false
+        },
+        {
+          "requestedSeconds": 86400,
+          "start": {
+            "level": 5489240,
+            "timestamp": "2026-10-14T06:23:03Z",
+            "hash": "BMSxH1nr2SH1pJMbfGGfu3w1gWbPVQgMiQLKYJme8Ue2sTtnbpB"
+          },
+          "count": 415,
+          "spanSeconds": 96375.0,
+          "meanSeconds": 232.2289156626506,
+          "formattedMeanSeconds": "232.23",
+          "coverageExceedsRequested": true
+        },
+        {
+          "requestedSeconds": 3600,
+          "start": {
+            "level": 5489251,
+            "timestamp": "2026-10-14T13:49:33Z",
+            "hash": "BLQGR7V3E8aTWK9dduvtMU3U4qSSXiwzVV8GUfAAmXi2ZeXHx6k"
+          },
+          "count": 404,
+          "spanSeconds": 69585.0,
+          "meanSeconds": 172.240099009901,
+          "formattedMeanSeconds": "172.24",
+          "coverageExceedsRequested": true
+        }
+      ],
+      "readCount": 5,
+      "readUrls": [
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T09%3A09%3A20.705Z&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-08T09%3A09%3A20.705Z&level.le=5489655&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-14T09%3A09%3A20.705Z&level.le=5489655&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&timestamp.le=2026-10-15T08%3A09%3A20.705Z&level.le=5489655&sort.desc=level",
+        "https://api.shadownet.tzkt.io/v1/blocks?select=level%2Ctimestamp%2Chash&limit=1&level=5489655"
+      ]
+    }
+  ]
+}

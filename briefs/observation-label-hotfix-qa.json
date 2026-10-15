@@ -1,0 +1,73 @@
+{
+  "task": "observation-label-hotfix",
+  "status": "GO",
+  "date": "2026-10-14T19:07:00.589467+00:00",
+  "provenance": {
+    "root": "/tmp/observatory-hotfix-qa-zf5y2r92",
+    "head": "d9a58f2e072d640677782afb0427157183c99f80",
+    "patch_sha256": "0dbc6bc0067c18e36bfe218b81aabe0a3d55546e6d81e0210615ed136cdcabea",
+    "files": {
+      "package.json": "4152fa0b2b90cfd4f09d973dee42c34e5d457057c67d6e8a22fd02e60840ffd1",
+      "package-lock.json": "82cbfe2f92668f5e6323bc0969b25eebc66d56f2d8308b993eca398d2d146fba",
+      "vite.config.ts": "fea8b8c8352542ad2ddb9f52d571917f91df666d395cb235d296fccc661aa9c8",
+      "src/main.ts": "df752641fe8995931f7ffe6ea2781e9c116359fa9cc86f0ddeb49f69a3695e9a",
+      "src/dashboardView.ts": "c0b6939dffbe836d565404cb127a89c64cf812d3a942bcccca90369cf34dfbb5",
+      "tests/e2e/dashboard.spec.ts": "08cd118a1a73833d7b3b9f203ab16d5e9b0f035eda9b476ac0cbf6b4131c5435"
+    }
+  },
+  "gates": [
+    {
+      "gate": "install",
+      "command": "npm ci",
+      "exit_code": 0,
+      "duration_seconds": 0.63,
+      "log": "/tmp/observatory-hotfix-qa-zf5y2r92/install.log"
+    },
+    {
+      "gate": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "duration_seconds": 0.395,
+      "log": "/tmp/observatory-hotfix-qa-zf5y2r92/build.log"
+    },
+    {
+      "gate": "typecheck",
+      "command": "npm run check",
+      "exit_code": 0,
+      "duration_seconds": 2.36,
+      "log": "/tmp/observatory-hotfix-qa-zf5y2r92/typecheck.log"
+    },
+    {
+      "gate": "unit",
+      "command": "npm test",
+      "exit_code": 0,
+      "duration_seconds": 0.484,
+      "log": "/tmp/observatory-hotfix-qa-zf5y2r92/unit.log"
+    },
+    {
+      "gate": "browser",
+      "command": "npm run test:e2e",
+      "exit_code": 1,
+      "duration_seconds": 0.534,
+      "log": "/tmp/observatory-hotfix-qa-zf5y2r92/browser.log"
+    }
+  ],
+  "browser_retry": {
+    "gate": "browser",
+    "command": "npm run test:e2e (PATH repaired)",
+    "exit_code": 0,
+    "duration_seconds": 7.453,
+    "log": "/tmp/observatory-hotfix-qa-zf5y2r92/browser-retry.log"
+  },
+  "tests": {
+    "unit": 38,
+    "browser": 26
+  },
+  "cross_runtime": "Root explicit delegated urgent QA waiver; availability probe actual available; not PASS",
+  "code_intel": "SKIP: no code-intel block; RESULT: skip",
+  "limitations": [
+    "Browser fixtures are mocked RPCs; no live-provider coverage or publication proof",
+    "Initial browser gate environment failed before tests; PATH repaired and all 26 tests then passed",
+    "Known mobile header overlap remains outside urgent hotfix scope"
+  ]
+}

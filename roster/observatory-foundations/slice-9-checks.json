@@ -1,0 +1,471 @@
+{
+  "status": "INTERIM slice 9; parent implementation continues",
+  "node": "v22.23.3",
+  "gates": {
+    "check": 0,
+    "unit": {
+      "exit": 0,
+      "tests": 248,
+      "files": 19
+    },
+    "browser": {
+      "exit": 0,
+      "scenarios": 130,
+      "projects": [
+        "chromium",
+        "firefox"
+      ]
+    },
+    "build": 0
+  },
+  "originalChecks": [
+    {
+      "criterion": "AC-1",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-1",
+      "exit": 0,
+      "assertionGroups": 12,
+      "actualBrowsers": [],
+      "completion": "AC-1: 12 assertion groups passed"
+    },
+    {
+      "criterion": "AC-2",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-2",
+      "exit": 0,
+      "assertionGroups": 11,
+      "actualBrowsers": [],
+      "completion": "AC-2: 11 assertion groups passed"
+    },
+    {
+      "criterion": "AC-3",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-3",
+      "exit": 0,
+      "assertionGroups": 23,
+      "actualBrowsers": [],
+      "completion": "AC-3: 23 assertion groups passed"
+    },
+    {
+      "criterion": "AC-4",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-4 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 7,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-4: 7 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-5",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-5 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-5: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-6",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-6 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-6: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-7",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-7 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-7: 13 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-8",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-8 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-8: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-9",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-9",
+      "exit": 0,
+      "assertionGroups": 12,
+      "actualBrowsers": [],
+      "completion": "AC-9: 12 assertion groups passed"
+    },
+    {
+      "criterion": "AC-10",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-10",
+      "exit": 0,
+      "assertionGroups": 7,
+      "actualBrowsers": [],
+      "completion": "AC-10: 7 assertion groups passed"
+    },
+    {
+      "criterion": "AC-11",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-11",
+      "exit": 0,
+      "assertionGroups": 9,
+      "actualBrowsers": [],
+      "completion": "AC-11: 9 assertion groups passed"
+    },
+    {
+      "criterion": "AC-12",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-12",
+      "exit": 0,
+      "assertionGroups": 29,
+      "actualBrowsers": [],
+      "completion": "AC-12: 29 assertion groups passed"
+    },
+    {
+      "criterion": "AC-13",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-13 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-13: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-14",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-14",
+      "exit": 0,
+      "assertionGroups": 32,
+      "actualBrowsers": [],
+      "completion": "AC-14: 32 assertion groups passed"
+    },
+    {
+      "criterion": "AC-15",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-15 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-15: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-16",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-16",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-16: 13 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-17",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-17",
+      "exit": 0,
+      "assertionGroups": 25,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-17: 25 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-18",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-18",
+      "exit": 0,
+      "assertionGroups": 21,
+      "actualBrowsers": [],
+      "completion": "AC-18: 21 assertion groups passed"
+    },
+    {
+      "criterion": "AC-19",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-19",
+      "exit": 0,
+      "assertionGroups": 19,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-19: 19 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-20",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-20 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-20: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-21",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-21 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 7,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-21: 7 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-22",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-22 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 14,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-22: 14 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-23",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-23",
+      "exit": 0,
+      "assertionGroups": 9,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-23: 9 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-24",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-24 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 10,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-24: 10 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-25",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-25 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 15,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-25: 15 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-26",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-26 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-26: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-27",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-27 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-27: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-28",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-28 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-28: 13 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-29",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-29 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-29: 13 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-30",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-30 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 20,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-30: 20 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-31",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-31 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 33,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-31: 33 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-32",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-32 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 12,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-32: 12 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-33",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-33 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 2,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-33: 2 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-34",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-34 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 11,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-34: 11 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-35",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-35 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-35: 13 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-36",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-36 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-36: 13 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-37",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-37 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-37: 13 assertion groups passed including production / in chromium and firefox"
+    },
+    {
+      "criterion": "AC-38",
+      "command": "rtk proxy node scripts/check-observatory-foundations.mjs AC-38 --browsers chromium,firefox",
+      "exit": 0,
+      "assertionGroups": 13,
+      "actualBrowsers": [
+        "chromium",
+        "firefox"
+      ],
+      "completion": "AC-38: 13 assertion groups passed including production / in chromium and firefox"
+    }
+  ],
+  "sourceSha256": {
+    "package-lock.json": "82cbfe2f92668f5e6323bc0969b25eebc66d56f2d8308b993eca398d2d146fba",
+    "package.json": "4152fa0b2b90cfd4f09d973dee42c34e5d457057c67d6e8a22fd02e60840ffd1",
+    "playwright.config.ts": "9d4958194cd20c050812f36dd7e0d27f8a9d4bf713488e0b0f676815b4231066",
+    "scripts/check-observatory-foundations.mjs": "deef1506693d9048897d4a2a67e5c249efc1bfb1b3c6985991efba8b039de559",
+    "src/consensus/activityRound.ts": "5abfe7aa31ef1dfed5e42eb0f2b3106eb7c016c2812fad84af0ad0c8b7a7b27d",
+    "src/consensus/delegateStatus.ts": "58fd57bb5c3a3db32e813eedd50864b7cbfee46e9b2a7c300b74f17007b74108",
+    "src/consensus/opportunityFacts.ts": "1f0ef2f8723205ca63b45c5647afc7fdb00ef5922a9b0a16154c0434a87015fd",
+    "src/consensus/phaseEvidence.ts": "02f6a4eb7e1753fe1eb9a3530712c1398619fbc4c46a4b38cded4f4b1d7a15cd",
+    "src/consensus/proposalPlan.ts": "1b9e1a2027c7139141954b9d33bfdeb7cca7c98085ea65b6992869421f7119b4",
+    "src/consensus/roundSchedule.ts": "add0617e907bbe6c0e1033e30b0cac73304b094181eb7a729cd64958182ebf1c",
+    "src/dashboardView.ts": "7f396eca2ed0ffb9b4d96eb02e505255ad421658eaad333ad8b808da11a2ad40",
+    "src/fixtures/missing.ts": "5a3899f3f6ec3a6835a84ab0938f343633c5c2e1faf8e66fa9d5befcb70e8de3",
+    "src/fixtures/opportunities.ts": "3ac60bec4cd581e17882dc2040f1c2eaaed9f012c76448663172751951ec2856",
+    "src/main.ts": "cb34ec964099cdc709cc4da3c749647071125a3d4cf153050f982753489a9dd2",
+    "src/monitor/headGeneration.ts": "3e32a0d7225f7c8cfad8be02fd730943491456bb307416fb0e3798f7d0591eea",
+    "src/monitor/networkMonitor.ts": "59bc6ecb87b0d3ee0ad535156d14eca7439664cd9b46b23804c2c0a4716300f7",
+    "src/monitor/observationStore.ts": "f3c01d4c305230283a202e1e984f0c8b6687154cc060344e9cb5c775b910b0fb",
+    "src/monitor/observerReconciliation.ts": "fb12d17615f6f5645d752c60f1530df4dc8cbd5c8f5b2fcdfea1ff8269ba14bd",
+    "src/rpc/guards.ts": "41d8e304abf19c6195a6caef334d5d2a1e44d86ae9d1155d5a958861581d0623",
+    "src/rpc/jsonStream.ts": "912bd61d0f77bcce5efade38e05a48ab1bd218a0997614861ea192cfafe5b4ec",
+    "src/rpc/models.ts": "6789c43a6fcbd91bc4be7b179dd7a53d39287e74d0a6488f8956013bf9011d35",
+    "src/rpc/networkData.ts": "b6dacc9ce02f3acdd09f73079375d8640d2de28addbfa2eec12119f4ed063c43",
+    "src/rpc/operationStore.ts": "df0d337ce2a57496fdd0f687ef2cbe9d668fc5804ffa7cf38c19bf6f3596a33c",
+    "src/rpc/sourceComparison.ts": "8719af8854f570a121428e8f3a352fb1699b26aecf91e8326fa4661814152706",
+    "src/rpc/streamTransport.ts": "4cf75a10bc4fc97b3d9637c127f4ba75e1ea837aecc4d99320af10a82ddfb55d",
+    "src/view/delegateBadge.ts": "715c18e4e002a95cd6377bd089597dc452744a17fd60d8570eb2c054bb6655c2",
+    "src/view/missingDelegates.ts": "6e4f41d78199f83e6456d0dba377db96b2eb812f1b425c89f23881593697f491",
+    "src/view/nextOpportunities.ts": "5619718adcc92dcb37b1d7dee0852a0b1db312e6734b44429a8c1f1a5ca6e441",
+    "tests/e2e/dashboard.spec.ts": "ab3545938b50db1e6701bc95910e00881fc512e582cd6d48edc82802fd3fe501",
+    "tests/e2e/header.spec.ts": "86cde1549e1f419eb84699c9dcda1ed41b93920265f697fb0b352d9b51219cab",
+    "tests/e2e/missingDelegates.spec.ts": "1b04e498c820f94ca9e859f869bd6e239d5a5fdc7b5a9208e757e6a5e7472fde",
+    "tests/e2e/nextOpportunities.spec.ts": "69b78d50eeee507036d0b8a3fc4c38caa2a8af58019fbbfcc47c4c5e8d4e8268",
+    "tests/unit/activityRound.test.ts": "0e302ada5e8dbbba97fce1d03b0b513fc763d238ad7794b9747c1e87db868846",
+    "tests/unit/checkRunner.test.ts": "e7aac5778b15130d7b1f4e01b6330806712cc957efdde90d5076a6f75fb94fc4",
+    "tests/unit/delegateBadge.test.ts": "a4a8c9d4c889074be8f928db84ca134f2296b6d2e0ffcbb6be67f37e9c22aa3a",
+    "tests/unit/delegateStatus.test.ts": "32081e17c31e39232cfbd04d95623dc0ae5850b91802f006488afe729278b4d1",
+    "tests/unit/guards.test.ts": "eae0b8a0c8a009218675a22e5b3636cac7231ac0d4007f2e6a3db12dbc54d77f",
+    "tests/unit/headGeneration.test.ts": "429e60bd03197a0b4deb0a06727a6d4634f01e1dd859ad25e8d3988b124f83bb",
+    "tests/unit/jsonStream.test.ts": "f57f89f3687a64305a6d41aa2d78f90581fc23e34aa594008401bcc824d833f3",
+    "tests/unit/missingDelegates.test.ts": "4f364b7f9c4afb64d4b83d8ef0aa12c8e53d345f7e63f95f11634cf70e1500ba",
+    "tests/unit/networkData.test.ts": "6a96b12d6e9eaf08f77667f70d47949b05d02d24e3080a4b3f24418cddae03c6",
+    "tests/unit/networkMonitor.test.ts": "0fd265a43bc83dee69e8e01c8540878a7d4395755409705512467db495bb763c",
+    "tests/unit/nextOpportunities.test.ts": "0a45df4defda3d9eef2b6788df976f4371e44db15cc0f6895765a33cbd24d9b7",
+    "tests/unit/observationStore.test.ts": "41523b426a9b5982e60f2e77e9d4cca83ff01c8f2cb57ae1bebbcc6633da322e",
+    "tests/unit/observerReconciliation.test.ts": "91691adfa45fc9af4334087677a1f472439177c11984746240f2b0bbd27846fd",
+    "tests/unit/operationStore.test.ts": "c53e8bf975c699acbcfed8b89e996064336d3bc1c2bc47878ef4f346493452a1",
+    "tests/unit/opportunityFacts.test.ts": "1ea10fbb21a6335d6a2cc41f22776dd7500861a2ae75d95f14f347df7497ba79",
+    "tests/unit/phaseEvidence.test.ts": "a60dbee0d1304b178de7dad1a2f1e19b1b4ec7d28d53e64584670bc499a52aff",
+    "tests/unit/roundSchedule.test.ts": "e9ee67a0d03d6abf1c603f084c57dd874705386b2830e0f1ed8b3d50ac33407a",
+    "tests/unit/sourceComparison.test.ts": "668bea124893fee326b599334c56998ccc451a31f4a65ffbac7a7483c37be9c1",
+    "tests/unit/streamTransport.test.ts": "5d16603fe80d943b3625d0ad5e1679f76d88d6d3a1f66d348439d4ca047eb510"
+  },
+  "screenshotSha256": {
+    "roster/observatory-foundations/slice-9-chromium.png": "d7a1abb66473b8198c75aa74893509dd088aac68ce9e101786b79dfec189b851",
+    "roster/observatory-foundations/slice-9-firefox.png": "d9c08c337d6dc8bc8c3d5d9442d4d5e43f286345eef15c5ab534f6789a83bec9"
+  }
+}

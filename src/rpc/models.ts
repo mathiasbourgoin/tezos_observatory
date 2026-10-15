@@ -6,7 +6,35 @@ export interface RpcSource {
   readonly baseUrl: string;
 }
 
+/** Facts captured once at receipt; current transport cannot relabel them. */
+export interface ObservationEvidence {
+  readonly source: RpcSource;
+  readonly chainId?: string;
+  readonly requestedHeadHash?: string;
+  readonly observedHeadHash?: string;
+  readonly observedHeadLevel?:number;
+  readonly predecessor?: string;
+  /** Shell header proto is a protocol-level counter, not a protocol hash. */
+  readonly protocolLevel?: number;
+  readonly protocolHash?: string;
+  readonly nextProtocolHash?: string;
+  readonly targetLevel?: number;
+  readonly contextHeadHash?: string;
+  readonly observedBlockHash?: string;
+  readonly collectionGeneration?:number;
+  readonly receivedAt: number;
+  readonly receivedMonotonic: number;
+}
+
+export interface CandidateObservation {
+  readonly identity: string;
+  readonly header: BlockHeader;
+  readonly evidence: ObservationEvidence;
+}
+
 export interface BlockHeader {
+  readonly chainId?: string;
+  readonly evidence?: ObservationEvidence;
   readonly proto?: number;
   readonly level: number;
   readonly hash: string;
@@ -24,7 +52,27 @@ export interface ConsensusContent {
   readonly block_payload_hash?: string;
 }
 
+export interface AdmissionEvidence {
+  readonly source:RpcSource;
+  readonly chainId:string;
+  readonly headHash:string;
+  readonly predecessor:string;
+  readonly protocolHash:string;
+  readonly targetLevel:number;
+  readonly contextKey:string;
+  readonly anchorHash:string;
+  readonly proofGeneration?:number;
+  readonly provedAt:number;
+  readonly provedMonotonic:number;
+}
+
 export interface MonitoredOperation {
+  /** Later contextual authority proof; original receipt remains untouched. */
+  readonly admission?:AdmissionEvidence;
+  readonly admissions?:readonly AdmissionEvidence[];
+  /** Original raw RPC branch; it does not prove immediate proposal ancestry. */
+  readonly branch?: string;
+  readonly evidence?: ObservationEvidence;
   readonly hash: string;
   readonly contents: readonly ConsensusContent[];
 }

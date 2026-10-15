@@ -1,17 +1,26 @@
+class PartialPhaseCoverageError extends Error {}
+
+import {pendingPhaseComplete} from "../rpc/networkData";
+import type {BlockProducerFact} from "../rpc/candidateProducer";
 import {
   asBlockHeader,
   asOperationBatch,
   asValidatedProposal,
 } from "../rpc/guards";
-import { proposalRound } from "../consensus/roundSchedule";
+import { proposalRound,type OpportunityFact,type OpportunityCaptureToken } from "../consensus/roundSchedule";
 import type {
   BlockHeader,
+  CandidateObservation,
+  ObservationEvidence,
   MonitorOperationBatch,
   NetworkName,
   RpcSource,
   StreamStatus,
   TransportMetrics,
 } from "../rpc/models";
+import {ObservationStore,type ContextAdmission,type ObservationTarget,type AcceptedEvent,type SessionSnapshot,type SessionInspection} from "./observationStore";
+import {ObserverReconciliation,reconciliationKey,type ReconciliationTarget} from "./observerReconciliation";
+import type {Constants,DelegateRight,TargetContext,RpcContext} from "../rpc/networkData";
 import { StreamTransport } from "../rpc/streamTransport";
 import {
   HeadGeneration,
@@ -21,11 +30,33 @@ import {
 
 export interface NetworkDerivedState {
   readonly refreshedAt: number;
+  readonly contexts?:ReadonlyMap<number,TargetContext>;
+  readonly rights?:ReadonlyMap<number,readonly DelegateRight[]>;
+  readonly constantsByLevel?:ReadonlyMap<number,Constants>;
+}
+export interface ObservedProgress {
+  readonly kind:"next-level"|"same-level-round"|"same-height-reorg"|"skipped-levels"|"head-change";
+  readonly from:RpcContext;
+  readonly to:RpcContext;
+  readonly evidence:ObservationEvidence;
 }
 
 export interface NetworkMonitorView<T extends NetworkDerivedState> {
+  /** UI delivery clock captured before view construction, not network evidence. */
+  readonly emittedMonotonic:number;
   readonly network: NetworkName;
   readonly snapshot: HeadSnapshot<T> | null;
+  readonly rawOperations: MonitorOperationBatch;
+  readonly observationTargets: readonly ObservationTarget<T>[];
+  readonly history:readonly SessionSnapshot<T>[];
+  readonly inspection:SessionInspection<T>;
+  readonly navigationUnits:readonly Readonly<{identity:string;sequence:number}>[];
+  readonly unresolvedTargets: readonly ObservationTarget<T>[];
+  readonly networkIdentity:RpcContext|null;
+  readonly acceptedEvents:readonly AcceptedEvent[];
+  readonly crossingHistoryPartial:boolean;
+  readonly progression:ObservedProgress|null;
+  readonly appliedProof?:Readonly<{context:RpcContext;evidence:ObservationEvidence}>|null;
   readonly headStream: StreamStatus;
   readonly operationStream: StreamStatus;
   readonly operationMode: "stream" | "fallback" | "paused";
@@ -34,6 +65,8 @@ export interface NetworkMonitorView<T extends NetworkDerivedState> {
   readonly lastOperationAt: number | null;
   readonly operationGeneration: number | null;
   readonly latestProposal: BlockHeader | null;
+  readonly candidates: readonly CandidateObservation[];
+  readonly unresolvedCandidates: readonly CandidateObservation[];
   readonly proposalStream: StreamStatus;
 }
 
@@ -43,11 +76,14 @@ export interface NetworkMonitorOptions<T extends NetworkDerivedState> {
   readonly operationSources: readonly RpcSource[];
   readonly proposalSources?: readonly RpcSource[];
   readonly derive: (head: BlockHeader, signal: AbortSignal) => Promise<T>;
+  readonly reconcile?: (target:ReconciliationTarget,signal:AbortSignal,onObservedHead:(head:BlockHeader)=>void)=>Promise<ContextAdmission<T>>;
   readonly fallbackOperations: (
     head: BlockHeader,
     signal: AbortSignal,
   ) => Promise<MonitorOperationBatch>;
   readonly onUpdate: (view: NetworkMonitorView<T>) => void;
+  readonly onCandidatesAdmitted?:(records:readonly ObservationTarget<T>[])=>void;
+  readonly reconciliationClock?:()=>number;
   readonly fallbackIntervalMs?: number;
   readonly fallbackHead?: (signal: AbortSignal) => Promise<BlockHeader>;
   readonly headFallbackIntervalMs?: number;
@@ -73,6 +109,11 @@ const emptyStatus = (): StreamStatus => ({
 
 export class NetworkMonitor<T extends NetworkDerivedState> {
   private readonly state = new HeadGeneration<T>();
+  private readonly observations:ObservationStore<T>;
+  private readonly reconcilers=new Map<string,ObserverReconciliation<ContextAdmission<T>>>();
+  private provenHead:RpcContext|undefined;
+  private appliedProof:Readonly<{context:RpcContext;evidence:ObservationEvidence}>|null=null;
+  private progression:ObservedProgress|null=null;
   private readonly headTransport: StreamTransport<BlockHeader>;
   private readonly operationTransport: StreamTransport<MonitorOperationBatch> | null;
   private readonly proposalTransport: StreamTransport<BlockHeader> | null;
@@ -99,21 +140,23 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private derivingGeneration: number | null = null;
 
   constructor(private readonly options: NetworkMonitorOptions<T>) {
+    this.observations=new ObservationStore(options.network,[...options.headSources,...options.operationSources,...(options.proposalSources??[])]);
     const factory =
       options.streamFactory ?? ((settings) => new StreamTransport(settings));
     this.headTransport = factory({
       sources: options.headSources,
       path: "/monitor/heads/main",
       parse: asBlockHeader,
-      onValue: (head) => {
+      onValue: (head, source) => {
         if (!this.running) return;
         this.headStreaming = true;
         this.headFallbackActive = false;
         this.clearHeadFallback();
         this.headStatus = { ...this.headStatus, mode: "stream", error: null };
-        this.acceptHead(head);
+        this.acceptHead({...head, evidence: this.receipt(source, head, true)});
       },
       onStatus: (source, error, metrics) => {
+        if(error!==null && source)this.observations.interrupt(source);
         if (error !== null) {
           this.headStreaming = false;
           this.enableHeadFallback();
@@ -141,7 +184,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             path: "/chains/main/mempool/monitor_operations?validated=true&version=1",
             reconnectOnEnd: true,
             parse: asOperationBatch,
-            onValue: (batch) => {
+            onValue: (batch, source) => {
               if (!this.running) return;
               this.operationStreaming = true;
               this.operationMode = "stream";
@@ -151,11 +194,13 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
                 mode: "stream",
                 error: null,
               };
-              this.acceptOperations(batch);
+              const evidence = this.receipt(source);
+              this.acceptOperations(batch.map(operation => ({...operation, evidence})));
             },
             onStatus: (source, error, metrics) => {
               if (error !== null) {
                 this.operationStreaming = false;
+                if(source)this.observations.interrupt(source);
                 this.enableFallback();
               }
               this.operationStatus = {
@@ -180,7 +225,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             sources: options.proposalSources!,
             path: "/monitor/validated_blocks?chain=main",
             parse: asValidatedProposal,
-            onValue: (proposal) => {
+            onValue: (proposal, source) => {
               if (!this.running) return;
               this.proposalStreaming = true;
               this.proposalStatus = {
@@ -188,7 +233,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
                 mode: "stream",
                 error: null,
               };
-              this.acceptProposal(proposal);
+              this.acceptProposal(proposal, source);
             },
             onStatus: (source, error, metrics) => {
               if (error !== null) this.proposalStreaming = false;
@@ -212,6 +257,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   start(): void {
     if (this.running) return;
     this.running = true;
+    this.observations.start();
+    for(const reconciler of this.reconcilers.values())reconciler.start();
     this.lifecycle += 1;
     this.lifecycleController = new AbortController();
     this.state.resumeWork();
@@ -240,6 +287,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   }
   stop(): void {
     this.running = false;
+    this.observations.stop();
+    for(const reconciler of this.reconcilers.values())reconciler.stop();
     this.lifecycle += 1;
     this.lifecycleController.abort();
     this.state.cancelWork();
@@ -277,14 +326,16 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
 
   private acceptHead(head: BlockHeader): void {
     if (!this.running) return;
+    this.observations.observeHead(head);
     this.headObservedAt = Date.now();
     const generation = this.state.transition(head);
+    const headRound=proposalRound(head.fitness,head.level);
+    const previousProposalRound=this.latestProposal?proposalRound(this.latestProposal.fitness,this.latestProposal.level):undefined;
     if (
       this.latestProposal !== null &&
       (this.latestProposal.level < head.level ||
         (this.latestProposal.level === head.level &&
-          proposalRound(this.latestProposal.fitness) <
-            proposalRound(head.fitness)))
+          previousProposalRound!==undefined && headRound!==undefined && previousProposalRound<headRound))
     ) {
       this.latestProposal = null;
     }
@@ -300,12 +351,23 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     if (this.derivingGeneration === generation) return;
     this.derivingGeneration = generation;
     const lifecycle = this.lifecycle;
+    const epochs=head.evidence?this.observations.generation(head.evidence.source):undefined;
     void commitIfCurrent(this.state, generation, (signal) =>
       this.options.derive(head, signal),
     )
       .then((committed) => {
-        if (committed && this.running && lifecycle === this.lifecycle)
-          this.emit();
+        if (committed && this.running && lifecycle === this.lifecycle){
+          const derived=this.state.snapshot()?.derived;
+          for(const context of derived?.contexts?.values()??[])if(context.observer.header.hash===head.hash){
+            if(this.observations.establishNetworkIdentity(context.observer))this.recordProvenProgress(context.observer,head.evidence);
+          }
+          for(const [level,context] of derived?.contexts??[]){
+            const rights=derived?.rights?.get(level),constants=derived?.constantsByLevel?.get(level);
+            if(!rights || !constants || !derived)continue;
+            try{this.observations.accept({head,derived,context,rights,constants,...epochs});}catch{/* retain raw facts without contradictory authority */}
+          }
+          this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());
+        }
       })
       .catch(() => {
         if (this.running && lifecycle === this.lifecycle) this.emit();
@@ -318,41 +380,111 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
           this.derivingGeneration = null;
       });
   }
-  private acceptProposal(proposal: BlockHeader): void {
-    const head = this.state.snapshot()?.head;
-    if (
-      head !== undefined &&
-      (proposal.level < head.level ||
-        (proposal.level === head.level &&
-          proposalRound(proposal.fitness) < proposalRound(head.fitness)))
-    )
-      return;
-    const previous = this.latestProposal;
-    if (
-      previous !== null &&
-      (proposal.level < previous.level ||
-        (proposal.level === previous.level &&
-          proposalRound(proposal.fitness) <= proposalRound(previous.fitness)))
-    )
-      return;
-    this.latestProposal = proposal;
-    this.emit();
+  private recordProvenProgress(current:RpcContext,evidence:ObservationEvidence|undefined):void {
+    if(!evidence || evidence.source.baseUrl!==current.source.baseUrl)return;
+    const previous=this.provenHead;
+    if(previous?.source.baseUrl===current.source.baseUrl && previous.chainId===current.chainId && previous.header.hash===current.header.hash)return;
+    this.provenHead=current;
+    this.appliedProof=Object.freeze({context:current,evidence});
+    if(!previous || previous.source.baseUrl!==current.source.baseUrl || previous.chainId!==current.chainId)return;
+    const from=previous.header,to=current.header,oldRound=proposalRound(from.fitness,from.level),round=proposalRound(to.fitness,to.level);
+    const kind:ObservedProgress["kind"]=to.level===from.level+1 && to.predecessor===from.hash && previous.nextProtocolHash===current.protocolHash?"next-level"
+      :to.level===from.level && to.predecessor===from.predecessor && previous.protocolHash===current.protocolHash && oldRound!==undefined && round!==undefined && round>oldRound?"same-level-round"
+      :to.level===from.level?"same-height-reorg":to.level>from.level+1?"skipped-levels":"head-change";
+    this.progression=Object.freeze({kind,from:previous,to:current,evidence});
+  }
+  private receipt(source: RpcSource, observed?: BlockHeader, appliedHead = false): ObservationEvidence {
+    const current = this.observations.observerHead(source);
+    // Streams request a chain-wide endpoint, never the currently rendered hash.
+    // Context may be captured only from a head actually observed at this endpoint.
+    const contextualHead = appliedHead ? observed : current?.evidence?.source.baseUrl === source.baseUrl ? current : undefined;
+    return Object.freeze({
+      source: Object.freeze({...source}),
+      ...(observed?.chainId ? {chainId: observed.chainId} : {}),
+      ...(observed ? {observedBlockHash:observed.hash} : {}),
+      ...(contextualHead ? {observedHeadHash:contextualHead.hash,observedHeadLevel:contextualHead.level,predecessor:contextualHead.predecessor,...(contextualHead.proto === undefined ? {} : {protocolLevel:contextualHead.proto})} : {}),
+      receivedAt: Date.now(), receivedMonotonic: performance.now(),
+    });
+  }
+
+  private acceptProposal(proposal:BlockHeader,source:RpcSource):void {
+    const identity=JSON.stringify([source.network,source.baseUrl,proposal.chainId??"unknown",proposal.hash]);
+    if(this.observations.target(identity))return;
+    const evidence=this.receipt(source,proposal);
+    const candidate:CandidateObservation=Object.freeze({identity,header:Object.freeze({...proposal,evidence}),evidence});
+    const record=this.observations.addCandidate(candidate);if(!record)return;
+    this.latestProposal=candidate.header;
+    this.reconcileTarget(record);
+    this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());
   }
   private acceptOperations(batch: MonitorOperationBatch): void {
     if (!this.running) return;
+    const created=this.observations.addOperations(batch);
+    for(const record of created)this.reconcileTarget(record);
     this.lastOperationAt = Date.now();
     const generation = this.state.currentGeneration();
     if (generation === 0) {
-      this.initialOperations = [...this.initialOperations, ...batch].slice(
-        -10_000,
-      );
+      this.initialOperations = this.observations.rawOperations();
       this.emit();
       return;
     }
     this.operationGeneration = generation;
-    this.state.addOperations(generation, batch);
+    this.state.syncOperations(generation, this.observations.rawOperations());
     this.emit();
   }
+  reconcileObservation(identity:string):boolean {
+    const record=this.observations.target(identity);return record?this.reconcileTarget(record,true):false;
+  }
+  opportunityToken(identity:string):OpportunityCaptureToken|undefined {return this.running?this.observations.opportunityToken(identity):undefined;}
+  captureOpportunities(identity:string,token:OpportunityCaptureToken,facts:readonly [OpportunityFact,OpportunityFact]):boolean {
+    if(!this.running)return false;
+    const captured=this.observations.captureOpportunities(identity,token,facts);if(captured)this.emit();return captured;
+  }
+  pinObservation(identity:string):boolean {const pinned=this.observations.pin(identity);if(pinned)this.emit();return pinned;}
+  followLive():void {this.observations.followLive();this.emit();}
+  latestObservation():boolean {const selected=this.observations.latest();this.emit();return selected;}
+  captureProducer(fact:BlockProducerFact,epoch:string):boolean {
+    if(this.producerEpoch(fact.identity)!==epoch)return false;
+    const token=this.opportunityToken(fact.identity);if(!token)return false;
+    const captured=this.observations.captureProducer(fact.identity,token,fact);if(captured)this.emit();return captured;
+  }
+  producerEpoch(identity:string):string|undefined {
+    const retained=this.observations.acceptedTargets().some(record=>record.identity===identity)||this.observations.history().some(snapshot=>snapshot.candidates.some(record=>record.identity===identity));
+    const token=retained?this.opportunityToken(identity):undefined;return token?JSON.stringify(token):undefined;
+  }
+  contextAuthorized(context:TargetContext):boolean {return this.observations.contextAuthorized(context);}
+  observedHead(source:RpcSource):BlockHeader|undefined {return this.observations.observerHead(source);}
+  private currentTarget(record:ObservationTarget<T>):ReconciliationTarget {
+    const head=this.observations.observerHead(record.target.source);
+    return {...record.target,...this.observations.generation(record.target.source),...(head?{observerHead:head}:{})};
+  }
+  private reconcileTarget(record:ObservationTarget<T>,manual=false):boolean {
+    if(!this.running || !this.options.reconcile)return false;
+    const source=record.target.source;
+    let reconciler=this.reconcilers.get(source.baseUrl);
+    if(!reconciler){
+      reconciler=new ObserverReconciliation(source,{
+        ...(this.options.reconciliationClock?{now:this.options.reconciliationClock}:{}),
+        run:async(target,signal)=>{
+          let epoch=target.observerGeneration;
+          const result=await this.options.reconcile!(target,signal,head=>{
+            const current=this.observations.generation(source);
+            if(!this.running || signal.aborted || epoch!==current.observerGeneration || target.collectionGeneration!==current.collectionGeneration)throw new Error("Obsolete observed-head response");
+            this.observations.observeHead(head);
+            const learned=this.observations.generation(source);epoch=learned.observerGeneration;
+            reconciler!.observeOwnedContext(head,learned.observerGeneration,learned.collectionGeneration);this.emit();
+          });
+          return {...result,...(epoch===undefined?{}:{observerGeneration:epoch})};
+        },
+        retainedKeys:()=>new Set([...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()].filter(value=>value.target.source.baseUrl===source.baseUrl).map(value=>reconciliationKey(this.currentTarget(value)))),
+        onResult:(_target,value)=>{this.observations.accept(value);this.state.syncOperations(this.state.currentGeneration(),this.observations.rawOperations());this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());if(value.snapshotError)throw new Error(value.snapshotError);if(value.snapshot?.complete===false){const message=value.snapshot.reasons.join("; ");if(pendingPhaseComplete(value.snapshot,"pre")||pendingPhaseComplete(value.snapshot,"att"))throw new PartialPhaseCoverageError(message);throw new Error(message);}},
+        onError:(target,error)=>{for(const value of [...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()])if(reconciliationKey(this.currentTarget(value))===reconciliationKey(target))this.observations.fail(value.identity,error,error instanceof PartialPhaseCoverageError?"preserve-received-phase":"invalidate");this.emit();},
+      });this.reconcilers.set(source.baseUrl,reconciler);reconciler.start();
+    }
+    const target=this.currentTarget(record);
+    return reconciler.request(target,manual);
+  }
+
   private clearOperationFallback(): void {
     if (this.fallbackTimer !== null) window.clearTimeout(this.fallbackTimer);
     this.fallbackTimer = null;
@@ -443,9 +575,22 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     }, 0);
   }
   private emit(): void {
+    const emittedMonotonic=performance.now();
     this.options.onUpdate({
+      emittedMonotonic,
       network: this.options.network,
       snapshot: this.state.snapshot(),
+      acceptedEvents:this.observations.acceptedEvents(),
+      crossingHistoryPartial:this.observations.crossingState().uncertain,
+      progression:this.progression,
+      appliedProof:this.appliedProof,
+      rawOperations: this.observations.rawOperations(),
+      observationTargets:this.observations.acceptedTargets(),
+      history:this.observations.history(),
+      inspection:this.observations.inspection(),
+      navigationUnits:this.observations.navigationUnits(),
+      unresolvedTargets:this.observations.unresolvedTargets(),
+      networkIdentity:this.observations.networkIdentity()??null,
       headStream: this.headStatus,
       operationStream: this.operationStatus,
       operationMode: this.operationMode,
@@ -454,6 +599,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       lastOperationAt: this.lastOperationAt,
       operationGeneration: this.operationGeneration,
       latestProposal: this.latestProposal,
+      candidates:this.observations.acceptedTargets().flatMap(record=>record.target.candidate?[record.target.candidate]:[]),
+      unresolvedCandidates:this.observations.unresolvedTargets().flatMap(record=>record.target.candidate?[record.target.candidate]:[]),
       proposalStream: this.proposalStatus,
     });
   }

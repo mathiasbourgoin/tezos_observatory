@@ -1,0 +1,450 @@
+---
+name: roster-skill-evolve
+description: Installs skill-health-approved improvements to skills, tools, adaptations, and agents.
+when_to_use: "Use after roster-skill-health produces APPROVED proposals ready to apply. Trigger: 'apply the skill-health proposals'."
+version: 1.6.0
+domain: meta
+phase: null
+preamble: true
+friction_log: true
+allowed_tools: [Read, Write, Edit, Bash, Agent, Skill, AskUserQuestion]
+human_gate: both
+artifacts:
+  reads:
+    - skills-meta/health-<date>.md
+    - workflows/*.cwr.json
+  writes:
+    - skills/<domain>/<name>.md
+    - scripts/<name>.sh
+    - .harness/hooks/skills/<skill>/<pre|post>.md
+    - .harness/hooks/shared/<fragment>.md
+    - workflows/templates/<mode>.cwr.json
+    - .harness/harness.json (via sync-harness.sh)
+pipeline_role:
+  triggered_by: /roster-skill-health with APPROVED proposals
+  receives: skills-meta/health-<date>.md
+  produces: skills / scripts / patches installed in the harness
+---
+
+
+# Roster Preamble
+
+## Principles
+
+### Completeness
+
+Do not defer tests, documentation, or robustness in the name of speed.
+"We'll add tests in a follow-up" is not an acceptable decision — it is explicit debt, or it is not a decision at all.
+
+### Search Before Build
+
+Before creating anything, verify what already exists:
+1. Local (current repo, harness, KB)
+2. Roster (index.json, roster GitHub)
+3. Web (if webfetch available)
+
+### Anti-Sycophancy
+
+Do not validate a direction if you have a grounded objection.
+Do not say "good idea" before verifying it is a good idea.
+If you spot a problem, say so — clearly, factually, without softening.
+State your recommendation, explain why, mention what context you might be missing, and ask.
+
+### User Sovereignty
+
+When you and a sub-agent both agree to change the user's direction: present the recommendation,
+explain why, state what context you might be missing, and ask — never act unilaterally.
+
+### Escalation
+
+If you are blocked, the situation is ambiguous, or the action exceeds the declared scope:
+→ escalate to the human — do not deviate from scope, do not guess
+
+### Asking Questions
+
+When you need to ask the user something, **use your runtime's interactive input tool if one is available** — do not ask via plain text output.
+
+Known runtime tool names:
+
+| Runtime | Tool name |
+|---------|-----------|
+| Claude Code | `AskUserQuestion` |
+| Copilot CLI | `ask_user` |
+| Codex | `request_user_input` |
+| OpenCode | `question` |
+
+Rules:
+- One question at a time — never bundle multiple questions into one message
+- Prefer multiple-choice options over open-ended when the answer space is predictable
+- If no interactive tool is available, output a clearly marked plain-text question and wait for the user's reply before proceeding
+
+
+### Friction Log
+
+**Write your entry when THIS phase ends — before you hand off, before you report, before you
+stop.** Not at session end. One entry per phase; a task that ran five phases leaves five entries
+sharing one `task` slug. Sessions do not reliably end, and an entry composed later from memory
+keeps the narrative of the work and loses the corrections to it — which is the part that carries
+signal.
+
+Record honestly:
+- **frictions** — workarounds, long searches, ambiguities, and every place a confident conclusion
+  of yours was later refuted. A user correction is the highest-value entry there is; write it.
+- **classes** — the closed vocabulary below, most load-bearing first.
+- **methods** used, and any suggestion for a tool, skill, or adaptation.
+- **skipped** — any mandated step this phase did not perform, as `"<step>: <reason>"`. A skipped
+  step that goes unrecorded is indistinguishable from a step that ran. Omit the key if nothing
+  was skipped; never omit it *instead of* admitting a skip.
+
+A run with nothing to report is a **clean run**: `"frictions": []` and `"classes": []`. Log it.
+Clean runs are the denominator — without them no rate can be computed, and "zero clean runs" is
+then an artefact of the log rather than a fact about the work.
+
+This is not a performance review. It is cross-run memory.
+
+Canonical entry template (append to `skills-meta/friction.jsonl`; set `"skill"` to your
+skill's name — extra documented fields like `class_note`, `event` or `mode` are allowed):
+
+```jsonl
+{
+  "date": "<ISO-8601>",
+  "skill": "<skill-name>",
+  "task": "<task-slug>",
+  "frictions": [],
+  "classes": [],
+  "methods": [],
+  "suggestion_type": null,
+  "suggestion": null,
+  "effort_estimate": null
+}
+```
+
+**Friction classes — closed vocabulary.** Pick by *remedy*, not by symptom:
+
+`gate-vacuous` (a check passed while checking nothing) · `evidence` (a conclusion asserted
+without, or against, the evidence) · `process-bypass` (a mandated step not performed, absence
+unrecorded) · `missing-artifact` (a referenced file absent, untracked, or not installed) ·
+`stale-tooling` (tool present but stale/misbehaving) · `agent-isolation` (worktree or
+shared-checkout boundary damage) · `parallel-collision` (concurrent agents contending) ·
+`schema-drift` (two artifacts disagree about a shape, or a contract is undocumented at the call
+site) · `scope` (scoped too narrowly/broadly, or duplicating delivered work) · `git-mechanics`
+(a git/forge operation whose real result differs from its reported one) · `human-gate` (a human
+decision unavailable, deferred, or handed back) · `runtime-limits` (session limit, compaction,
+killed job, rejected tool arity) · `external-dep` (third-party service or machine unavailable) ·
+`positive-signal` (**not** a friction — a gate that worked, a discovery; excluded from
+clustering) · `other` (requires a non-empty `class_note`).
+
+The list above is the contract — it is injected into this skill, so it is readable wherever this
+skill runs. Do not invent values: use `other` plus a `class_note`, which is how the vocabulary
+earns its next entry.
+
+Full definitions, one canonical instance per class, and the classification rules live in the
+roster source at `schema/skill-schema.md` → *Friction classes*, where the vocabulary is closed
+and validated by `scripts/check-friction-shape.js --log`. **That path resolves in the roster
+repo, not necessarily in an installed harness** — if it is absent here, the list above is
+complete and authoritative on its own; nothing above depends on opening it.
+
+
+# Roster Skill Evolve
+
+You implement improvements approved by `/roster-skill-health`. Work one proposal at a time, with a human gate before each install.
+
+**Token discipline:** one proposal at a time. No silent batching.
+
+## Input Contract
+
+Find the most recent report:
+```bash
+ls -t skills-meta/health-*.md | head -1
+```
+
+Read this file. Extract proposals marked `**APPROVED**`.
+
+If no APPROVED proposal:
+> "No approved proposals in the latest report.
+> Re-run `/roster-skill-health` to analyze the friction log."
+
+## Steps
+
+**Category vocabulary is owned by `/roster-skill-health`** (its §4 A–F list is the shared
+contract): S `[SIMPLIFY]`, A `[SKILL]`, B `[TOOL]`, C `[ADAPT]`, D `[HOOK]`, E `[AGENT]`,
+F `[WORKFLOW]`.
+Each tag has a handler below. A report tag with no handler here is a contract violation —
+stop and escalate rather than improvising.
+
+For each APPROVED proposal, in order S → A → B → C → D → E → F. `[SIMPLIFY]` runs first on
+purpose: a removal can make a later addition unnecessary, and applying the addition first would
+keep it alive.
+
+### Proposal [SIMPLIFY] — Removal, shortening, or merge into an existing mechanism
+
+1. **Gate before**: state exactly what stops existing, and what depended on it. Enumerate the
+   dependents — by grep, not by memory. A removal whose dependents are unknown is not ready:
+   say so and stop. On 2026-08-26 this step caught four of eight approved proposals naming the
+   wrong target, including one whose deletion would have disarmed a trust-boundary gate.
+2. **Do less than approved when the evidence contradicts the approval.** A proposal approved on
+   a mis-stated target does not become correct by being approved. Narrow it, say plainly that
+   you narrowed it and why, and leave the wider change to the human.
+3. **Locate the mechanism that absorbs it**, when the proposal is a merge, and verify it actually
+   runs (executable hook, reachable target, command in CI). Record how you verified. Merging a
+   guard into a mechanism that does not run recreates the inert safeguard the proposal was
+   written to remove.
+4. **Apply the removal**, then re-run the checks the removed thing was supposed to protect. A
+   removal is verified by the protection still holding, not by the tree still building. Prove it
+   in the environment the removal claims to fix — a bare shell, a fresh clone — not in the one
+   already carrying the workaround.
+5. **Re-read the remaining APPROVED proposals**: a removal often makes a later `[ADAPT]` or
+   `[HOOK]` unnecessary. Report which ones it obsoleted and skip them rather than applying both.
+6. **Friction Log**: record what the removal stops costing, in the units it cost (lines re-typed
+   per command, artifacts to edit per correction, phases per fix).
+
+### Proposal [SKILL] — New skill
+
+1. **Gate before**: present the proposed name and description. Confirm the domain (`pipeline`, `operational`, `meta`).
+
+2. **Search first**:
+   - Search in `skills/` for a similar existing skill
+   - Search in the roster index (`index.json`) if available
+   - If equivalent found → propose adaptation instead of creation
+
+3. **Invoke skill-creator**:
+   Spawn the `skill-creator` sub-agent if available (`.claude/agents/skill-creator.md` exists).
+   Otherwise, manually describe the skill (name, domain, description, artifacts in/out) and open an issue on the roster repo.
+   Provide:
+   - Capability description
+   - Target domain
+   - Context of frictions that motivated the creation
+   - Path: `.claude/agents/` (read from installed harness)
+
+4. **Review the generated skill**:
+   - Verify frontmatter (description, version, domain, friction_log, preamble)
+   - Verify presence of required sections (Input Contract, Steps, Output Contract, Friction Log, Rules)
+   - Verify consistency with artifacts of adjacent skills
+   - Apply corrections if necessary
+
+5. **Gate after**: present the final skill. Request install approval.
+
+6. **Install**:
+   ```bash
+   # Place in the appropriate domain
+   mv <skill-draft> skills/<domain>/roster-<name>.md
+
+   # Add to harness.json
+   # (layers.skills section)
+
+   # Project to runtimes if sync-harness.sh available
+   bash scripts/sync-harness.sh 2>/dev/null || echo "manual sync required"
+   ```
+
+---
+
+### Proposal [TOOL] — Deterministic tool
+
+1. **Gate before**: present the script name and its expected behavior.
+
+2. **Write the script** in `scripts/`:
+   - Mandatory documentation header:
+     ```bash
+     #!/usr/bin/env bash
+     # <name>.sh — <one-line description>
+     # Usage: ./<name>.sh [args]
+     # Motivated by: friction "<original friction>" (<N> occurrences)
+     # Added: <date>
+     set -euo pipefail
+     ```
+   - Deterministic behavior — same inputs → same outputs
+   - Explicit exit code (0 = success, non-zero = error)
+   - Useful error message on stderr
+
+3. **Test the script**:
+   - Nominal case
+   - Error case (missing input, broken environment)
+   - Document tested cases in the header
+
+4. **Reference in the affected skill**:
+   - Open the skill that generates the friction
+   - Replace the workaround with the script call in the Steps section
+   - Bump version (patch: +0.0.1)
+
+5. **Gate after**: show the script and the diff of the modified skill.
+
+---
+
+### Proposal [ADAPT] — Adaptation of existing skill
+
+1. **Gate before**: present the target skill, the section to modify, and the proposed change.
+
+2. **Read the current skill** in its entirety.
+
+3. **Apply the patch**:
+   - Modify only the identified section
+   - Do not touch the rest
+   - Bump version:
+     - Minor behavior change: +0.1.0
+     - Fix / clarification: +0.0.1
+
+4. **Verify consistency**:
+   - Produced artifacts still match the artifacts read by the next skill
+   - Rules are not contradicted by the new Steps
+   - Friction Log is still present
+
+5. **Gate after**: present the diff. Request approval before saving.
+
+6. **Project** if the skill is in `.claude/commands/`:
+   ```bash
+   cp skills/<domain>/roster-<name>.md .claude/commands/roster-<name>.md
+   ```
+
+---
+
+### Proposal [HOOK] — Skill hook
+
+1. **Gate before**: present the target skill, the phase (`pre` or `post`), and what the hook
+   automates (the guard / cleanup / feedback loop cited in the proposal).
+
+2. **Author the hook** at `.harness/hooks/skills/<skill-name>/<pre|post>.md`:
+   - Frontmatter: `name`, `version`, `event: pre|post`, `skill: <skill-name>`, `on_error`,
+     `description` (see `docs/hooks.md` for the format and step operators)
+   - A fenced ` ```yaml ` block with `steps:` — prefer deterministic `run:`/`test:` steps;
+     `prompt:`/`loop:` steps only when the check genuinely needs LLM judgment
+
+3. **Validate and dry-run**:
+   ```bash
+   node dist/scripts/check-hook-structure.js
+   TASK=<sample-slug> node .harness/bin/run-hook.js <pre|post> <skill-name>
+   ```
+   Both must exit clean (run-hook exit 0/2/3 are acceptable outcomes; 1 means the hook's
+   abort path fired — verify that is the intended behavior for the sample input; 4 means
+   the runner did not find the hook — a red flag right after authoring it: check the
+   path and `skill:` frontmatter).
+
+4. **Gate after**: show the hook file and the dry-run output. Request install approval,
+   then `bash scripts/sync-harness.sh`.
+
+5. **Lifecycle proposals** (hook→skill migration, skill→hook extraction — see
+   `/roster-skill-health` §4.D): treat as `[ADAPT]` on the affected skill plus a hook
+   file add/delete; both diffs go through the same before/after gates. A skill→hook
+   extraction that health proposed as a **shared fragment** writes
+   `.harness/hooks/shared/<fragment>.md` and updates each affected skill hook to
+   `include:` it — run `node dist/scripts/check-hook-structure.js` after sync.
+
+---
+
+### Proposal [AGENT] — New dedicated agent
+
+1. **Gate before**: present the role, domain, and frictions motivating it. This is a large investment — confirm explicitly.
+
+2. **Sequence**:
+   - First invoke `skill-creator` to define the associated skill profile
+   - Then invoke `recruiter` in Mode 1 with the new role as the identified need
+   - Human gate between the two
+
+3. **Follow the standard recruiter workflow** for install in the harness.
+
+### Proposal [WORKFLOW] — Promote instance diff to template
+
+1. **Collect instances and compute diffs**:
+   ```bash
+   ls workflows/*.cwr.json 2>/dev/null | grep -v 'templates/' || echo "no instances"
+   ```
+   For each instance:
+   - Identify the source template **structurally**: match the instance's step sequence
+     (id, skill) against each `workflows/templates/*.cwr.json`. `_roster_template_version`
+     alone cannot identify the template — it is a version string and multiple templates
+     share versions. If zero or multiple templates match → mark the instance
+     `[AMBIGUOUS]`, skip it.
+   - Load the matched `workflows/templates/<mode>.cwr.json`
+   - Compute the diff at two levels: **structural** (compare steps by position, id, skill)
+     and **prompt-level** (compare each step's prompt text). Instances are generated as
+     verbatim template copies, so any diff reflects deliberate manual instance edits —
+     prompt-level diffs are the common promotion case; structural diffs are rare.
+     (Template identification above stays structural only, so it survives prompt edits.)
+   - If template has been updated since `_roster_template_version` → mark diff as `[CONFLICT]`, skip
+
+2. **Cluster diffs**: group instances by (template, diff-signature) — the signature covers both structural and prompt-level diffs. For clusters with count ≥ `min_entries_for_signal` (default 3, shared with roster-skill-health tunable), generate a unified diff.
+
+3. **Gate before**: present the unified diff to the human. Show how many instances share this modification and what it does. Do not apply without explicit approval.
+
+4. **Apply patch** (on approval):
+   - Edit `workflows/templates/<mode>.cwr.json` to incorporate the diff
+   - Bump `_roster_version`: minor (x.Y.0) if steps added/removed; patch (x.y.Z) for wording changes
+   - Validate before the after-gate counts as satisfied:
+     `jq empty workflows/templates/<mode>.cwr.json && node scripts/check-cwr-templates.js`
+     (plus `cwr lint` when the CLI is available) — a template that fails validation is a
+     failed apply: revert it
+   - Run `bash scripts/sync-harness.sh`
+
+5. **Gate after**: present the final template diff. Request commit approval.
+
+6. **Conflict handling**: if template evolved since instances were created (version mismatch), mark the proposal `[CONFLICT — template evolved; cannot apply cleanly]` and skip without modifying any file.
+
+---
+
+### Post-edit validation (run after every proposal)
+
+After any edit to skill `.md` files, run this integrity check:
+
+```bash
+# Friction Log sections are validated by the canonical checker (accepts the inline
+# jsonl template OR the deduplicated pointer to skills/shared/preamble-friction.md):
+node dist/scripts/check-friction-shape.js && node dist/scripts/check-skill-structure.js
+```
+
+If either check fails: restore the `## Friction Log` section (inline template or canonical pointer) before proceeding to the next proposal.
+
+### Harness coherence check (run after every proposal)
+
+```bash
+[ -d kb ] || [ -d .harness ] && echo "harness present" || echo "harness absent"
+```
+
+If harness/KB is **present**:
+→ Invoke `skills/kb/harness-validator.md` skill.
+→ If **Critical** findings:
+  - Present findings to human before proceeding to the next proposal.
+  - Ask: "Critical harness coherence issues found. Fix now, skip remaining proposals, or continue knowing the risks?"
+  - If "fix now": STOP — fix harness, then re-run `/roster-skill-evolve`.
+  - If "skip remaining" or "continue": log to friction log and proceed as directed.
+→ If **Warnings only**: log to friction log; continue to next proposal.
+→ If harness/KB is **absent**: skip silently.
+
+---
+
+## Output Contract
+
+For each APPROVED proposal:
+- [SKILL] → `skills/<domain>/roster-<name>.md` installed + harness updated
+- [TOOL] → `scripts/<name>.sh` created + affected skill patched
+- [ADAPT] → skill patched + version bumped
+- [HOOK] → `.harness/hooks/skills/<skill>/<pre|post>.md` installed + structure check green
+- [AGENT] → agent installed via recruiter
+- [WORKFLOW] → template patched + `_roster_version` bumped
+
+## When to Go Back
+
+| Condition | Action |
+|---|---|
+| No approved proposals in the health report | Stop — re-run `/roster-skill-health` to generate proposals first |
+| A proposal implementation breaks existing quality gates | Stop — revert the change, note in friction log, skip that proposal |
+| Harness-validator returns Critical and user chose to fix harness | Stop — fix harness, then re-run `/roster-skill-evolve` |
+
+## What Next
+
+**Primary path:** Done — improvements installed; re-run `/roster-skill-health` after next batch of cycles
+**Alternatives:**
+- `/roster-skill-health` immediately — if new frictions were discovered during this run
+
+> 💡 After evolving skills, run a few pipeline cycles to validate the improvements before the next health check.
+
+## Friction Log
+
+Append one entry at phase exit — when this skill finishes, not at session end. Canonical template and key set: `skills/shared/preamble-friction.md` (schema: `schema/skill-schema.md`). Set `"skill": "roster-skill-evolve"`.
+
+## Rules
+
+- One proposal at a time — no silent batching
+- Human gate before AND after each install
+- Search first for skills — do not create what already exists
+- Never modify a skill outside the section identified in the ADAPT proposal
+- If skill-creator fails → note in friction.jsonl and move to the next proposal
+- The friction log of skill-evolve itself is a source of meta-improvement
