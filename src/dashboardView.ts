@@ -19,7 +19,7 @@ export interface NetworkViewModel {
   events?:readonly {readonly identity:string;readonly description:string;readonly observedAt:number}[];
   observedAt?: number; observedMonotonic?:number; snapshotMonotonic?:number; blockTimestamp?: number; lastOperationAt?: number;
   source?: string; connection?: string; error?: string; note?: string;
-  preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;
+  preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;committeeTotal?:number;
   timing?: {level?: number; round: number; nextRound: number; endsAt: number; startedAt?: number};
   nextBakers?: {label: string; alias?: string; address: string; round: number; level: number}[];
   missingPre?: DelegateView[]; missingAtt?: DelegateView[]; committee?:DelegateView[];unknownConsensus?:readonly string[]; sources?: SourceView[];
@@ -160,7 +160,7 @@ function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
       let row = rows.get(delegate.address);
       if (!row) {row = el('tr'); for (let i = 0; i < (full?8:5); i++) row.append(el('td')); rows.set(delegate.address, row);}
       const cells = row.children;
-      set(cells[0] as HTMLElement, delegate.alias ?? 'No alias');row.dataset.pendingExclusion=String(full&&!matches(delegate));
+      const pending=full&&!matches(delegate);set(cells[0] as HTMLElement,`${delegate.alias??'No alias'}${pending?' · Pending exclusion until focus leaves':''}`);row.dataset.pendingExclusion=String(pending);
       const address = cells[1] as HTMLElement;
       let addressText = address.querySelector('span');
       if (!addressText) {
@@ -298,7 +298,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
       pre.update(model.preattestations, model.quorum); att.update(model.attestations, model.quorum);
-      missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);committee.update(model.committee,model.committeePower,model.unknownConsensus);
+      missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);committee.update(model.committee,model.committeeTotal??model.committeePower,model.unknownConsensus);
       const bakers = model.nextBakers ?? [], bakerKeys = new Set<string>();
       for (const [index, baker] of bakers.entries()) {
         const key = `${baker.label}:${baker.level}:${baker.round}:${baker.address}`; bakerKeys.add(key);
