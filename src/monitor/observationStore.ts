@@ -297,7 +297,8 @@ export class ObservationStore<T> {
     const compatibleSnapshot=snapshot && snapshot.evidence.source.network===record.target.source.network && snapshot.evidence.source.baseUrl===record.target.source.baseUrl && snapshot.evidence.requestedHeadHash===undefined && snapshot.evidence.receivedMonotonic>=record.evidence.receivedMonotonic && snapshot.evidence.receivedMonotonic>=snapshot.startedMonotonic && contextFacts(snapshot.contextBefore)===contextFacts(admission.context) && contextFacts(snapshot.contextAfter)===contextFacts(admission.context);
     const freshSnapshot=compatibleSnapshot && (!record.coverage || snapshot.evidence.receivedMonotonic>record.coverage.evidence.receivedMonotonic);
     const coverage=freshSnapshot?snapshot:record.coverage;
-    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
+    const opportunities=!record.contextInvalid && record.admission && contextFacts(record.admission.context)===contextFacts(admission.context)?record.opportunities:undefined;
+    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(opportunities?{opportunities}:{}),...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
     this.unresolved.delete(record.identity);
     const product=candidate?this.acceptedCandidates:this.instances;product.set(record.identity,updated);
     this.captureHistory(updated);

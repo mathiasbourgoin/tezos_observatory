@@ -453,6 +453,46 @@ it('captures both exact opportunity branches without refreshing selected receipt
  expect(store.target(record.identity)?.opportunities?.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined)).toEqual(facts.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined));
 });
 
+it('preserves captured opportunities across repeated exact-context admission and retained snapshot refresh',async()=>{
+ const {store,record,proof,facts,token}=await opportunityFixture();
+ expect(store.pin(record.identity)).toBe(true);expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ const before=store.inspection();
+ for(let index=0;index<3;index++){
+  store.accept(proof);
+  expect(store.target(record.identity)?.opportunities).toEqual(facts);
+  expect(store.inspection().snapshot?.record.opportunities).toEqual(facts);
+  expect(store.inspection().snapshot?.evidence).toBe(before.snapshot?.evidence);
+  expect(store.inspection().newer).toBe(before.newer);
+ }
+});
+
+it.each(['context-key','anchor-timestamp'] as const)('keeps old captured history separate when the same candidate is admitted under changed %s facts',async change=>{
+ const {store,record,proof,facts,token}=await opportunityFixture();
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ const historical=store.history().find(snapshot=>snapshot.record.identity===record.identity)!;
+ const context=change==='context-key'?{...proof.context,key:`${proof.context.key}-different`}:{...proof.context,anchor:{...proof.context.anchor,header:{...proof.context.anchor.header,timestamp:'2025-12-31T23:59:00Z'}}};
+ store.accept({...proof,context,rights:proof.rights.map(right=>({...right,context})),constants:{...proof.constants,context}});
+ expect(store.target(record.identity)?.contextInvalid).toBe(false);
+ expect(store.target(record.identity)?.admission?.context.key).toBe(context.key);
+ expect(store.target(record.identity)?.opportunities).toBeUndefined();
+ expect(store.history().find(snapshot=>snapshot.identity===historical.identity)?.record.opportunities).toEqual(facts);
+ expect(store.history().filter(snapshot=>snapshot.identity!==historical.identity).every(snapshot=>snapshot.record.opportunities===undefined)).toBe(true);
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(false);
+});
+
+it('never transfers captured opportunities to a sibling candidate or a reorg context',async()=>{
+ const {store,record,current,proof,facts,token}=await opportunityFixture();
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
+ const sibling=store.addCandidate({identity:'uncaptured-sibling',header:{...current,hash:'SiblingHash'},evidence:evidence(b,2)})!;
+ expect(store.target(sibling.identity)?.opportunities).toBeUndefined();
+ store.observeHead({...current,hash:'ReorgHead',evidence:evidence(b,3)});
+ expect(store.target(record.identity)?.contextInvalid).toBe(true);
+ expect(store.history().flatMap(snapshot=>snapshot.candidates).find(candidate=>candidate.identity===record.identity)?.opportunities).toEqual(facts);
+ expect(store.captureOpportunities(sibling.identity,token,facts)).toBe(false);
+ expect(()=>store.accept(proof)).toThrow('obsolete');
+ expect(store.target(sibling.identity)?.opportunities).toBeUndefined();
+});
+
 it('rejects unrenderable opportunity capture dates without publishing historical facts',async()=>{
  const {store,record,facts,token}=await opportunityFixture();
  const invalid=facts.map(fact=>({...fact,capturedAt:Number.MAX_SAFE_INTEGER,timing:fact.timing.state==='known'?{...fact.timing,remainingAtCapture:0}:fact.timing})) as [OpportunityFact,OpportunityFact];
