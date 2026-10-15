@@ -150,7 +150,7 @@ export class ObservationStore<T> {
         return proofs && [...proofs.values()].some(proof=>proof.headHash===evidence.observedHeadHash && (evidence.chainId===undefined || evidence.chainId===proof.chainId) && (evidence.requestedHeadHash===undefined || evidence.requestedHeadHash===proof.headHash));
       });
     });
-    const priorOperations=this.raw.values(),priorRaw=new Set(priorOperations.map(operationIdentity));this.raw.add(fresh);
+    const priorOperations=this.raw.values();this.raw.add(fresh);
     const created:ObservationTarget<T>[]=[],visited=new Set<string>(),touched=new Set<string>();
     for(const submitted of fresh){
       const operation=this.raw.get(submitted);if(!operation)continue;
@@ -174,17 +174,18 @@ export class ObservationStore<T> {
     // the growing member prefix for every operation.
     for(const identity of touched){const record=this.find(identity);if(record)this.tryAdmission(record);}
     this.trim(this.unresolved,100);this.trim(this.instances,150);
-    const retained=new Set(this.raw.values().map(operationIdentity));if([...priorRaw].some(key=>!retained.has(key)))this.crossingHistoryUncertain=true;
+    const retained=new Set(this.raw.values().map(operationIdentity));
     const lostSupport=new Set<string>();
     for(const operation of priorOperations){
       const operationKey=operationIdentity(operation);if(retained.has(operationKey))continue;
       for(const proof of this.bindings.get(operationKey)?.values()??[])for(const content of operation.contents)if(content.level===proof.targetLevel && content.block_payload_hash)lostSupport.add(JSON.stringify([proof.contextKey,content.level,content.round,content.block_payload_hash]));
     }
+    if(lostSupport.size>0)this.crossingHistoryUncertain=true;
     // Compact coverage still depends on its retained consensus facts. Losing
     // those facts cannot turn an earlier positive snapshot into a fresh zero.
     for(const product of [this.acceptedCandidates,this.instances])for(const [identity,record] of product){
       if(!record.coverage || !record.admission || !lostSupport.has(JSON.stringify([record.admission.context.key,record.target.level,record.target.round,record.target.payload])))continue;
-      product.set(identity,Object.freeze({...record,coverageStale:true,coverage:Object.freeze({...record.coverage,complete:false,reasons:Object.freeze([...record.coverage.reasons,"Supporting snapshot consensus facts evicted"])})}));
+      product.set(identity,Object.freeze({...record,coverageStale:true,coverage:Object.freeze({...record.coverage,complete:false,reasons:Object.freeze([...new Set([...record.coverage.reasons,"Supporting snapshot consensus facts evicted"])])})}));
     }
     for(const key of this.bindings.keys())if(!retained.has(key))this.bindings.delete(key);
     for(const [identity,members] of this.membership){for(const key of members)if(!retained.has(key))members.delete(key);if(members.size===0)this.membership.delete(identity);}

@@ -72,3 +72,15 @@ The same malformed-envelope finding includes raw RPC operations with an empty co
 Final correction revision after the raw-empty guard:144unit/17files PASS; full60browser PASS26.7s; check/build/scope/diffcheck PASS. Native1/2/3/9/10/11/12/14/18/19 PASS with original12/11/23/12/7/9/29/32/21/17 assertion groups. This supersedes only earlier correction-run counts, not the preserved original S5 freeze evidence.
 
 After the final raw-empty correction, exact browser4/8/13/20/31 again PASS7/2/2/2/33 groups, with mandatory Chromium and Firefox. Original historical PNG artifacts were restored, and the correction checkpoint contains no S6 writes.
+
+## Further bounded-state corrections after bda98ea
+
+Independent review found two more bounded-state defects. Eviction of exclusively unrelated nonconsensus raw records marked all future crossing histories uncertain even when no consensus evidence had ever been lost. The actual-store regression reproduced zero events instead of one genuine below-to-quorum crossing. Uncertainty now records loss of admitted consensus support proved by existing sidecars, while true consensus/phase/product retirement and supporting-coverage withdrawal remain intact. A new actual production scenario floods10001 unrelated operations before fresh3→4/5 evidence and verifies exactly one attributed crossing without a fabricated partial-history warning.
+
+Repeated loss of supporting votes appended the same coverage reason without bound. The actual-store regression reproduced4reasons versus1unique reason. Updating immutable coverage reasons now uses an idempotent set, retaining all distinct reasons and original body receipt/maxima. No new retention budget, framework or tombstone owner was added.
+
+S6 WIP was saved as an external two-file patch and restored out of the application before these changes. This correction commit contains only the isolated S5 changes, tests and this evidence. Final146unit/17files PASS; final browser/check/build/native gates are being recorded below after completion.
+
+The same uncertainty boundary was tested for never-admitted ahead consensus raw evidence: local actual-store assertion again reproduced0crossings versus1. That unadmitted packet cannot establish prior numerical crossing history. The final guard uses lost admitted sidecar support, alongside existing actual phase/product retirement, preserving true consensus-loss/reorg safeguards. Final147unit/17files PASS; exact remaining final gates follow.
+
+Final isolated follow-up:147unit/17files PASS, TypeScript/build/scope/diffcheck PASS, immobile62/62browser PASS28.5s; exactnative2/11/14/19 PASS11/9/32/17 groups; affected exactbrowser8/13/31 PASS2/2/33groups with mandatory Chromium and Firefox. Prior broader gates remain recorded at bda98ea. True consensus loss, forgotten prior-below/prior-cross and proven reorg-return safeguards remain covered by passing actual-store and AC31 tests. Original PNG evidence restored; no S6 changes included.

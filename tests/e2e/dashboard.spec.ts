@@ -527,3 +527,10 @@ test("supporting raw snapshot eviction withdraws measured coverage without fabri
  await send(page,"mainnet-operations",Array.from({length:10000},(_,index)=>({hash:`raw-loss-${index}`,contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]})));
  await expect(panel.locator(".pre .gauge-counts")).toContainText("Voting power unavailable");await expect(panel.locator(".att .gauge-counts")).toContainText("Voting power unavailable");await expect(panel).toContainText("Retained source snapshot stale");await expect(panel).toContainText(receipt!);await expect(panel.locator(".recent-phase.pre")).toContainText("Pre 60.0%");await expect(panel.locator(".event-history li")).toHaveCount(0);
 });
+
+
+test("unrelated raw eviction preserves a first proven below-to-quorum crossing",async({page})=>{
+ await prepare(page,false,head(100),100,false,false,{total:5,quorum:4,powers:[3,1,1]});const panel=page.locator(".network-panel.mainnet");
+ await send(page,"mainnet-operations",Array.from({length:10001},(_,index)=>({hash:`unrelated-only-${index}`,contents:[{kind:"transaction",source:"tz1Source",destination:"tz1Destination",fee:"1",counter:"1",gas_limit:"100",storage_limit:"0",amount:"1"}]})));
+ await send(page,"mainnet-operations",[vote(0)]);await expect(panel.locator(".pre .gauge-counts")).toContainText("3 / 5 power");await send(page,"mainnet-operations",[vote(1)]);await expect(panel.locator(".pre .gauge-counts")).toContainText("4 / 5 power");await expect(panel.locator(".event-history li").filter({hasText:/\bPreattestation crossing/})).toHaveCount(1);await expect(panel).not.toContainText("Crossing history partial");
+});

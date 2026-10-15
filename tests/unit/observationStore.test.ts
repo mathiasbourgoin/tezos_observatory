@@ -304,3 +304,22 @@ it("retains a malformed mixed operation raw identity without admitting its other
  for(const payload of [undefined,""]){const packet=asOperationBatch([{hash:`malformed-${String(payload)}`,branch:"OriginalBranch",contents:[{kind:"preattestation",level:123,round:0,slot:0,block_payload_hash:"Other"},{kind:"preattestation",level:123,round:0,slot:1,block_payload_hash:"Other"},{kind:"attestation",level:123,round:0,slot:1,...(payload===undefined?{}:{block_payload_hash:payload})}]}]).map(value=>({...value,evidence:evidence(b)}));store.addOperations(packet);}
  expect(store.rawOperations().filter(value=>value.hash.startsWith("malformed-")).every(value=>value.branch==="OriginalBranch"&&value.contents.length===0)).toBe(true);expect(groupsFor(store.rawOperations(),proof.rights,123).some(group=>group.payload==="Other")).toBe(false);expect(store.acceptedEvents()).toHaveLength(0);
 });
+
+it("does not suppress a first genuine crossing after only unrelated raw facts were evicted",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);store.addOperations([{hash:"unrelated-first",evidence:evidence(b),contents:[]}]);store.addOperations(Array.from({length:10000},(_,index)=>({hash:`unrelated-new-${index}`,evidence:evidence(b,index+2),contents:[]})));
+ const below={...operation("fresh-below"),evidence:evidence(b,20000)},record=store.addOperations([below])[0]!;store.accept(await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal));store.addOperations([{...operation("fresh-quorum"),evidence:evidence(b,20001),contents:[{...below.contents[0]!,slot:1}]}]);
+ expect(store.acceptedEvents().filter(event=>event.kind==="crossing")).toHaveLength(1);expect(store.target(record.identity)?.phases?.pre?.maximumPower).toBe(5);
+});
+
+it("retains a bounded idempotent coverage reason when supporting votes are repeatedly evicted",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),record=store.addOperations([base])[0]!,proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),packet={...base,evidence:evidence(b,2)};
+ store.accept({...proof,snapshot:{contextBefore:proof.context,contextAfter:proof.context,evidence:packet.evidence,startedMonotonic:2,operations:[packet],complete:true,reasons:[]}});
+ store.addOperations(Array.from({length:10000},(_,index)=>({...base,hash:`support-${index}`,evidence:evidence(b,index+3)})));
+ for(let index=0;index<3;index++)store.addOperations([{...base,hash:`later-support-${index}`,evidence:evidence(b,index+20000)}]);
+ const coverage=store.target(record.identity)?.coverage;expect(coverage?.reasons.length).toBe(new Set(coverage?.reasons).size);expect(coverage?.reasons).toEqual(["Supporting snapshot consensus facts evicted"]);expect(coverage?.evidence).toBe(packet.evidence);expect(coverage?.complete).toBe(false);
+});
+
+it("does not infer a lost crossing history from never-admitted ahead raw consensus",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);store.addOperations([operation("never-admitted",999)]);store.addOperations(Array.from({length:10000},(_,index)=>({hash:`unrelated-ahead-${index}`,evidence:evidence(b,index+2),contents:[]})));
+ const below={...operation("fresh-known-below"),evidence:evidence(b,20000)},record=store.addOperations([below])[0]!;store.accept(await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal));store.addOperations([{...operation("fresh-known-quorum"),evidence:evidence(b,20001),contents:[{...below.contents[0]!,slot:1}]}]);expect(store.acceptedEvents().filter(event=>event.kind==="crossing")).toHaveLength(1);
+});
