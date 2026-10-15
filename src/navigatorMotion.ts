@@ -22,5 +22,6 @@ export function retainNavigator(anchor:ObservedNavigatorView|undefined,previous:
  if(pending&&(pending.source!==anchor.source||pending.chain&&pending.chain!==anchor.chain||pending.protocol&&pending.protocol!==anchor.protocol))return false;
  if(previous.appliedLevel===undefined||next.appliedLevel===undefined||!previous.hash||!next.hash)return false;
  if(next.appliedLevel===previous.appliedLevel)return next.hash===previous.hash;
- return next.appliedLevel===previous.appliedLevel+1&&next.appliedLevel<=anchor.level;
+ // An already-applied vote anchor may trail one head, explicitly as-of, while its successor is proven.
+ return next.appliedLevel===previous.appliedLevel+1&&next.appliedLevel<=anchor.level+1;
 }
