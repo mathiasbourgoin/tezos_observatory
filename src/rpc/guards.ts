@@ -73,7 +73,7 @@ export function asValidatedProposal(value: unknown): BlockHeader {
   return {...asBlockHeader({ ...value.header, hash: value.hash }),chainId:value.chain_id};
 }
 
-function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
+function asOperation(value: unknown,onUnusable?:(phase?:"pre"|"att")=>void): MonitoredOperation {
   if (
     !record(value) ||
     typeof value.hash !== "string" ||
@@ -82,9 +82,12 @@ function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
     throw new Error("Invalid operation from mempool monitor");
   }
   let invalid = value.contents.length===0;
+  const invalidPhases=new Set<"pre"|"att">();
+  let unclassifiable=invalid;
+  const reject=(kind:unknown):void=>{invalid=true;if(kind==="preattestation" || kind==="preattestations_aggregate")invalidPhases.add("pre");else if(kind==="attestation" || kind==="attestation_with_dal" || kind==="attestations_aggregate")invalidPhases.add("att");else unclassifiable=true;};
   const contents: ConsensusContent[] = value.contents.flatMap(
     (content): ConsensusContent[] => {
-      if (!record(content)) {invalid = true; return [];}
+      if (!record(content)) {reject(undefined); return [];}
       if (
         content.kind === "preattestations_aggregate" ||
         content.kind === "attestations_aggregate"
@@ -96,7 +99,7 @@ function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
           !nonnegativeInteger(consensus.round) ||
           typeof consensus.block_payload_hash !== "string" || consensus.block_payload_hash.length===0 ||
           !Array.isArray(content.committee)
-        ) {invalid = true; return [];}
+        ) {reject(content.kind); return [];}
         const kind =
           content.kind === "preattestations_aggregate"
             ? "preattestation"
@@ -111,7 +114,7 @@ function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
               : record(member)
                 ? member.slot
                 : undefined;
-          if (!nonnegativeInteger(slot)) {invalid = true; return [];}
+          if (!nonnegativeInteger(slot)) {reject(content.kind); return [];}
           return [{ kind, level, round, slot, block_payload_hash }];
         });
       }
@@ -123,12 +126,12 @@ function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
         !nonnegativeInteger(content.level) ||
         !nonnegativeInteger(content.round) ||
         !nonnegativeInteger(content.slot)
-      ) {invalid = true; return [];}
+      ) {reject(content.kind); return [];}
       const payload =
         typeof content.block_payload_hash === "string"
           ? { block_payload_hash: content.block_payload_hash }
           : {};
-      if(!("block_payload_hash" in payload) || payload.block_payload_hash.length===0){invalid=true;return [];}
+      if(!("block_payload_hash" in payload) || payload.block_payload_hash.length===0){reject(content.kind);return [];}
       return [
         {
           kind: content.kind,
@@ -140,11 +143,16 @@ function asOperation(value: unknown,onUnusable?:()=>void): MonitoredOperation {
       ];
     },
   );
-  if(invalid)onUnusable?.();
+  if(invalid){
+    // The conservative operation parser discards an entire malformed envelope.
+    // Any valid counted contents lost with it also invalidate their phase.
+    for(const content of contents)invalidPhases.add(content.kind==="preattestation"?"pre":"att");
+    if(unclassifiable)onUnusable?.();else for(const phase of invalidPhases)onUnusable?.(phase);
+  }
   return { hash: value.hash, contents: invalid ? [] : contents, ...(typeof value.branch === "string" ? {branch:value.branch} : {}) };
 }
 
-export function asOperationBatch(value: unknown,onUnusable?:()=>void): MonitorOperationBatch {
+export function asOperationBatch(value: unknown,onUnusable?:(phase?:"pre"|"att")=>void): MonitorOperationBatch {
   if (!Array.isArray(value)) throw new Error("Invalid mempool monitor batch");
   return value.map(operation=>asOperation(operation,onUnusable));
 }

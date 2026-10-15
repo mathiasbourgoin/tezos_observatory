@@ -84,8 +84,20 @@ export interface PendingSnapshot {
   readonly startedMonotonic:number;
   readonly complete:boolean;
   readonly reasons:readonly string[];
+  readonly phaseCoverage?:Readonly<Record<"pre"|"att",{readonly complete:boolean;readonly reasons:readonly string[]}>>;
   readonly contextBefore:TargetContext;
   readonly contextAfter:TargetContext;
+}
+/** Explicit per-phase proof, falling back conservatively for legacy snapshots. */
+export function pendingPhaseComplete(snapshot:Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">,phase:"pre"|"att"):boolean {
+  const proof=snapshot.phaseCoverage?.[phase];
+  return proof?proof.complete && proof.reasons.length===0:snapshot.complete && snapshot.reasons.length===0;
+}
+/** Shared retention loss withdraws both phase authorities without changing receipt facts. */
+export function invalidatePendingCoverage<S extends Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">>(snapshot:S,reason:string):Readonly<Omit<S,"complete"|"reasons"|"phaseCoverage"> & Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">> {
+  const {complete:_previousComplete,reasons:previousReasons,phaseCoverage,...retained}=snapshot;
+  const reasons=Object.freeze([...new Set([...previousReasons,reason])]);
+  return Object.freeze({...retained,complete:false,reasons,...(phaseCoverage?{phaseCoverage:Object.freeze({pre:Object.freeze({complete:false,reasons}),att:Object.freeze({complete:false,reasons})})}:{})});
 }
 export interface DelegateRight {
   readonly context?: TargetContext;
@@ -148,13 +160,13 @@ export class NetworkData {
   source: RpcSource;
   private readonly constantCache = new Map<string,Constants>();
   private readonly contextCache = new Map<string,RpcContext>();
-  private readonly contextPending = new Map<string,Promise<RpcContext>>();
+  private readonly contextPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<RpcContext>}>();
   private auxiliaryController = new AbortController();
   private collecting = true;
   private collectionGeneration = 0;
   private aliasesLoading = false;
   private readonly committees = new Map<string,readonly DelegateRight[]>();
-  private readonly committeesPending = new Map<string,Promise<readonly DelegateRight[]>>();
+  private readonly committeesPending = new Map<string,{readonly signal:AbortSignal;readonly task:Promise<readonly DelegateRight[]>}>();
   private readonly aliases = new Map<string, string>();
   private aliasesLoaded = false;
   private readonly rightCache = new Map<string, readonly BakingRight[]>();
@@ -184,6 +196,8 @@ export class NetworkData {
   }
 
   private async context(hash:string,source:RpcSource,signal:AbortSignal,expected?:BlockHeader):Promise<RpcContext> {
+    const generation=this.collectionGeneration;
+    this.assertCollecting(generation,signal);
     const key=JSON.stringify([source.baseUrl,hash]);
     const verify=(context:RpcContext):RpcContext=>{
       const header=context.header;
@@ -191,8 +205,9 @@ export class NetworkData {
       return context;
     };
     const cached=this.contextCache.get(key);if(cached)return verify(cached);
-    const existing=this.contextPending.get(key);if(existing)return verify(await existing);
-    const generation=this.collectionGeneration;
+    // Only readers with the same cancellation owner may share unfinished work.
+    const existing=this.contextPending.get(key);
+    if(existing?.signal===signal){const value=await existing.task;this.assertCollecting(generation,signal);return verify(value);}
     const task=(async()=>{
       const [headerReceipt,protocolReceipt]=await Promise.all([
         this.requestObserved(`/chains/main/blocks/${hash}/header`,signal,undefined,source),
@@ -206,8 +221,10 @@ export class NetworkData {
       while(this.contextCache.size>12)this.contextCache.delete(this.contextCache.keys().next().value!);
       return value;
     })();
-    this.contextPending.set(key,task);
-    try{return verify(await task);}finally{if(this.contextPending.get(key)===task)this.contextPending.delete(key);}
+    const pending={signal,task};
+    this.contextPending.set(key,pending);
+    while(this.contextPending.size>12)this.contextPending.delete(this.contextPending.keys().next().value!);
+    try{const value=await task;this.assertCollecting(generation,signal);return verify(value);}finally{if(this.contextPending.get(key)===pending)this.contextPending.delete(key);}
   }
 
   private async targetContext(head:BlockHeader,level:number,signal:AbortSignal,allowFollowingLevel=false):Promise<TargetContext> {
@@ -230,9 +247,12 @@ export class NetworkData {
   }
 
   private async committee(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<readonly DelegateRight[]> {
+    const generation=this.collectionGeneration;
+    this.assertCollecting(generation,signal);
     const key=exactSource?JSON.stringify([context.key,exactSource.baseUrl]):context.key,level=context.level;
     const cached=this.committees.get(key);if(cached)return cached;
-    const pending=this.committeesPending.get(key);if(pending)return pending;
+    const existing=this.committeesPending.get(key);
+    if(existing?.signal===signal){const value=await existing.task;this.assertCollecting(generation,signal);return value;}
     const task=(async()=>{
       const generation=this.collectionGeneration;
       const observed=await this.targetRequest(`/chains/main/blocks/${context.anchor.header.hash}/helpers/attestation_rights?level=${level}`,context,signal,exactSource);
@@ -252,8 +272,10 @@ export class NetworkData {
       while(this.committees.size>12)this.committees.delete(this.committees.keys().next().value!);
       this.onChange?.();return values;
     })();
-    this.committeesPending.set(key,task);
-    try{return await task;}finally{if(this.committeesPending.get(key)===task)this.committeesPending.delete(key);}
+    const pending={signal,task};
+    this.committeesPending.set(key,pending);
+    while(this.committeesPending.size>12)this.committeesPending.delete(this.committeesPending.keys().next().value!);
+    try{const value=await task;this.assertCollecting(generation,signal);return value;}finally{if(this.committeesPending.get(key)===pending)this.committeesPending.delete(key);}
   }
 
   private async protocolConstants(context:TargetContext,signal:AbortSignal,exactSource?:RpcSource):Promise<Constants> {
@@ -270,11 +292,20 @@ export class NetworkData {
     return value;
   }
 
+  /** One exact immutable-hash read; timeout includes a body even if a fetch shim ignores abort. */
+  async blockMetadata(head:BlockHeader,source:RpcSource,signal:AbortSignal):Promise<{value:unknown;evidence:ObservationEvidence}> {
+    const deadline=AbortSignal.any([signal,this.auxiliaryController.signal,AbortSignal.timeout(8000)]);
+    let rejectAbort:()=>void=()=>undefined;
+    const aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=()=>reject(new DOMException('Metadata read cancelled or timed out','AbortError'));if(deadline.aborted)rejectAbort();else deadline.addEventListener('abort',rejectAbort,{once:true});});
+    try{return await Promise.race([this.requestObserved(`/chains/main/blocks/${encodeURIComponent(head.hash)}/metadata`,deadline,head,source,true),aborted]);}
+    finally{deadline.removeEventListener('abort',rejectAbort);}
+  }
+
   async request(path: string, signal?: AbortSignal): Promise<unknown> {
     return (await this.requestObserved(path,signal)).value;
   }
 
-  private async requestObserved(path: string, signal?: AbortSignal, head?:BlockHeader, exactSource?:RpcSource): Promise<{value:unknown;evidence:ObservationEvidence}> {
+  private async requestObserved(path: string, signal?: AbortSignal, head?:BlockHeader, exactSource?:RpcSource, strictRedirect=false): Promise<{value:unknown;evidence:ObservationEvidence}> {
     const generation=this.collectionGeneration;
     this.assertCollecting(generation,signal);
     const pool = exactSource ? [exactSource] : [
@@ -288,9 +319,10 @@ export class NetworkData {
       try {
         const response = await fetch(source.baseUrl + path, {
           cache: "no-store",
+          ...(strictRedirect?{redirect:"error" as const}:{}),
           signal: AbortSignal.any([this.auxiliaryController.signal,...(signal ? [signal] : []),AbortSignal.timeout(8000)]),
         });
-        if (!response.ok)
+        if (!response.ok || strictRedirect&&response.redirected)
           throw new Error(`${source.name}: HTTP ${response.status}`);
         const result: unknown = await response.json();
         this.assertCollecting(generation,signal);
@@ -332,29 +364,34 @@ export class NetworkData {
       return asOperationBatch(raw.validated).map(operation => ({...operation,evidence:observed.evidence}));
     }
     const reasons:string[]=[],operations:MonitoredOperation[]=[];
-    if(!object(raw) || !Array.isArray(raw.validated))reasons.push("Missing full validated category");
+    const phaseReasons:{pre:string[];att:string[]}={pre:[],att:[]};
+    const invalidate=(reason:string,phase?:"pre"|"att"):void=>{if(!reasons.includes(reason))reasons.push(reason);for(const affected of phase?[phase]:["pre","att"] as const)if(!phaseReasons[affected].includes(reason))phaseReasons[affected].push(reason);};
+    if(!object(raw) || !Array.isArray(raw.validated))invalidate("Missing full validated category");
     else {
-      if(raw.validated.length>10000)reasons.push("Validated category exceeds retained operation bound");
+      if(raw.validated.length>10000)invalidate("Validated category exceeds retained operation bound");
       for(const entry of raw.validated.slice(0,10000))try {
-        operations.push(...asOperationBatch([entry],()=>{if(!reasons.includes("Malformed or unclassifiable consensus content"))reasons.push("Malformed or unclassifiable consensus content");}).map(operation=>({...operation,evidence:observed.evidence})));
-      }catch {if(!reasons.includes("Malformed operation envelope"))reasons.push("Malformed operation envelope");}
+        operations.push(...asOperationBatch([entry],phase=>invalidate("Malformed or unclassifiable consensus content",phase)).map(operation=>({...operation,evidence:observed.evidence})));
+      }catch {invalidate("Malformed operation envelope");}
     }
     const after=await this.head(signal,context.observer.source);onObservedHead?.(after);
     const contextAfter=await this.targetContext(after,context.level,signal);
     this.assertCollecting(generation,signal);
-    if(!contextBefore || contextFacts(contextBefore)!==contextFacts(context) || contextFacts(contextAfter)!==contextFacts(context))reasons.push("Observer context changed across validated snapshot");
-    return Object.freeze({operations:Object.freeze(operations),evidence:observed.evidence,startedMonotonic,complete:reasons.length===0,reasons:Object.freeze(reasons),contextBefore:contextBefore??context,contextAfter});
+    if(!contextBefore || contextFacts(contextBefore)!==contextFacts(context) || contextFacts(contextAfter)!==contextFacts(context))invalidate("Observer context changed across validated snapshot");
+    return Object.freeze({operations:Object.freeze(operations),evidence:observed.evidence,startedMonotonic,complete:reasons.length===0,reasons:Object.freeze(reasons),phaseCoverage:Object.freeze({pre:Object.freeze({complete:phaseReasons.pre.length===0,reasons:Object.freeze(phaseReasons.pre)}),att:Object.freeze({complete:phaseReasons.att.length===0,reasons:Object.freeze(phaseReasons.att)})}),contextBefore:contextBefore??context,contextAfter});
   }
 
   async derive(head: BlockHeader, signal: AbortSignal): Promise<Derived> {
+    const generation=this.collectionGeneration;
     this.observeHead(head);
     const rights=new Map<number,readonly DelegateRight[]>(),contexts=new Map<number,TargetContext>(),constantsByLevel=new Map<number,Constants>();
     const errors:string[]=[];
     await Promise.all([head.level,head.level+1].map(async level=>{
       try {
-        const context=await this.targetContext(head,level,signal);contexts.set(level,context);
+        const context=await this.targetContext(head,level,signal);
+        this.assertCollecting(generation,signal);contexts.set(level,context);
         const [committee,constants]=await Promise.all([this.committee(context,signal),this.protocolConstants(context,signal)]);
         if(!committeeAuthority(committee,constants.committee,constants.quorum).usable)throw new Error("Committee contradicts protocol constants");
+        this.assertCollecting(generation,signal);
         rights.set(level,committee);constantsByLevel.set(level,constants);
       }catch(error){errors.push(`Target context ${level}: ${String(error)}`);}
     }));

@@ -1,3 +1,7 @@
+class PartialPhaseCoverageError extends Error {}
+
+import {pendingPhaseComplete} from "../rpc/networkData";
+import type {BlockProducerFact} from "../rpc/candidateProducer";
 import {
   asBlockHeader,
   asOperationBatch,
@@ -44,11 +48,13 @@ export interface NetworkMonitorView<T extends NetworkDerivedState> {
   readonly observationTargets: readonly ObservationTarget<T>[];
   readonly history:readonly SessionSnapshot<T>[];
   readonly inspection:SessionInspection<T>;
+  readonly navigationUnits:readonly Readonly<{identity:string;sequence:number}>[];
   readonly unresolvedTargets: readonly ObservationTarget<T>[];
   readonly networkIdentity:RpcContext|null;
   readonly acceptedEvents:readonly AcceptedEvent[];
   readonly crossingHistoryPartial:boolean;
   readonly progression:ObservedProgress|null;
+  readonly appliedProof?:Readonly<{context:RpcContext;evidence:ObservationEvidence}>|null;
   readonly headStream: StreamStatus;
   readonly operationStream: StreamStatus;
   readonly operationMode: "stream" | "fallback" | "paused";
@@ -74,6 +80,7 @@ export interface NetworkMonitorOptions<T extends NetworkDerivedState> {
     signal: AbortSignal,
   ) => Promise<MonitorOperationBatch>;
   readonly onUpdate: (view: NetworkMonitorView<T>) => void;
+  readonly onCandidatesAdmitted?:(records:readonly ObservationTarget<T>[])=>void;
   readonly reconciliationClock?:()=>number;
   readonly fallbackIntervalMs?: number;
   readonly fallbackHead?: (signal: AbortSignal) => Promise<BlockHeader>;
@@ -103,6 +110,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private readonly observations:ObservationStore<T>;
   private readonly reconcilers=new Map<string,ObserverReconciliation<ContextAdmission<T>>>();
   private provenHead:RpcContext|undefined;
+  private appliedProof:Readonly<{context:RpcContext;evidence:ObservationEvidence}>|null=null;
   private progression:ObservedProgress|null=null;
   private readonly headTransport: StreamTransport<BlockHeader>;
   private readonly operationTransport: StreamTransport<MonitorOperationBatch> | null;
@@ -356,7 +364,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             if(!rights || !constants || !derived)continue;
             try{this.observations.accept({head,derived,context,rights,constants,...epochs});}catch{/* retain raw facts without contradictory authority */}
           }
-          this.emit();
+          this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());
         }
       })
       .catch(() => {
@@ -375,6 +383,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     const previous=this.provenHead;
     if(previous?.source.baseUrl===current.source.baseUrl && previous.chainId===current.chainId && previous.header.hash===current.header.hash)return;
     this.provenHead=current;
+    this.appliedProof=Object.freeze({context:current,evidence});
     if(!previous || previous.source.baseUrl!==current.source.baseUrl || previous.chainId!==current.chainId)return;
     const from=previous.header,to=current.header,oldRound=proposalRound(from.fitness,from.level),round=proposalRound(to.fitness,to.level);
     const kind:ObservedProgress["kind"]=to.level===from.level+1 && to.predecessor===from.hash && previous.nextProtocolHash===current.protocolHash?"next-level"
@@ -404,7 +413,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     const record=this.observations.addCandidate(candidate);if(!record)return;
     this.latestProposal=candidate.header;
     this.reconcileTarget(record);
-    this.emit();
+    this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());
   }
   private acceptOperations(batch: MonitorOperationBatch): void {
     if (!this.running) return;
@@ -432,6 +441,15 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   pinObservation(identity:string):boolean {const pinned=this.observations.pin(identity);if(pinned)this.emit();return pinned;}
   followLive():void {this.observations.followLive();this.emit();}
   latestObservation():boolean {const selected=this.observations.latest();this.emit();return selected;}
+  captureProducer(fact:BlockProducerFact,epoch:string):boolean {
+    if(this.producerEpoch(fact.identity)!==epoch)return false;
+    const token=this.opportunityToken(fact.identity);if(!token)return false;
+    const captured=this.observations.captureProducer(fact.identity,token,fact);if(captured)this.emit();return captured;
+  }
+  producerEpoch(identity:string):string|undefined {
+    const retained=this.observations.acceptedTargets().some(record=>record.identity===identity)||this.observations.history().some(snapshot=>snapshot.candidates.some(record=>record.identity===identity));
+    const token=retained?this.opportunityToken(identity):undefined;return token?JSON.stringify(token):undefined;
+  }
   contextAuthorized(context:TargetContext):boolean {return this.observations.contextAuthorized(context);}
   observedHead(source:RpcSource):BlockHeader|undefined {return this.observations.observerHead(source);}
   private currentTarget(record:ObservationTarget<T>):ReconciliationTarget {
@@ -457,8 +475,8 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
           return {...result,...(epoch===undefined?{}:{observerGeneration:epoch})};
         },
         retainedKeys:()=>new Set([...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()].filter(value=>value.target.source.baseUrl===source.baseUrl).map(value=>reconciliationKey(this.currentTarget(value)))),
-        onResult:(_target,value)=>{this.observations.accept(value);this.state.syncOperations(this.state.currentGeneration(),this.observations.rawOperations());this.emit();if(value.snapshotError || value.snapshot?.complete===false)throw new Error(value.snapshotError??value.snapshot?.reasons.join("; "));},
-        onError:(target,error)=>{for(const value of [...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()])if(reconciliationKey(this.currentTarget(value))===reconciliationKey(target))this.observations.fail(value.identity,error);this.emit();},
+        onResult:(_target,value)=>{this.observations.accept(value);this.state.syncOperations(this.state.currentGeneration(),this.observations.rawOperations());this.emit();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());if(value.snapshotError)throw new Error(value.snapshotError);if(value.snapshot?.complete===false){const message=value.snapshot.reasons.join("; ");if(pendingPhaseComplete(value.snapshot,"pre")||pendingPhaseComplete(value.snapshot,"att"))throw new PartialPhaseCoverageError(message);throw new Error(message);}},
+        onError:(target,error)=>{for(const value of [...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()])if(reconciliationKey(this.currentTarget(value))===reconciliationKey(target))this.observations.fail(value.identity,error,error instanceof PartialPhaseCoverageError?"preserve-received-phase":"invalidate");this.emit();},
       });this.reconcilers.set(source.baseUrl,reconciler);reconciler.start();
     }
     const target=this.currentTarget(record);
@@ -561,10 +579,12 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       acceptedEvents:this.observations.acceptedEvents(),
       crossingHistoryPartial:this.observations.crossingState().uncertain,
       progression:this.progression,
+      appliedProof:this.appliedProof,
       rawOperations: this.observations.rawOperations(),
       observationTargets:this.observations.acceptedTargets(),
       history:this.observations.history(),
       inspection:this.observations.inspection(),
+      navigationUnits:this.observations.navigationUnits(),
       unresolvedTargets:this.observations.unresolvedTargets(),
       networkIdentity:this.observations.networkIdentity()??null,
       headStream: this.headStatus,

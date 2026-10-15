@@ -487,3 +487,19 @@ it("withdraws B authority before replacement helpers finish after a newly observ
  expect(monitor.observedHead(b)?.hash).toBe("Fork122");expect(monitor.contextAuthorized(proof.context)).toBe(false);expect(views.at(-1)?.observationTargets[0]?.contextInvalid).toBe(true);expect(views.at(-1)?.snapshot?.head.level).toBe(120);expect(views.at(-1)?.rawOperations[0]?.evidence).toBe(receipt);
  release(Response.json({error:"Helpers unavailable"},{status:503}));await vi.advanceTimersByTimeAsync(0);expect(monitor.contextAuthorized(proof.context)).toBe(false);monitor.stop();
 });
+
+
+it('keeps the exact applied proof on duplicates and records a fresh material receipt on cached A B A return',async()=>{
+ const contexts=new Map<string,import('../../src/rpc/networkData').RpcContext>();
+ const {monitor,heads,views}=setup({derive:async head=>{
+  let context=contexts.get(head.hash);
+  if(!context){context={header:{...head,chainId:'NetFixture'},source,chainId:'NetFixture',protocolHash:'P',nextProtocolHash:'P',evidence:{source,receivedAt:1,receivedMonotonic:1,chainId:'NetFixture',requestedHeadHash:head.hash}};contexts.set(head.hash,context);}
+  return {refreshedAt:Date.now(),contexts:new Map([[head.level,{key:head.hash,level:head.level,protocolHash:'P',observer:context,anchor:context}]])};
+ }});
+ heads.value(header(10));await vi.waitFor(()=>expect(views.at(-1)?.appliedProof?.context.header.hash).toBe('B10'));const first=views.at(-1)?.appliedProof;expect(first).toBeTruthy();
+ heads.value(header(10));expect(views.at(-1)?.appliedProof).toBe(first);
+ heads.value({...header(10),hash:'BFork10'});await vi.waitFor(()=>expect(views.at(-1)?.appliedProof?.context.header.hash).toBe('BFork10'));const second=views.at(-1)?.appliedProof;
+ heads.value(header(10));await vi.waitFor(()=>expect(views.at(-1)?.appliedProof?.context.header.hash).toBe('B10'));const returned=views.at(-1)?.appliedProof;
+ expect(returned).not.toBe(first);expect(returned?.context).toBe(first?.context);expect(returned?.evidence.receivedMonotonic).toBeGreaterThan(first?.evidence.receivedMonotonic??Infinity);expect(returned?.evidence.receivedMonotonic).toBeGreaterThan(second?.evidence.receivedMonotonic??Infinity);expect(returned?.context.evidence.receivedMonotonic).toBe(1);
+ heads.value(header(10));expect(views.at(-1)?.appliedProof).toBe(returned);expect(Object.isFrozen(returned)).toBe(true);monitor.stop();
+});

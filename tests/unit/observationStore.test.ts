@@ -1,3 +1,4 @@
+import {CandidateProducers,PRODUCER_PROTOCOL,metadataBaker} from '../../src/rpc/candidateProducer';
 import {afterEach,expect,it,vi} from "vitest";
 import {ObservationStore} from "../../src/monitor/observationStore";
 import {NetworkData,sources,type Derived} from "../../src/rpc/networkData";
@@ -277,11 +278,11 @@ it("uses complete-body receipt rather than request start to order a coherent pos
 it("withdraws complete coverage when its supporting raw vote is evicted",async()=>{
  installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),record=store.addOperations([operation()])[0]!;
  const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal),packet={...operation(),evidence:evidence(b,2)};
- const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:packet.evidence,startedMonotonic:2,operations:[packet],complete:true,reasons:[]};
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:packet.evidence,startedMonotonic:2,operations:[packet],complete:true,reasons:[],phaseCoverage:{pre:{complete:true,reasons:[]},att:{complete:true,reasons:[]}}};
  store.accept({...proof,snapshot});expect(store.target(record.identity)?.coverage?.complete).toBe(true);expect(store.target(record.identity)?.phases?.pre?.power).toBe(3);
  store.addOperations(Array.from({length:10000},(_,index)=>({hash:`unrelated-${index}`,evidence:evidence(b,index+3),contents:[]})));
  expect(store.rawOperations().some(value=>value.hash==="op")).toBe(false);const retained=store.target(record.identity)!;
- expect(retained.coverageStale===true||retained.coverage?.complete===false).toBe(true);expect(retained.coverage?.evidence).toBe(snapshot.evidence);expect(retained.phases?.pre?.maximumPower).toBe(3);expect(retained.phases?.pre?.power).not.toBe(0);
+ expect(retained.coverage?.phaseCoverage?.pre.complete).toBe(false);expect(retained.coverage?.phaseCoverage?.att.complete).toBe(false);expect(retained.coverageStale===true||retained.coverage?.complete===false).toBe(true);expect(retained.coverage?.evidence).toBe(snapshot.evidence);expect(retained.phases?.pre?.maximumPower).toBe(3);expect(retained.phases?.pre?.power).not.toBe(0);
 });
 
 it("does not duplicate a retained observed-quorum event after its phase owner retires",async()=>{
@@ -547,4 +548,129 @@ it("independent whole review: retired observed quorum replay cannot append the s
  expect(phase?.evidence.source.baseUrl).toBe(b.baseUrl);
  expect(store.acceptedEvents().filter(event=>event.phaseIdentity===first!.phaseIdentity)).toHaveLength(0);
  expect(store.rawOperations().length).toBeLessThanOrEqual(10000);expect(store.history().length).toBeLessThanOrEqual(150);expect(store.crossingState().retained).toBeLessThanOrEqual(500);expect(store.acceptedEvents().length).toBeLessThanOrEqual(12);
+});
+
+it('V3 selectable ordering is immutable and preserves promotion after the first candidate is evicted',async()=>{
+ installRpc();const store=new ObservationStore<Derived>('mainnet',sources.mainnet),seed=store.addOperations([operation()])[0]!;
+ store.accept(await new NetworkData('mainnet').reconcile(seed.target,new AbortController().signal));
+ const original=store.navigationUnits();expect(original).toHaveLength(1);expect(Object.isFrozen(original)).toBe(true);expect(Object.isFrozen(original[0])).toBe(true);
+ const firstSequence=original[0]!.sequence;
+ store.addCandidate({identity:'promoted-first',header:{...head(123),hash:'PromotedFirst',payload_hash:'P'},evidence:evidence(b,30)});
+ expect(store.navigationUnits()).toContainEqual({identity:'promoted-first',sequence:firstSequence});
+ for(let index=0;index<101;index++)store.addCandidate({identity:`ordered-sibling-${index}`,header:{...head(123),hash:`OrderedSibling${index}`,payload_hash:'P'},evidence:evidence(b,index+31)});
+ const retained=store.navigationUnits();expect(retained).toHaveLength(100);expect(retained.some(unit=>unit.identity==='promoted-first')).toBe(false);expect(retained.every(unit=>unit.sequence>firstSequence)).toBe(true);
+ expect(original).toHaveLength(1);expect(original[0]!.sequence).toBe(firstSequence);expect(store.history()[0]!.evidence.receivedMonotonic).toBe(seed.evidence.receivedMonotonic);
+});
+
+it('V3 producer admission window survives over 100 level advances without reauthorizing old replays',async()=>{
+ const fixture=await opportunityFixture(),seed=fixture.store.target(fixture.record.identity)!;
+ const baker='tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',payloadProducer='tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6';
+ const make=(level:number,identity=`producer-${level}`)=>{
+  const context=seed.admission!.context,header={...seed.target.candidate!.header,level,hash:identity,chainId:context.observer.chainId};
+  return {...seed,identity,target:{...seed.target,level,candidate:{...seed.target.candidate!,identity,header}},admission:{...seed.admission!,context:{...context,level,protocolHash:PRODUCER_PROTOCOL,observer:{...context.observer,header:{...context.observer.header,level},protocolHash:PRODUCER_PROTOCOL}}}};
+ };
+ let reads=0;const producers=new CandidateProducers({sources:[b.baseUrl],epoch:()=> 'epoch',changed:()=>undefined,data:{blockMetadata:async header=>{reads++;return {value:{protocol:PRODUCER_PROTOCOL,baker,proposer:payloadProducer,level_info:{level:header.level}},evidence:{...evidence(b,reads),requestedHeadHash:header.hash}};}}});producers.start();
+ for(let level=123;level<253;level++){const record=make(level);producers.admitted([record]);await new Promise(resolve=>setTimeout(resolve,0));expect(producers.fact(record.identity)?.baker).toBe(baker);expect(producers.state.attempts).toBeLessThanOrEqual(1);expect(producers.state.cached).toBeLessThanOrEqual(100);}
+ expect(reads).toBe(130);producers.admitted([make(123)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toBe(130);
+ const current=make(252);producers.admitted([current,current]);expect(reads).toBe(130);
+ expect(metadataBaker({protocol:PRODUCER_PROTOCOL,baker,payloadProducer,level_info:{level:252}},current)).toBeUndefined();
+ expect(metadataBaker({protocol:PRODUCER_PROTOCOL,baker,proposer:payloadProducer,level_info:{level:999}},current)).toBeUndefined();
+ expect(metadataBaker({protocol:'Unsupported',baker,proposer:payloadProducer,level_info:{level:252}},current)).toBeUndefined();
+});
+
+it('V3 producer queue and attempts remain bounded through saturation cancellation and context advancement',async()=>{
+ const fixture=await opportunityFixture(),seed=fixture.store.target(fixture.record.identity)!;
+ const make=(identity:string,level=123)=>{const context=seed.admission!.context,header={...seed.target.candidate!.header,hash:identity,level,chainId:context.observer.chainId};return {...seed,identity,target:{...seed.target,level,candidate:{...seed.target.candidate!,identity,header}},admission:{...seed.admission!,context:{...context,level,protocolHash:PRODUCER_PROTOCOL,observer:{...context.observer,header:{...context.observer.header,level},protocolHash:PRODUCER_PROTOCOL}}}};};
+ const reads:string[]=[],signals:AbortSignal[]=[];let resolveBody:(value:{value:unknown;evidence:ObservationEvidence})=>void=()=>undefined;
+ const producers=new CandidateProducers({sources:[b.baseUrl],epoch:()=> 'epoch',changed:()=>undefined,data:{blockMetadata:async(header,_source,signal)=>{reads.push(header.hash);signals.push(signal);return new Promise(resolve=>{resolveBody=resolve;});}}});producers.start();
+ producers.admitted(Array.from({length:105},(_,index)=>make(`bounded-producer-${index}`)));expect(reads).toHaveLength(1);expect(producers.state).toEqual({attempts:100,cached:0,inFlight:1,queued:1,saturated:true});
+ producers.stop();expect(signals[0]!.aborted).toBe(true);resolveBody({value:{},evidence:evidence(b,100)});await new Promise(resolve=>setTimeout(resolve,0));expect(producers.state.inFlight).toBe(0);expect(producers.state.queued).toBe(0);
+ producers.start();producers.admitted([make('bounded-producer-0')]);expect(reads).toHaveLength(1);
+ producers.admitted([make('after-proven-advance',124)]);expect(reads).toHaveLength(2);expect(producers.state.attempts).toBe(1);
+ producers.admitted([make('old-unseen-after-rollback',123)]);expect(reads).toHaveLength(2);expect(producers.state.queued).toBe(0);producers.stop();resolveBody({value:{},evidence:evidence(b,101)});
+});
+
+
+it('V3 producer receipt enriches retained pin, survives exact readmission, and cannot mutate frozen history',async()=>{
+ const {store,record,proof,token,current}=await opportunityFixture(),context=proof.context;
+ const fact={identity:record.identity,hash:current.hash,baker:'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',protocol:context.protocolHash,evidence:{...evidence(b,50),requestedHeadHash:current.hash,chainId:context.observer.chainId,contextHeadHash:context.observer.header.hash,predecessor:context.anchor.header.hash,protocolHash:context.protocolHash}};
+ expect(store.pin(record.identity)).toBe(true);const receipt=store.inspection().snapshot!.evidence;
+ expect(store.captureProducer(record.identity,token,{...fact,hash:'OtherHash'})).toBe(false);
+ expect(store.captureProducer(record.identity,token,fact)).toBe(true);
+ const captured=store.target(record.identity)!.producer!;expect(Object.isFrozen(captured.evidence.source)).toBe(true);expect(captured.evidence.receivedMonotonic).toBe(50);
+ for(let index=0;index<3;index++)store.accept(proof);
+ expect(store.target(record.identity)?.producer).toEqual(fact);expect(store.inspection().snapshot!.evidence).toBe(receipt);
+ for(let index=0;index<101;index++)store.addCandidate({identity:`producer-active-${index}`,header:{...current,hash:`ProducerActive${index}`},evidence:evidence(b,index+100)});
+ expect(store.acceptedTargets().some(value=>value.identity===record.identity)).toBe(false);expect(store.inspection().frozen).toBe(false);
+ expect(store.captureProducer(record.identity,token,fact)).toBe(true);
+ for(let index=0;index<151;index++)store.addCandidate({identity:`producer-history-${index}`,header:{...current,hash:`ProducerHistory${index}`,payload_hash:`ProducerPayload${index}`},evidence:evidence(b,index+300)});
+ const frozen=store.inspection();expect(frozen.frozen).toBe(true);expect(frozen.snapshot!.candidates.find(value=>value.identity===record.identity)?.producer??frozen.snapshot!.record.producer).toEqual(fact);
+ expect(store.captureProducer(record.identity,token,{...fact,baker:'tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6'})).toBe(false);expect(store.inspection().snapshot).toBe(frozen.snapshot);
+ expect(store.history().every(snapshot=>snapshot.candidates.every(value=>value.producer===undefined))).toBe(true);
+});
+
+it.each(['pause','reorg'] as const)('V3 producer capture rejects a late receipt after %s',async change=>{
+ const {store,record,proof,token,current}=await opportunityFixture(),context=proof.context;
+ const fact={identity:record.identity,hash:current.hash,baker:'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',protocol:context.protocolHash,evidence:{...evidence(b,50),requestedHeadHash:current.hash,chainId:context.observer.chainId,contextHeadHash:context.observer.header.hash,predecessor:context.anchor.header.hash,protocolHash:context.protocolHash}};
+ if(change==='pause'){store.stop();store.start();}else store.observeHead({...current,hash:'ProducerFork',evidence:evidence(b,100)});
+ expect(store.captureProducer(record.identity,token,fact)).toBe(false);expect(store.target(record.identity)?.producer).toBeUndefined();
+});
+
+
+it('V3 producer successor attempt survives promotion and wrong-source or chain facts cannot advance its window',async()=>{
+ const {store,record}=await opportunityFixture(),seed=store.target(record.identity)!,context=seed.admission!.context;
+ const make=(identity:string,level:number,observerLevel:number)=>({...seed,identity,target:{...seed.target,level,candidate:{...seed.target.candidate!,identity,header:{...seed.target.candidate!.header,hash:identity,level,chainId:context.observer.chainId}}},admission:{...seed.admission!,context:{...context,level,protocolHash:PRODUCER_PROTOCOL,observer:{...context.observer,header:{...context.observer.header,level:observerLevel},protocolHash:PRODUCER_PROTOCOL}}}});
+ const reads:string[]=[];const producers=new CandidateProducers({sources:[b.baseUrl],epoch:()=> 'epoch',changed:()=>undefined,data:{blockMetadata:async header=>{reads.push(header.hash);return {value:{},evidence:{...evidence(b,1),requestedHeadHash:header.hash}};}}});producers.start();
+ producers.admitted([make('successor',124,123)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toEqual(['successor']);
+ producers.admitted([make('successor',124,124)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toEqual(['successor']);expect(producers.state.attempts).toBe(1);
+ const wrongSource=make('wrong-source',999,999);wrongSource.evidence={...wrongSource.evidence,source:{...b,baseUrl:'https://unconfigured.invalid'}};
+ const wrongChain=make('wrong-chain',999,999);wrongChain.evidence={...wrongChain.evidence,chainId:'OtherChain'};
+ producers.admitted([wrongSource,wrongChain]);producers.admitted([make('current-still-eligible',124,124)]);await new Promise(resolve=>setTimeout(resolve,0));expect(reads).toEqual(['successor','current-still-eligible']);
+ producers.admitted([make('retire-old-window',125,125)]);await new Promise(resolve=>setTimeout(resolve,0));expect(producers.state.attempts).toBe(1);
+ producers.admitted([make('unseen-retired',124,124)]);expect(reads).toEqual(['successor','current-still-eligible','retire-old-window']);
+});
+
+
+it.each(['pre','att'] as const)('admits independent %s snapshot zero and preserves its interrupted historical receipt',async phase=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);
+ store.observeHead({...head(122),evidence:evidence(b)});
+ const candidate={identity:"phase-candidate",header:{...head(123),payload_hash:"P"},evidence:evidence(b)};
+ const record=store.addCandidate(candidate)!;
+ const proof=await new NetworkData("mainnet").reconcile({source:b,level:123,round:0,payload:"P"},new AbortController().signal);
+ const good=Object.freeze({complete:true,reasons:[]}),bad=Object.freeze({complete:false,reasons:["Malformed or unclassifiable consensus content"]});
+ const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:2,operations:[],complete:false,reasons:bad.reasons,phaseCoverage:{pre:phase==='pre'?good:bad,att:phase==='att'?good:bad}};
+ store.accept({...proof,...store.generation(b),snapshot});const accepted=store.target(record.identity)!;
+ expect(accepted.phases?.[phase]?.power).toBe(0);expect(accepted.phases?.[phase==='pre'?'att':'pre']).toBeUndefined();
+ expect(accepted.coverage?.complete).toBe(false);expect(accepted.coverage?.phaseCoverage?.[phase].complete).toBe(true);
+ const captured=store.history()[0]!;store.interrupt(b);store.accept({...proof,...store.generation(b),snapshot});
+ expect(store.target(record.identity)?.coverageStale).toBe(true);expect(captured.record.coverageStale).toBe(false);expect(captured.record.coverage?.evidence).toBe(snapshot.evidence);
+ expect(store.target(record.identity)?.phases?.[phase]?.power).toBe(0);
+});
+
+
+it("retains authentic current phase receipts separately from first and peak through basis changes replay and freeze",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),record=store.addOperations([base])[0]!;
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);store.accept(proof);store.pin(record.identity);
+ const first=store.inspection().snapshot?.record.phases?.pre;
+ expect(first?.currentEvidence.receivedMonotonic).toBe(1);
+ const corrected={...proof,...store.generation(b),rights:proof.rights.map(right=>({...right,power:right.slot===0?2:3,evidence:{...right.evidence,source:b,receivedAt:10,receivedMonotonic:10}}))};store.accept(corrected);
+ const decreased=store.inspection().snapshot?.record.phases?.pre;
+ expect(decreased?.power).toBe(2);expect(decreased?.maximumPower).toBe(3);
+ expect(decreased?.currentEvidence).toBe(first?.currentEvidence);expect(decreased?.maximumEvidence).toBe(first?.maximumEvidence);
+ expect(store.inspection().snapshot?.phaseCommittees.pre?.[0]?.evidence?.receivedMonotonic).toBe(10);
+ store.addOperations([{...base,hash:'new-current-signer',evidence:evidence(b,20),contents:[{...base.contents[0]!,slot:1}]}]);
+ const increased=store.inspection().snapshot?.record.phases?.pre;expect(increased?.power).toBe(5);expect(increased?.currentEvidence.receivedMonotonic).toBe(20);expect(increased?.evidence.receivedMonotonic).toBe(1);
+ store.addOperations([{...base,hash:'new-current-signer',evidence:evidence(b,30),contents:[{...base.contents[0]!,slot:1}]}]);expect(store.inspection().snapshot?.record.phases?.pre?.currentEvidence).toBe(increased?.currentEvidence);
+ for(let index=0;index<151;index++)store.addCandidate({identity:`phase-freeze-${index}`,header:{...head(123),hash:`PhaseFreeze${index}`,payload_hash:`PhasePayload${index}`},evidence:evidence(b,index+100)});
+ expect(store.inspection().frozen).toBe(true);expect(store.inspection().snapshot?.record.phases?.pre?.currentEvidence).toBe(increased?.currentEvidence);
+ expect(first?.power).toBe(3);expect(first?.currentEvidence.receivedMonotonic).toBe(1);
+});
+
+it("updates current receipt for genuinely replaced equal-power membership without changing first or peak receipt",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),record=store.addOperations([base])[0]!;
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);
+ store.accept({...proof,constants:{...proof.constants,committee:6},rights:proof.rights.map(right=>({...right,power:3}))});
+ const original=store.target(record.identity)?.phases?.pre;expect(original?.power).toBe(3);
+ store.addOperations(Array.from({length:10000},(_,index)=>({...base,hash:`phase-turnover-${index}`,evidence:evidence(b,20+index),contents:[{...base.contents[0]!,slot:index===9999?1:999}]})));
+ const current=store.target(record.identity)?.phases?.pre;expect(current?.power).toBe(3);expect(current?.currentEvidence.receivedMonotonic).toBe(10019);expect(current?.evidence).toBe(original?.evidence);expect(current?.maximumEvidence).toBe(original?.maximumEvidence);
 });

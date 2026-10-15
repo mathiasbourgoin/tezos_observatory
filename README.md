@@ -32,6 +32,8 @@ streams. It covers streamed vote updates, duplicate votes, obsolete head data,
 unknown observations, independent network failure, layout at desktop/mobile
 widths, pause/resume, persistent disclosures and stable list scroll/focus.
 
+Ordinary `npm run test:e2e` verifies the served production behavior in both engines. Release acceptance additionally requires the source-bound V3 configuration (`playwright.v3.config.ts`), all guarded foundation/V3/metric commands and independent manual review. The five release-evidence consumers are discovered explicitly by that configuration; missing bundle or independent receipts remains an execution error, never an ordinary CI success claim. See [release evidence scopes](roster/observatory-v3/evidence-format.md).
+
 ## Interpret the display
 
 The applied head level and round describe the last head reported by the node.
@@ -90,6 +92,69 @@ Network health and RPC coverage are separate observations. The delayed-level
 heuristic flags proposal rounds of 3 or more, or a block older than the larger
 of 30 seconds and five minimum block delays. It is an operational indicator,
 not an independent verification of consensus or finality.
+
+## Completed-block intervals
+
+Each network has three empirical means: **1 week, 24 hours and 1 hour**
+(604800, 86400 and 3600 seconds). These use TzKT historical REST endpoints,
+independently of RPC consensus observations and protocol countdowns. They are
+**TzKT-reported indexed spans**: endpoint consistency is checked, but the browser
+does not download intermediate blocks or independently verify their ancestry,
+completeness or genesis.
+
+At one batch-start instant `T`, capture the latest indexed endpoint `E` at or
+before `T`. For each cutoff `C = T − requested duration`, take the latest
+level-ordered endpoint `S` at or before `C`, bounded to `E.level`. The formula is
+`mean seconds = (E.timestamp − S.timestamp) / 1000 / (E.level − S.level)` when
+timestamps are in milliseconds. Two endpoint blocks one level apart give **one
+completed interval**. The entire interval crossing the cutoff counts, including
+a long stall; no fractional weighting or requested-duration substitution occurs.
+Actual measured coverage can exceed the nominal window. Skipped browser
+observations, proposal rounds and protocol delay changes do not change the formula.
+
+Only an empty valid floor lookup permits one shared earliest-available lookup.
+A valid newer start yields explicitly **partial available history**, with its
+actual start/span/count; it proves neither genesis nor a complete requested week.
+Malformed nonempty responses cannot use this fallback. Valid endpoints with no
+positive safe elapsed span/count, or an indexed endpoint at/before the cutoff,
+produce insufficient data. Invalid fields or contradictory selection facts are
+unavailable. Positive means retain arithmetic precision and display two decimals;
+values below 0.005 seconds display `<0.01 s`.
+
+Each network attempt uses at most five anonymous projected GET reads, or six
+when the shared earliest lookup is needed, and at most two concurrent reads.
+Each complete fetch/body is limited to eight seconds and 16 KiB of streamed
+bytes; the whole attempt is limited to 24 seconds. Credentials are omitted,
+caching disabled and redirects forbidden. There is no pagination, retry,
+archival RPC fallback, provider cascade or extra metadata lookup. The last read
+checks the captured `E` by fixed level/hash/normalized timestamp. Ordinary indexer
+advance is allowed; shared head/recheck/deadline failure commits no new batch.
+An individual floor failure affects its window only after shared validation.
+A failed new window never borrows an older batch's number.
+
+Collection starts on permitted initial/resume, accepted material applied-head
+changes or the network's native **Refresh block intervals** action, with at least
+60 seconds between starts. Ineligible triggers are dropped without a deferred
+timer. At most one newest eligible trigger can queue during an active attempt.
+Time ticks, votes, estimates, theme changes, tabs, searches, disclosures and
+history selection start no interval reads. Pause, hidden pages, pagehide and
+stop cancel/fence work and clear the queue; BFCache restoration preserves manual
+pause and cooldown. Proven applied branch replacement also fences active work.
+Only the latest committed three-window batch and bounded pending work remain in
+browser memory; no persistent block dataset or background collector is added.
+
+Old values remain attributed while refreshing. Whole-attempt failure retains
+them stale with the attempted receipt and reason. Fetch freshness starts at
+successful completion and becomes stale at 120 seconds, or immediately on
+interruption. Selected indexed-endpoint age is separately computed from captured
+`T`, its block timestamp and monotonic elapsed time since batch start. Wall-clock
+jumps cannot rewrite old means, timestamps or monotonic ages. Indexer lag uses
+only coherent initial-response `Tzkt-Known-Level − Tzkt-Level` metadata;
+the timestamp-filtered `E.level` is not the indexed level. Missing or malformed
+metadata gives unknown lag, with synchronization timestamp validity independent.
+None of these means, ages or provider failures asserts chain health or stall.
+The region exposes actual coverage/source and native evidence details, including
+full endpoint hashes, UTC times/levels, formula and separate receipts.
 
 ## Publish
 

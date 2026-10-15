@@ -293,3 +293,35 @@ it("returns independently attributed full validated coverage with before and aft
  expect(result.complete).toBe(true);expect(result.operations).toHaveLength(1);expect(result.evidence?.source.baseUrl).toBe(context.observer.source.baseUrl);expect(result.evidence?.requestedHeadHash).toBeUndefined();expect(result.contextBefore).toEqual(context);expect(result.contextAfter).toEqual(context);
  expect(reads.filter(url=>url.endsWith("/blocks/head/header"))).toHaveLength(2);
 });
+
+
+it.each(['deadline','pause','caller'] as const)('V3 metadata body is fenced by %s without a retry or fallback',async cause=>{
+ const source={network:'mainnet' as const,name:'TzKT',baseUrl:'https://rpc.tzkt.io/mainnet'},deadline=new AbortController(),caller=new AbortController();
+ const timeout=vi.spyOn(AbortSignal,'timeout').mockReturnValue(deadline.signal);
+ let resolveBody:(value:unknown)=>void=()=>undefined;const calls:{url:string;options:RequestInit|undefined}[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request,options?:RequestInit)=>{calls.push({url:String(input),options});return {ok:true,redirected:false,json:()=>new Promise(resolve=>{resolveBody=resolve;})} as Response;});
+ const data=new NetworkData('mainnet'),read=data.blockMetadata(head(123),source,caller.signal);const rejected=expect(read).rejects.toThrow(/cancelled|timed out/);
+ await Promise.resolve();await Promise.resolve();expect(timeout).toHaveBeenCalledWith(8000);expect(calls).toHaveLength(1);expect(calls[0]!.url).toBe('https://rpc.tzkt.io/mainnet/chains/main/blocks/B123/metadata');expect(calls[0]!.options?.redirect).toBe('error');
+ if(cause==='deadline')deadline.abort();else if(cause==='pause')data.pause();else caller.abort();
+ await rejected;expect(calls[0]!.options!.signal!.aborted).toBe(true);resolveBody({baker:'late'});await Promise.resolve();expect(calls).toHaveLength(1);
+});
+
+it('V3 metadata rejects redirected responses without following another provider',async()=>{
+ const fetchMock=vi.fn(async()=>({ok:true,redirected:true,json:async()=>({baker:'redirected'})} as Response));vi.stubGlobal('fetch',fetchMock);
+ const data=new NetworkData('mainnet');await expect(data.blockMetadata(head(123),{network:'mainnet',name:'TzKT',baseUrl:'https://rpc.tzkt.io/mainnet'},new AbortController().signal)).rejects.toThrow();expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+
+it.each(['pre','att','unknown','envelope','missing','cap','context'] as const)('qualifies independently parsed phases and fails shared %s damage closed',async phase=>{
+ vi.stubGlobal("fetch",async(input:string|URL|Request)=>{const url=String(input);
+  if(url.includes("pending_operations"))return Response.json(phase==='missing'?{}:{validated:phase==='context'?[]:phase==='cap'?Array.from({length:10001},(_,i)=>({hash:String(i),contents:[{kind:'transaction'}]})):phase==='envelope'?[null]:[{hash:"bad",contents:[{kind:phase==='pre'?'preattestations_aggregate':phase==='att'?'attestations_aggregate':'unknown_kind',consensus_content:{level:121,round:0,block_payload_hash:"P"},committee:[-1]}]}]});
+  if(url.endsWith("/blocks/head/header"))return Response.json({...head(120),chain_id:"NetFixture"});
+  const proof=contextResponse(url);if(proof)return proof;
+  const level=Number(new URL(url).searchParams.get("level"));return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:5}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData("mainnet"),signal=new AbortController().signal,context=(await data.derive(head(120),signal)).contexts.get(121)!;
+ const result=await data.pending(signal,head(120),phase==='context'?{...context,protocolHash:"ChangedProtocol"}:context);
+ expect(result.complete).toBe(false);
+ expect(result.phaseCoverage?.[phase==='pre'?'att':'pre'].complete).toBe(phase==='pre'||phase==='att');
+ expect(result.phaseCoverage?.[phase==='pre'?'pre':'att'].complete).toBe(false);
+});
