@@ -48,6 +48,8 @@ they are historical observations, not current-round participation or a chain arc
 
 Adjacent observed block and round changes move the chain cards and connectors together for a full visible 1200ms journey at a constant speed. This follow-up user policy starts motion at rendering, replacing the earlier receipt-to-settlement budget; newly coherent destinations start their full journey when rendered. While current proof is pending, the navigator retains its last coherent scene with an explicit as-of label; live authority stays separate. Votes-only adjacent levels may move the camera while their predecessor relationship remains context-only. Bursts coalesce, and reduced motion, pins or observation gaps remain stationary.
 
+The path retains up to 100 observed levels and 32 rounds per level from this browser session. Observed cards keep their own pre/att peak backgrounds; unknown phases stay unknown, and future cards remain transparent. Drag or use the camera arrows to explore left and down in any order, then Return to live. Camera browsing leaves collection running and makes no history RPC requests.
+
 Each gauge sums committee voting power once per delegate, using attestation
 rights pinned to the observed head hash. A signer count is not an operation count
 or a token balance. The quorum marker comes from the protocol constants.

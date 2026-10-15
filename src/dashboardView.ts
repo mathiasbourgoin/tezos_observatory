@@ -1,5 +1,6 @@
 import {CAMERA_DURATION_MS} from './cameraTiming';
 import {navigatorDirection,retainNavigator,sameCameraPosition} from './navigatorMotion';
+import {NavigatorPath,type NavigatorPathRecord} from './navigatorPath';
 import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockIntervals';
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
@@ -357,23 +358,26 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     const timing = el('p', 'timing-detail address-text', 'Independent clock estimate unavailable');
     const clockProof=disclosure('Independent applied-head clock', `observatory:${network}:clock`); clockProof.body.append(countdown,timing);
     const bakerRows = el('div', 'baker-rows');
-    const junction=el('div','navigator-junction'),stage=el('div','navigator-stage'),previousNode=el('section','navigator-previous'),currentNode=el('section','navigator-current');
+    const junction=el('div','navigator-junction'),camera=el('div','navigator-camera'),stage=el('div','navigator-stage'),previousNode=el('section','navigator-previous'),currentNode=el('section','navigator-current');
+    junction.tabIndex=0;junction.setAttribute('aria-label','Observed path. Drag or use the camera direction buttons to explore retained observations.');
     previousNode.setAttribute('aria-label','Previous block context');currentNode.setAttribute('aria-label','Selected observed anchor');
     const previousTarget=el('strong','branch-target','Previous block unavailable'),previousKind=el('span','subtle'),previousHash=el('span','address-text'),previousRelation=el('span','subtle');
     previousNode.append(el('span','eyebrow','← Previous block'),previousTarget,previousKind,previousHash,previousRelation);
     const currentTarget=el('strong','branch-target','Observation unavailable'),currentKind=el('span','subtle'),currentHash=el('span','address-text');
     const copyHash=el('button','address-copy','Copy block hash');copyHash.type='button';let observedHash:string|undefined;
     copyHash.addEventListener('click',()=>{if(observedHash)void navigator.clipboard?.writeText(observedHash).then(()=>set(copyHash,'Copied')).catch(()=>set(copyHash,'Copy unavailable'));});
-    currentNode.append(el('span','eyebrow','Observed / selected'),currentTarget,currentKind,currentHash,copyHash);
-    stage.append(previousNode,currentNode,bakerRows);junction.append(stage);
+    const currentPhases=el('span','path-phase-summary subtle');
+    currentNode.append(el('span','eyebrow','Observed / selected'),currentTarget,currentKind,currentHash,currentPhases,copyHash);
+    stage.append(previousNode,currentNode,bakerRows);camera.append(stage);junction.append(camera);
     for(const name of ['previous','round','level']){const edge=el('span',`navigator-edge navigator-edge-${name}`);edge.setAttribute('aria-hidden','true');stage.append(edge);}
     const navigatorStatus=el('p','navigator-status subtle','Solid: observation · dashed: conditional · no implied finality');
+    const navigation=el('nav','navigator-navigation'),pathStatus=el('span','path-camera-status subtle');navigation.setAttribute('aria-label','Path camera');
     const navigatorContext=el('aside','navigator-context');
     const selectedContext=el('dl','navigator-context-fields');
     const contextFields=new Map<string,HTMLElement>();
     for(const label of ['Observer','Chain','Context head','Execution protocol','Received']){selectedContext.append(el('dt','eyebrow',label));const value=el('dd');selectedContext.append(value);contextFields.set(label,value);}
     navigatorContext.append(el('h4','','Selected observation context'),selectedContext,clockProof.details);
-    opportunities.append(timingHeader,junction,navigatorStatus);
+    opportunities.append(timingHeader,junction,navigation,navigatorStatus);
     const contextProof=disclosure('Selected observation context',`observatory:${network}:navigator-context`);contextProof.body.append(navigatorContext);
     const missing = el('section', 'missing-section'); missing.append(el('h3', '', 'Expected bakers not observed'));
     const recent = recentConsensus();
@@ -422,6 +426,114 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     // Only the inert departing visual may reuse this last coherent, context-bound card.
     let observedCard:{key:string;presentation:ReturnType<typeof cardPresentation>}|undefined,navigatorHadOpportunities=false;
     const cancelCamera=():void=>{cameraAnimation?.cancel();cameraAnimation=undefined;departures?.remove();departures=undefined;previousNode.style.opacity='';};
+    const path=new NavigatorPath(),past=el('div','navigator-past'),pastCards=new Map<string,HTMLElement>();stage.append(past);
+    const naturalTabIndex=new WeakMap<HTMLElement,string|null>();
+    let cameraFollowing=true,viewX=0,viewY=0,pathActive=false,pathResetPending=false,localCamera:ObservedNavigatorView|undefined;
+    const knownPhase=(phase:VoteView|undefined)=>phase&&Number.isSafeInteger(phase.power)&&Number.isSafeInteger(phase.total)&&phase.power>=0&&phase.power<=phase.total&&phase.total>0?{power:phase.power,total:phase.total,...(phase.threshold===undefined?{}:{threshold:phase.threshold})}:undefined;
+    const paintPhases=(node:HTMLElement,summary:HTMLElement,pre:NavigatorPathRecord['pre'],att:NavigatorPathRecord['att']):void=>{
+      for(const [name,phase] of [['pre',pre],['att',att]] as const)node.style.setProperty(`--path-${name}`,`${phase?Math.min(100,100*phase.power/phase.total):0}%`);
+      set(summary,`pre ${pre?`${number(pre.power)}/${number(pre.total)}`:'unknown'} · att ${att?`${number(att.power)}/${number(att.total)}`:'unknown'}`);
+    };
+    const cardAccess=():void=>{
+      if(cameraAnimation)return;
+      const frame=junction.getBoundingClientRect();
+      for(const card of [currentNode,...bakerRows.querySelectorAll<HTMLElement>('.baker-opportunity'),...pastCards.values()]){
+        const box=card.getBoundingClientRect(),inside=box.left>=frame.left-.5&&box.right<=frame.right+.5&&box.top>=frame.top-.5&&box.bottom<=frame.bottom+.5;
+        card.inert=!inside&&!card.contains(document.activeElement);
+        for(const control of card.querySelectorAll<HTMLElement>('button,summary,a,input,select,[tabindex]')){
+          if(!naturalTabIndex.has(control))naturalTabIndex.set(control,control.getAttribute('tabindex'));
+          const original=naturalTabIndex.get(control);
+          if(!inside)control.tabIndex=-1;else if(original===null)control.removeAttribute('tabindex');else if(original!==undefined)control.setAttribute('tabindex',original);
+        }
+      }
+    };
+    const cameraDestination=():NavigatorPathRecord|undefined=>localCamera?{key:anchorKey(localCamera),anchor:localCamera,x:0,y:0,gapBefore:false}:path.current;
+    const layoutPath=():void=>{
+      const width=junction.clientWidth;if(!width)return;
+      const gapX=parseFloat(getComputedStyle(junction).columnGap)||12,gapY=parseFloat(getComputedStyle(junction).rowGap)||12;
+      const cardWidth=width<700?Math.min(260,width*.78):Math.min(340,(width-2*gapX)/3),cardHeight=parseFloat(getComputedStyle(junction).gridTemplateRows);
+      const stepX=cardWidth+gapX,stepY=cardHeight+gapY,totalWidth=3*cardWidth+2*gapX;
+      camera.style.width=`${totalWidth}px`;camera.style.left=`${(width-totalWidth)/2}px`;
+      const destination=cameraDestination(),retainedRecords=pathActive?path.records:[];
+      if(!pathActive&&!localCamera||!destination){camera.style.transform='translate(0,0)';past.hidden=true;set(pathStatus,'Retained path unavailable · observations accumulate during this browser session');cardAccess();return;}
+      past.hidden=!pathActive;
+      if(cameraFollowing){viewX=destination.x;viewY=destination.y;}
+      camera.style.transform=`translate(${(destination.x-viewX)*stepX}px,${(destination.y-viewY)*stepY}px)`;
+      const visible=retainedRecords.filter(record=>record.key!==destination.key&&Math.abs(record.x-viewX)<=2&&Math.abs(record.y-viewY)<=2).sort((a,b)=>Math.abs(a.x-viewX)+Math.abs(a.y-viewY)-Math.abs(b.x-viewX)-Math.abs(b.y-viewY)).slice(0,9),wanted=new Set(visible.map(record=>record.key));
+      for(const [key,card] of pastCards)if(!wanted.has(key)){card.remove();pastCards.delete(key);}
+      for(const record of visible){
+        let card=pastCards.get(record.key);
+        if(!card){
+          card=el('section','navigator-path-card');card.dataset.identity=record.anchor.identity;card.dataset.pathKey=record.key;
+          const hash=record.anchor.hash,copy=el('button','address-copy','Copy block hash');copy.type='button';copy.disabled=!hash;
+          copy.addEventListener('click',()=>{if(hash)void navigator.clipboard?.writeText(hash).then(()=>set(copy,'Copied')).catch(()=>set(copy,'Copy unavailable'));});
+          const identity=el('span','address-text',hash?short(hash):'Proposal hash unavailable');identity.title=hash??'No proposal hash observed';
+          card.append(el('span','eyebrow','Observed earlier'),el('strong','branch-target',`${number(record.anchor.level)} · r${record.anchor.round}`),el('span','subtle',hash?'Observed block':'Votes only'),identity,el('span','path-phase-summary subtle'),copy);
+          pastCards.set(record.key,card);past.append(card);
+        }
+        card.dataset.worldX=String(record.x);card.dataset.worldY=String(record.y);
+        card.style.left=`${stepX+(record.x-destination.x)*stepX}px`;card.style.top=`${stepY+(record.y-destination.y)*stepY}px`;card.style.width=`${cardWidth}px`;card.style.height=`${cardHeight}px`;
+        card.title=`Source ${record.anchor.source} · chain ${record.anchor.chain} · protocol ${record.anchor.protocol} · context ${record.anchor.contextHead} · parent ${record.anchor.contextParent} · as of ${new Date(record.anchor.receivedAt).toISOString()}`;
+        const summary=card.querySelector<HTMLElement>('.path-phase-summary');if(summary)paintPhases(card,summary,record.pre,record.att);
+      }
+      for(const edge of past.querySelectorAll('.navigator-path-edge,.navigator-path-gap'))edge.remove();
+      const records=[...visible,destination];
+      for(const record of records){
+        const older=retainedRecords.find(value=>value.x===record.x-1&&value.y===record.y||value.x===record.x&&value.y===record.y+1);if(!older)continue;
+        const x=stepX+(record.x-destination.x)*stepX,y=stepY+(record.y-destination.y)*stepY;
+        if(record.gapBefore){const gap=el('span','navigator-path-gap subtle','Observation gap');gap.style.left=`${x}px`;gap.style.top=`${y-22}px`;past.append(gap);continue;}
+        const relation=navigatorDirection(older.anchor,record.anchor);
+        if(older.x===record.x?relation!=='up':relation!=='right')continue;
+        const edge=el('span','navigator-path-edge');edge.setAttribute('aria-hidden','true');
+        if(older.x===record.x){Object.assign(edge.style,{left:`${x+cardWidth/2}px`,top:`${y+cardHeight}px`,height:`${gapY}px`,borderLeft:'2px dotted var(--muted)'});}
+        else{Object.assign(edge.style,{left:`${x-gapX}px`,top:`${y+30}px`,width:`${gapX}px`,borderTop:`2px ${record.anchor.hash&&older.anchor.hash===record.anchor.predecessor?.hash&&record.anchor.predecessor?.relation==='ancestry'?'solid var(--forest)':'dotted var(--muted)'}`});}
+        past.append(edge);
+      }
+      const levels=new Set(path.records.map(record=>record.anchor.level)).size,truncated=path.truncated;
+      set(pathStatus,localCamera?'Pinned camera · captured conditional branches':`${cameraFollowing?'Live camera':'Exploring retained path'} · ${levels}/100 observed levels · pre/att backgrounds show received peaks, not finality${truncated.levels||truncated.rounds?' · older observations truncated':''}`);
+      junction.dataset.cameraFollowing=String(cameraFollowing);junction.dataset.viewX=String(viewX);junction.dataset.viewY=String(viewY);
+      // Buffered tiles are reached by panning, never by scrolling the clipped frame on Tab.
+      cardAccess();
+    };
+    const panCamera=(x:number,y:number):void=>{
+      const destination=cameraDestination();if(!pathActive&&!localCamera||!destination)return;
+      cancelCamera();cameraFollowing=false;
+      const records=pathActive?path.records:[destination],xs=records.map(record=>record.x),ys=records.map(record=>record.y);
+      viewX=Math.max(Math.min(...xs)-1,Math.min(Math.max(...xs)+1,x));viewY=Math.max(Math.min(...ys)-1,Math.min(Math.max(...ys)+1,y));layoutPath();
+    };
+    for(const [label,dx,dy] of [['←',-1,0],['↓',0,1],['→',1,0],['↑',0,-1]] as const){const button=el('button','path-pan',label);button.type='button';button.setAttribute('aria-label',`Pan path ${dx<0?'left':dx>0?'right':dy>0?'down':'up'}`);button.addEventListener('click',()=>panCamera(viewX+dx,viewY+dy));navigation.append(button);}
+    const returnLive=el('button','path-live','Return to live');returnLive.type='button';returnLive.addEventListener('click',()=>{cancelCamera();cameraFollowing=true;layoutPath();});navigation.append(returnLive,pathStatus);
+    junction.addEventListener('keydown',event=>{if(event.target!==junction)return;const delta=event.key==='ArrowLeft'?[-1,0]:event.key==='ArrowRight'?[1,0]:event.key==='ArrowDown'?[0,1]:event.key==='ArrowUp'?[0,-1]:undefined;if(delta){event.preventDefault();panCamera(viewX+delta[0]!,viewY+delta[1]!);}else if(event.key==='Home'){event.preventDefault();returnLive.click();}});
+    let dragging:{id:number;clientX:number;clientY:number;x:number;y:number}|undefined;
+    junction.addEventListener('pointerdown',event=>{if(event.button!==0||!pathActive&&!localCamera||(event.target as HTMLElement).closest('button,summary,details,input,select,a'))return;event.preventDefault();cancelCamera();dragging={id:event.pointerId,clientX:event.clientX,clientY:event.clientY,x:viewX,y:viewY};junction.setPointerCapture(event.pointerId);});
+    junction.addEventListener('pointermove',event=>{if(!dragging||event.pointerId!==dragging.id)return;const card=currentNode.getBoundingClientRect(),style=getComputedStyle(junction),dx=event.clientX-dragging.clientX,dy=event.clientY-dragging.clientY;if(Math.abs(dx)+Math.abs(dy)>4)panCamera(dragging.x-dx/(card.width+parseFloat(style.columnGap)),dragging.y-dy/(card.height+parseFloat(style.rowGap)));});
+    for(const name of ['pointerup','pointercancel'])junction.addEventListener(name,()=>{dragging=undefined;});
+    junction.addEventListener('focusout',()=>queueMicrotask(layoutPath));
+    new ResizeObserver(layoutPath).observe(junction);
+    const updatePath=(model:NetworkViewModel,reset:boolean,retained:boolean):void=>{
+      const anchor=model.observation;if(reset)pathResetPending=true;
+      if(!retained){
+        const pinned=model.session?.mode==='pin'&&anchor?.coherent?anchor:undefined;
+        if(pinned?.identity!==localCamera?.identity)cameraFollowing=true;localCamera=pinned;
+        pathActive=model.session?.mode==='follow'&&anchor?.coherent===true;
+        let record:NavigatorPathRecord|undefined;
+        if(pathActive&&anchor){
+          const pre=knownPhase(model.preattestations),att=knownPhase(model.attestations),direction=junction.dataset.direction==='up'?'up':junction.dataset.direction==='right'?'right':'static',before=path.current?.anchor;
+          const observedGap=before&&anchor.level>before.level+1&&anchor.source===before.source&&anchor.chain===before.chain&&anchor.protocol===before.protocol;
+          const clear=pathResetPending&&!observedGap;
+          if(clear||before&&(anchor.source!==before.source||anchor.chain!==before.chain||anchor.protocol!==before.protocol))cameraFollowing=true;
+          record=path.observe({anchor,...(pre?{pre}:{}),...(att?{att}:{})},direction,clear);
+          if(record)pathResetPending=false;
+          else pathActive=!clear&&sameCameraPosition(before,anchor);
+        }
+        if(!pathActive&&!localCamera)cameraFollowing=true;
+        // Rejected old receipts never lend their stored peaks to a different live identity.
+        paintPhases(currentNode,currentPhases,record?.pre??knownPhase(model.preattestations),record?.att??knownPhase(model.attestations));
+      }
+      junction.dataset.pathHistory=String(pathActive);for(const button of navigation.querySelectorAll('button'))button.disabled=!pathActive&&!localCamera;
+      set(returnLive,localCamera?'Return to anchor':'Return to live');
+      layoutPath();
+    };
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cancelCamera();set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
     const moveCamera=(model:NetworkViewModel,retained:boolean,reset:boolean):void=>{
       const before=reset?undefined:cameraAnchor,after=model.observation;
@@ -441,7 +553,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       // Local coordinates are descriptive, never proportional to absolute network rounds.
       junction.dataset.direction=direction;junction.dataset.cameraX=String(cameraX);junction.dataset.cameraY=String(cameraY);
       const coherentCard=before&&observedCard?.key===anchorKey(before)?observedCard.presentation:undefined;
-      if(direction!=='static'&&!reducedMotion.matches&&coherentCard){
+      if(direction!=='static'&&!reducedMotion.matches&&coherentCard&&cameraFollowing){
         const origin=junction.querySelector<HTMLElement>(direction==='up'?'[data-branch=same-level]':'[data-branch=next-level]');
         if(!origin)return;
         const frame=stage.getBoundingClientRect(),destination=currentNode.getBoundingClientRect(),slot=origin.getBoundingClientRect();
@@ -450,8 +562,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
         const departing=el('div','navigator-departures');departing.setAttribute('aria-hidden','true');departing.inert=true;
         // The former world and the incoming frontier share one camera transform.
         const oldNodes=direction==='right'
-          ?[previousNode,currentNode,stage.querySelector('[data-branch=same-level]'),stage.querySelector('.navigator-edge-previous'),stage.querySelector('.navigator-edge-round')]
-          :[previousNode,currentNode,stage.querySelector('[data-branch=next-level]'),...stage.querySelectorAll('.navigator-edge')];
+          ?[currentNode,stage.querySelector('[data-branch=same-level]'),stage.querySelector('.navigator-edge-round')]
+          :[currentNode,stage.querySelector('[data-branch=next-level]'),stage.querySelector('.navigator-edge-round'),stage.querySelector('.navigator-edge-level')];
         for(const node of oldNodes){
           if(!(node instanceof HTMLElement))continue;
           const presentation=node===currentNode?coherentCard:cardPresentation(node);
@@ -467,7 +579,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
         // This is the latest coherent rendered destination, not a queued receipt replay.
         const animation=stage.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],{duration:CAMERA_DURATION_MS,easing:'linear'});
         cameraAnimation=animation;
-        animation.onfinish=()=>{if(cameraAnimation===animation){departing.remove();departures=undefined;cameraAnimation=undefined;previousNode.style.opacity='';}};
+        animation.onfinish=()=>{if(cameraAnimation===animation){departing.remove();departures=undefined;cameraAnimation=undefined;previousNode.style.opacity='';layoutPath();}};
       }
     };
     const tick = (now: number): void => {
@@ -499,7 +611,6 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       observedHash=anchor?.hash;copyHash.disabled=!observedHash;
       set(currentHash,anchor?.hash?short(anchor.hash):'Proposal hash unavailable');currentHash.title=anchor?.hash??'No proposal hash observed';
       currentNode.dataset.identity=anchor?.identity??'';
-      if(anchor?.coherent){observedCard={key:anchorKey(anchor),presentation:cardPresentation(currentNode)};navigatorHadOpportunities=model.opportunityFacts!==undefined;}else navigatorHadOpportunities=false;
       const parent=anchor?.predecessor;
       set(previousTarget,parent?`${number(parent.level)} · r${parent.round}`:'Previous block unavailable');
       set(previousKind,parent?.hash?'Observed block':parent?'Votes only':'Live unavailable');
@@ -619,6 +730,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       if (bakers.length) for (const placeholder of bakerRows.querySelectorAll('.empty-state')) placeholder.remove();
       else for(const placeholder of bakerRows.querySelectorAll<HTMLElement>('.empty-state')){const same=placeholder.dataset.branch==='same-level',target=placeholder.querySelector<HTMLElement>('.branch-target');if(target)set(target,anchor?`Level ${number(anchor.level+(same?0:1))} · round ${same?anchor.round+1:0}`:'Level — · round —');}
       }
+      updatePath(model,reset,retained);
+      if(!retained){if(anchor?.coherent){observedCard={key:anchorKey(anchor),presentation:cardPresentation(currentNode)};navigatorHadOpportunities=model.opportunityFacts!==undefined;}else navigatorHadOpportunities=false;}
       set(meta.get('Primary source')!, model.source ?? 'Unavailable'); set(meta.get('Block hash')!, model.hash ?? 'Unavailable');
       set(meta.get('Applied head')!, model.appliedLevel === undefined ? 'Unavailable' : `Level ${number(model.appliedLevel)} · round ${number(model.appliedRound)}`);
       set(meta.get('Last successful head')!, clock(model.observedAt)); set(meta.get('Last operation')!, clock(model.lastOperationAt));

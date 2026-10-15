@@ -11,6 +11,7 @@ for(const width of [1440,390])for(const direction of ['up','right'] as const)for
  const first={...head(101,0),hash:'MotionFirst101',...(votesOnly?{payload_hash:'DifferentAppliedPayload101'}:{})},next=direction==='up'?{...head(101,1),hash:'MotionRound101'}:{...head(102,0),hash:'MotionNext102',predecessor:first.hash};
  for(const header of [first,next])headers.get(page)!.set(header.hash,header);
  if(votesOnly)await send(page,'shadownet-operations',[vote(0,101,0)]);else await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
+ if(votesOnly)await expect(panel.locator('.navigator-current .path-phase-summary')).toContainText('pre 600/30,000');
  const oldContent=await panel.locator('.navigator-current').textContent()??'';expect(oldContent).toContain('101 · r0');
  if(direction==='right'){
   if(votesOnly)await expect(panel.locator('.baker-opportunity').first().locator('.branch-critical')).toContainText('Conditional timer');

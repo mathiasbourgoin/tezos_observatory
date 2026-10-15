@@ -302,3 +302,26 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .session-rail>.retained-history{height:260px}
 @media(max-width:700px){.session-rail>.retained-history{height:360px}}
 @media(min-width:2600px){.session-rail>.retained-history{height:480px}}
+
+/* A bounded world of observed cards; the camera and its viewport have separate owners. */
+.navigator-junction{--navigator-slot-height:clamp(180px,calc((100dvh - 360px)/3),228px);grid-template-rows:repeat(3,var(--navigator-slot-height));touch-action:none;cursor:grab}
+.navigator-junction:active{cursor:grabbing}
+.navigator-camera{position:relative;grid-column:1/-1;grid-row:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,var(--navigator-slot-height));gap:inherit;min-width:0}
+.navigator-stage{grid-template-rows:repeat(3,var(--navigator-slot-height))}
+.navigator-past{position:absolute;inset:0;pointer-events:none}
+.navigator-path-card{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;gap:5px;padding:12px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;border:1px solid var(--line);pointer-events:auto;z-index:1}
+.navigator-path-card>*{flex-shrink:0}.navigator-path-card>.branch-target{font-size:20px!important}
+.navigator-current,.navigator-path-card{background:linear-gradient(90deg,color-mix(in srgb,var(--pre) 26%,transparent) 0 var(--path-pre,0%),transparent var(--path-pre,0%) 100%) top left/100% 50% no-repeat,linear-gradient(90deg,color-mix(in srgb,var(--att) 18%,transparent) 0 var(--path-att,0%),transparent var(--path-att,0%) 100%) bottom left/100% 50% no-repeat,var(--surface)}
+.navigator-current{position:relative;z-index:2}.path-phase-summary{font-size:12px;font-variant-numeric:tabular-nums}
+.navigator-junction .baker-opportunity{background:transparent}
+.navigator-junction[data-path-history=true] .navigator-previous,.navigator-junction[data-path-history=true] .navigator-edge-previous{visibility:hidden}
+.navigator-path-edge,.navigator-path-gap{position:absolute;pointer-events:none}.navigator-path-gap{background:var(--surface);padding:1px 4px}
+.navigator-navigation{grid-column:1;grid-row:3;display:flex;flex-wrap:wrap;align-content:start;gap:4px;height:112px;overflow:auto}
+.navigator-navigation button{flex:none;min-width:44px;min-height:44px;padding:8px}.path-camera-status{flex-basis:100%;height:3em;overflow:auto}
+.opportunities>.navigator-status{grid-row:4}
+.navigator-motion-card{z-index:3}
+@media(max-width:700px){.navigator-junction{--navigator-slot-height:240px}.navigator-path-card{padding:8px 6px}.navigator-path-card>.branch-target{font-size:18px!important}}
+
+.navigator-current>.subtle,.navigator-current>.eyebrow,.navigator-path-card>.subtle,.navigator-path-card>.eyebrow{color:var(--ink)}
+
+.navigator-current,.navigator-path-card{gap:4px;padding:10px}.navigator-current>.eyebrow,.navigator-path-card>.eyebrow{line-height:1.2}.navigator-current>.branch-target,.navigator-path-card>.branch-target{line-height:1.25}.navigator-current>.subtle,.navigator-current>.address-text,.navigator-path-card>.subtle,.navigator-path-card>.address-text{line-height:1.35}.navigator-current>.address-copy,.navigator-path-card>.address-copy{margin-top:3px}
