@@ -1,3 +1,4 @@
+import {cameraReceipt,type CameraReceipt} from './cameraTiming';
 import {phaseProof} from './phaseProvenance';
 import {BlockIntervals} from './rpc/blockIntervals';
 import {observationMeaning} from './observationMeaning';
@@ -83,6 +84,7 @@ interface Runtime {
   opportunityController: AbortController;
   eligibilityHead: string;
   requestFrame: number | null;
+  cameraReceipt:CameraReceipt|undefined;
 }
 
 
@@ -197,7 +199,7 @@ function renderPinned(runtime:Runtime):boolean {
  Object.assign(model,observationMeaning(view,model.observation));applyIndependentClock(runtime,model);applyProducer(runtime,model);model.comparison=comparisonModel(runtime);updateDashboard(runtime,model);return true;
 }
 
-function updateDashboard(runtime:Runtime,model:NetworkViewModel):void {dashboard.update(runtime.network,{...model,blockIntervals:runtime.intervals.view()});}
+function updateDashboard(runtime:Runtime,model:NetworkViewModel):void {dashboard.update(runtime.network,{...model,...(model.observation?.identity===runtime.cameraReceipt?.identity&&runtime.cameraReceipt?{cameraAcceptedMonotonic:runtime.cameraReceipt.emittedMonotonic}:{}),blockIntervals:runtime.intervals.view()});}
 
 function render(runtime: Runtime): void {
   const view = runtime.view;
@@ -583,6 +585,8 @@ for (const network of ["mainnet", "shadownet"] as const) {
     fallbackHead: (signal) => data.head(signal),
     onUpdate(view) {
       if (!runtime) return;
+      const destination=view.inspection.mode==='follow'?view.observationTargets.find(record=>record.identity===view.inspection.selectedIdentity&&record.admission&&!record.contextInvalid&&runtime.monitor.contextAuthorized(record.admission.context)):undefined;
+      runtime.cameraReceipt=cameraReceipt(runtime.cameraReceipt,destination?.identity,view.emittedMonotonic);
       runtime.comparison.setRawCapacity(10000-view.rawOperations.length);
       runtime.view = view;runtime.producers.fence();
       const currentHead=view.snapshot?.head,expectedChain=view.networkIdentity?.chainId;
@@ -609,6 +613,7 @@ for (const network of ["mainnet", "shadownet"] as const) {
     opportunityController: new AbortController(),
     eligibilityHead: "",
     requestFrame: null,
+    cameraReceipt:undefined,
   };
   data.onChange=()=>scheduleRender(runtime);
   runtimes.set(network, runtime);

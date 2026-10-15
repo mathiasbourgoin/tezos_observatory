@@ -1,3 +1,4 @@
+import {cameraElapsed} from './cameraTiming';
 import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockIntervals';
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
@@ -14,6 +15,8 @@ export interface ObservedNavigatorView {
  readonly predecessor?:{readonly hash:string;readonly level:number;readonly round:number;readonly relation:'ancestry'|'context';readonly payload?:string;readonly parentHash:string};
 }
 export interface NetworkViewModel {
+  /** UI admission-to-render budget; not an observation receipt. */
+  cameraAcceptedMonotonic?:number;
   blockIntervals?:IntervalView;
   observation?:ObservedNavigatorView;
   selectedRelationship?:'applied-block'|'applied-tuple'|'different-block'|'next-level'|'other';
@@ -382,8 +385,13 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
       set(navigatorStatus,`${reason}${reducedMotion.matches?' · reduced motion, static destination':''}. Solid: verified ancestry · dotted: context only · dashed: conditional.`);
       // Local coordinates are descriptive, never proportional to absolute network rounds.
       junction.dataset.direction=direction;junction.dataset.cameraX=String(cameraX);junction.dataset.cameraY=String(cameraY);
-      if(direction!=='static'&&!reducedMotion.matches){
+      const elapsed=cameraElapsed(model.cameraAcceptedMonotonic,performance.now());
+      if(direction!=='static'&&!reducedMotion.matches&&elapsed!==undefined){
         cameraAnimation=junction.animate([{transform:direction==='up'?'translateY(-32px)':'translateX(48px)'},{transform:'translate(0,0)'}],{duration:160,easing:'cubic-bezier(.2,.7,.2,1)'});
+        // An explicit document-timeline origin also counts work before the first paint.
+        const timelineNow=document.timeline.currentTime;
+        if(typeof timelineNow==='number')cameraAnimation.startTime=timelineNow-elapsed;
+        else {cameraAnimation.cancel();cameraAnimation=undefined;}
       }
     };
     const tick = (now: number): void => {

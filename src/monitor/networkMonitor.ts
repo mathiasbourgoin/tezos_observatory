@@ -42,6 +42,8 @@ export interface ObservedProgress {
 }
 
 export interface NetworkMonitorView<T extends NetworkDerivedState> {
+  /** UI delivery clock captured before view construction, not network evidence. */
+  readonly emittedMonotonic:number;
   readonly network: NetworkName;
   readonly snapshot: HeadSnapshot<T> | null;
   readonly rawOperations: MonitorOperationBatch;
@@ -573,7 +575,9 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     }, 0);
   }
   private emit(): void {
+    const emittedMonotonic=performance.now();
     this.options.onUpdate({
+      emittedMonotonic,
       network: this.options.network,
       snapshot: this.state.snapshot(),
       acceptedEvents:this.observations.acceptedEvents(),

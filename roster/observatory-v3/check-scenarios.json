@@ -101,7 +101,8 @@
     "V3 AC-13 adjacent burst settles its final right destination without queued motion or reader movement",
     "V3 AC-13 rapid admission burst preserves the actual final destination",
     "V3 AC-13 reduced motion enabled during an actual transition cancels immediately and keeps the observed destination",
-    "V3 AC-06 loading unresolved gaps reorg reduced motion and visibility states render across every base"
+    "V3 AC-06 loading unresolved gaps reorg reduced motion and visibility states render across every base",
+    "V3 AC-13 delayed rendering spends the existing animation budget instead of restarting it"
   ],
   "AC-14": [
     "V3 AC-29 observed junction places next round above and next level right with readable phone targets",

@@ -1123,9 +1123,16 @@ test('V3 AC-01 exact high-round applied and successor votes retain independent i
 });
 
 
-for(const reader of ['settled','rapid'] as const)test(reader==='settled'?'V3 AC-13 adjacent burst settles its final right destination without queued motion or reader movement':'V3 AC-13 rapid admission burst preserves the actual final destination',async({page},testInfo)=>{
+for(const reader of ['settled','rapid','delayed'] as const)test(reader==='settled'?'V3 AC-13 adjacent burst settles its final right destination without queued motion or reader movement':reader==='rapid'?'V3 AC-13 rapid admission burst preserves the actual final destination':'V3 AC-13 delayed rendering spends the existing animation budget instead of restarting it',async({page},testInfo)=>{
  await prepare(page,false);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
  await page.evaluate(async path=>{const {NetworkMonitor}=await import(path),original=NetworkMonitor.prototype.emit;const trace:unknown[]=[];Object.assign(window,{burstDomainTrace:trace});NetworkMonitor.prototype.emit=function(){if(this.options.network==='mainnet')trace.push({at:performance.now(),accepted:this.observations.acceptedTargets(),coherent:this.observations.acceptedTargets().filter((record:ObservationTarget<Derived>)=>record.admission&&!record.contextInvalid&&this.observations.contextAuthorized(record.admission.context)).map((record:ObservationTarget<Derived>)=>record.target.candidate?.header.hash).filter(Boolean),unresolved:this.observations.unresolvedTargets(),snapshot:this.state.snapshot(),progression:this.progression});return original.call(this);};},inspectionModule());
+ if(reader==='delayed')await page.evaluate(async path=>{
+  const {NetworkMonitor}=await import(path),emit=NetworkMonitor.prototype.emit;let installed=false,held=false;
+  NetworkMonitor.prototype.emit=function(){if(this.options.network==='mainnet'&&!installed){installed=true;const update=this.options.onUpdate;this.options.onUpdate=(view:import('../../src/monitor/networkMonitor').NetworkMonitorView<Derived>)=>{
+   if(!held&&view.observationTargets.some(record=>record.target.candidate?.header.hash==='Burst102'&&record.admission&&!record.contextInvalid)){held=true;const until=performance.now()+70;while(performance.now()<until){/* Deliberately reproduce synchronous view/render work after acceptance. */}}
+   update(view);
+  };}return emit.call(this);};
+ },inspectionModule());
  const first={...head(101,0),hash:'Burst101R0'},round={...head(101,1),hash:'Burst101R1'},next={...head(102,0),hash:'Burst102',predecessor:round.hash};
  for(const header of [first,round,next])headers.get(page)!.set(header.hash,header);
  await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
