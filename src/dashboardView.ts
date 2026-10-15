@@ -28,7 +28,9 @@ export interface NetworkViewModel {
   level?: number; consensusLevel?: number; round?: number; activityRound?: number; hash?: string; payload?: string;
   appliedLevel?: number; appliedRound?: number;
   observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
-  candidates?: readonly {identity:string;hash?:string;payload?:string;level:number;round:number}[];
+  candidates?: readonly {identity:string;hash?:string;payload?:string;level:number;round:number;prePower?:number;attPower?:number;source?:string;payloadShared?:boolean}[];
+  provenanceCandidates?:readonly {identity:string;hash:string;level:number;round:number}[];
+  unresolvedObservations?:readonly {identity:string;hash?:string;payload?:string;level:number;round:number;source:string}[];
   selectedIdentity?: string;
   session?:{previous?:string;mode:"follow"|"pin";frozen:boolean;newer:number;newerPartial:boolean;selected?:string;canPin:boolean;accepted:number;unresolved:number;raw:number;instances:readonly {identity:string;label:string;level?:number;round?:number;source?:string;received?:number;receivedMonotonic?:number;partial?:boolean;candidates?:number}[]};
   retryIdentity?:string;
@@ -322,16 +324,22 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     sectionTitle.append(el('h3', '', 'Committee participation')); const activity = el('span', 'subtle', 'Activity round —'); sectionTitle.append(activity);
     const selection = el('p', 'selection-label', 'Level — · payload unavailable');
     const candidateControls = el('div', 'candidate-controls'); candidateControls.setAttribute('aria-label','Observed candidates and payloads');
+    const alternatives=el('details','observed-proposals'),alternativesSummary=el('summary','','Other observed proposals (0)');
+    const alternativesNote=el('p','table-note','Same level, round and source context, with received voting power. Strongest phase support first; inspect to pin an instance. Payload signatures can be shared by several block hashes.');
+    alternatives.append(alternativesSummary,alternativesNote,candidateControls);
     const candidateEvidence = el('p','candidate-evidence table-note');
     const selectedHeader = el('div', 'selected-heading'), selectedTitle = el('h2', 'selected-title', 'Observation unavailable'); selectedHeader.append(el('p', 'eyebrow', 'Selected consensus instance'), selectedTitle);
     const selectedRelationship=el('p','selected-relationship'),nextProposalObservation=el('p','next-proposal-observation table-note');
     const selectedKind = el('p', 'selected-kind', 'Waiting for observed evidence'), selectedPayload = el('p', 'selected-payload');
     const selectedProof = disclosure('Selected identity & phase provenance', `observatory:${network}:identity`); selectedProof.body.append(candidateEvidence);
+    const captured=el('details','captured-candidates'),capturedSummary=el('summary','','Captured block observations (0)'),capturedButtons=el('div','candidate-controls');
+    captured.append(capturedSummary,el('p','table-note','Block identities captured in this retained instance. Inspecting pins its recorded evidence; voting power can be unavailable.'),capturedButtons);selectedProof.body.append(captured);
+    const capturedControls=new Map<string,HTMLButtonElement>();
     const inspector = el('section', 'selected-inspector'); inspector.setAttribute('aria-label', 'Selected consensus evidence');
     let retryIdentity:string|undefined;
     const retry=el("button","","Retry selected observer context");retry.type="button";retry.hidden=true;retry.addEventListener("click",()=>{if(retryIdentity)options.onRetry?.(network,retryIdentity);});
     const candidateButtons = new Map<string,HTMLButtonElement>();
-    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection, candidateControls,retry, gauges,selectedProof.details);
+    const gauges = el('div', 'gauges'), pre = gauge('Preattestations', 'pre'), att = gauge('Attestations', 'att'); gauges.append(pre.root, att.root); consensus.append(sectionTitle, selection,retry, gauges,selectedProof.details);
     const opportunities = el('section', 'opportunities'), timingHeader = el('div', 'section-heading'); timingHeader.append(el('h3', '', 'Observed path & conditional branches'));
     const countdown = el('span', 'countdown', 'Timing unavailable');
     const timing = el('p', 'timing-detail address-text', 'Independent clock estimate unavailable');
@@ -362,6 +370,9 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     const readEligibility=el('button','eligibility-read','Read committee eligibility');readEligibility.type='button';
     if(network==='shadownet'){readEligibility.addEventListener('click',()=>options.onReadEligibility?.(network));committee.root.querySelector('.disclosure-body')?.prepend(readEligibility);}
     const evidence = disclosure('Sources & observation evidence', `consensus-v2:${network}:evidence`);
+    const rawObservations=el('details','raw-observations'),rawSummary=el('summary','','Unresolved raw observations (0)'),rawButtons=el('div','candidate-controls');
+    rawObservations.append(rawSummary,el('p','table-note','Source-local context or voting power remains unproven. Inspect raw facts and retry their observer proof; these are not validated committee support.'),rawButtons);evidence.body.append(rawObservations);
+    const rawControls=new Map<string,HTMLButtonElement>();
     const metadata = el('dl', 'evidence-meta');
     const meta = new Map<string, HTMLElement>();
     for (const label of ['Primary source', 'Applied head', 'Block hash', 'Last successful head', 'Last operation', 'Block age', 'Snapshot age']) {metadata.append(el('dt', '', label)); const value = el('dd', '', 'Unavailable'); metadata.append(value); meta.set(label, value);}
@@ -378,7 +389,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     const sourceRows = el('div', 'source-rows'), history = el('ol', 'event-history'); evidence.body.append(metadata, authorityEvidence, sourceRows, el('h4', '', 'Recent network events'), history);
     const observer = el('section', 'observer-summary'); observer.append(panelHeader, connection, headline, appliedContext,nextProposalObservation);
     const sourcePane = el('aside', 'source-pane'); sourcePane.append(el('h3', '', 'Sources & limits'),contextProof.details,sourceRows,comparisonSection,evidence.details);evidence.body.prepend(authorityEvidence);
-    inspector.append(selectedHeader,selectedRelationship, selectedKind,selectedPayload,proposalContext,consensus,notice,missing);
+    inspector.append(selectedHeader,selectedRelationship, selectedKind,selectedPayload,proposalContext,alternatives,consensus,notice,missing);
     const intervals=blockIntervalRegion(network,()=>options.onRefreshIntervals?.(network));
     const workspace=el('div','inspection-workspace'); workspace.append(sessionRail,inspector,intervals.root,committee.root,sourcePane);
     panel.append(observer,sessionControls,opportunities,workspace); grid.append(panel);
@@ -506,20 +517,45 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       set(notice, model.error ?? model.note ?? (model.status === 'stalled' ? 'Proposal activity continues, but the level has not advanced.' : model.status === 'loading' ? 'Waiting for the first successful observation.' : 'Live observations from this browser.'));
       set(activity, `${model.roundSource==='schedule'?'Scheduled':'Observed'} round ${number(model.activityRound)}`); set(selection, `Level ${number(model.consensusLevel ?? model.level)} · payload ${short(model.payload)}`); selection.title = model.payload ?? '';
       const candidateKeys = new Set<string>();
+      let candidateIndex=0;
       for (const candidate of model.candidates ?? []) {
         candidateKeys.add(candidate.identity);
         let button = candidateButtons.get(candidate.identity);
         if (!button) {
           button = el('button','control-button'); button.type = 'button';
           button.addEventListener('click', () => options.onSelect?.(network,candidate.identity));
-          candidateButtons.set(candidate.identity,button); candidateControls.append(button);
+          candidateButtons.set(candidate.identity,button);
         }
-        set(button, candidate.hash ? `Candidate ${candidate.hash}` : `Payload ${short(candidate.payload)}`);
-        button.setAttribute('aria-label', candidate.hash ? `Inspect candidate ${candidate.hash}` : `Inspect payload ${candidate.payload ?? 'unavailable'}`);
+        const kind=candidate.hash?'Block':'Payload',identity=candidate.hash??candidate.payload??'unavailable';
+        const support=`pre ${number(candidate.prePower)} · att ${number(candidate.attPower)}${candidate.payloadShared?' · payload-shared':''}`;
+        set(button,`Level ${number(candidate.level)} / r${number(candidate.round)} · ${kind} ${short(identity)} · ${support}`);
+        button.setAttribute('aria-label',candidate.hash?`Inspect candidate ${identity}`:`Inspect payload ${identity}`);
         button.setAttribute('aria-pressed',String(candidate.identity === model.selectedIdentity));
-        button.title = `Level ${candidate.level} · round ${candidate.round} · payload ${candidate.payload ?? 'unavailable'}`;
+        button.title = `Level ${candidate.level} · round ${candidate.round} · ${kind.toLowerCase()} ${identity} · payload ${candidate.payload ?? 'unavailable'} · ${support} · source ${candidate.source??'unavailable'}`;
+        const position=candidateControls.children.item(candidateIndex++);
+        if(position!==button){const focused=document.activeElement===button;candidateControls.insertBefore(button,position);if(focused)button.focus({preventScroll:true});}
       }
       for (const [key,button] of candidateButtons) if (!candidateKeys.has(key)) {button.remove();candidateButtons.delete(key);}
+      set(alternativesSummary,`Other observed proposals (${candidateKeys.size})`);
+      set(alternativesNote,`Same level, round and source context${model.candidates?.[0]?.source?` · ${model.candidates[0].source}`:''}, with received voting power. Strongest phase support first; inspect to pin an instance. Payload signatures can be shared by several block hashes.`);
+      const capturedKeys=new Set<string>();
+      for(const candidate of model.provenanceCandidates??[]){
+        capturedKeys.add(candidate.identity);let button=capturedControls.get(candidate.identity);
+        if(!button){button=el('button','control-button');button.type='button';button.addEventListener('click',()=>options.onSelect?.(network,candidate.identity));capturedControls.set(candidate.identity,button);capturedButtons.append(button);}
+        set(button,`Level ${number(candidate.level)} / r${number(candidate.round)} · Block ${short(candidate.hash)}`);button.title=candidate.hash;
+        button.setAttribute('aria-label',`Inspect candidate ${candidate.hash}`);button.setAttribute('aria-pressed',String(candidate.identity===model.selectedIdentity));
+      }
+      for(const [key,button] of capturedControls)if(!capturedKeys.has(key)){button.remove();capturedControls.delete(key);}
+      captured.hidden=capturedKeys.size===0;set(capturedSummary,`Captured block observations (${capturedKeys.size})`);
+      const rawKeys=new Set<string>();
+      for(const record of model.unresolvedObservations??[]){
+        rawKeys.add(record.identity);let button=rawControls.get(record.identity);
+        if(!button){button=el('button','control-button');button.type='button';button.addEventListener('click',()=>options.onSelect?.(network,record.identity));rawControls.set(record.identity,button);rawButtons.append(button);}
+        const id=record.hash??record.payload??'unavailable';set(button,`Unproven · Level ${number(record.level)} / r${number(record.round)} · ${record.hash?'Block':'Payload'} ${short(id)}`);
+        button.title=`${id} · source ${record.source}`;button.setAttribute('aria-label',record.hash?`Inspect candidate ${id}`:`Inspect payload ${id}`);
+      }
+      for(const [key,button] of rawControls)if(!rawKeys.has(key)){button.remove();rawControls.delete(key);}
+      rawObservations.hidden=rawKeys.size===0;set(rawSummary,`Unresolved raw observations (${rawKeys.size})`);
       retryIdentity=model.retryIdentity;retry.hidden=retryIdentity===undefined;retry.disabled=!model.canRetry;
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
