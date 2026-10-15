@@ -1013,3 +1013,14 @@ test('the independent clock estimate identifies its applied reference and actual
  await expect(detail).toContainText(new Date(Date.parse(observed.timestamp)+18000).toISOString());
  for(const row of [rows.first(),rows.nth(1)])await expect(row).toContainText(`deadline ${new Date(Date.parse(observed.timestamp)+12000).toISOString()}`);
 });
+
+test('a fully retired first observed quorum replay retains uncertain power without recreating its event',async({page})=>{
+ const current=head(100);await prepare(page,false,current,100,false,false,{total:5,quorum:4,powers:[3,1,1]});const panel=page.locator('.network-panel.mainnet'),events=panel.locator('.event-history li');
+ const packet=(hash:string,payload:string,slots=[0,1,2])=>({hash,contents:slots.map(slot=>({kind:'preattestation',level:101,round:0,slot,block_payload_hash:payload}))});
+ const original=packet('retired-original-quorum','vhRetiredOriginal');await send(page,'mainnet-operations',[original]);await expect(events.filter({hasText:'vhRetiredOriginal'})).toHaveCount(1);await expect(events.filter({hasText:'vhRetiredOriginal'})).toContainText('Preattestation observed quorum');
+ for(let index=0;index<14;index++){await send(page,'mainnet-operations',[packet(`evict-event-${index}`,`vhEvictEvent${index}`)]);await expect(events.filter({hasText:`vhEvictEvent${index} `})).toHaveCount(1);}
+ await expect(events.filter({hasText:'vhRetiredOriginal'})).toHaveCount(0);await expect(events).toHaveCount(12);
+ await send(page,'mainnet-operations',Array.from({length:151},(_,index)=>packet(`retire-owner-${index}`,`vhRetireOwner${index}`,[0])));await expect(panel).toContainText('Crossing history partial');
+ await send(page,'mainnet-operations',Array.from({length:10000},(_,index)=>({hash:`retired-unrelated-${index}`,contents:[{kind:'transaction',source:'tz1Source',destination:'tz1Destination',fee:'1',counter:'1',gas_limit:'100',storage_limit:'0',amount:'1'}]})));
+ const priorEvents=await events.allTextContents();await send(page,'mainnet-operations',[original]);await panel.getByRole('button',{name:'Inspect payload vhRetiredOriginal',exact:true}).click();await expect(panel.locator('.pre .gauge-counts')).toContainText('5 / 5 power');await expect(panel.locator('.pre .quorum-caption')).toContainText('Quorum reached · 4 power required');await expect(panel).toContainText('Crossing history partial');await expect(events.filter({hasText:'vhRetiredOriginal'})).toHaveCount(0);await expect(events).toHaveText(priorEvents);
+});

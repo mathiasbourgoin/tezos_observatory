@@ -449,7 +449,9 @@ export class ObservationStore<T> {
           const state:AcceptedPhase=Object.freeze({key:identity,phase,power,maximumPower:Math.max(old?.maximumPower??0,power),maximumTotal:newMaximum?admission.constants.committee:old.maximumTotal,maximumThreshold:newMaximum?admission.constants.quorum:old.maximumThreshold,maximumBasis:newMaximum?basis:old.maximumBasis,maximumEvidence:newMaximum?evidence:old.maximumEvidence,threshold:admission.constants.quorum,basis,quorumObserved:old?.quorumObserved===true||firstQuorum,crossed:old?.crossed===true||crossing,uncertain:old?.uncertain??this.crossingHistoryUncertain,evidence:old?.evidence??evidence});
           this.phaseFacts.set(identity,state);
           const eventIdentity=JSON.stringify([identity,crossing?"crossing":"observed-quorum"]);
-          if((crossing || (!old && firstQuorum)) && !this.acceptedEventFacts.some(event=>event.phaseIdentity===identity)){
+          // Retired phase/event owners cannot prove this quorum was never emitted.
+          // Keep its attributed positive phase fact, but publish no reconstructed event.
+          if((crossing || (!old && firstQuorum && !state.uncertain)) && !this.acceptedEventFacts.some(event=>event.phaseIdentity===identity)){
             this.acceptedEventFacts.push(Object.freeze({identity:eventIdentity,phaseIdentity:identity,kind:crossing?"crossing":"observed-quorum",phase,level:record.target.level,round:record.target.round,payload:record.target.payload!,contextKey:admission.context.key,chainId:admission.context.observer.chainId,attribution:"payload-shared",power,threshold:admission.constants.quorum,evidence}));
             this.acceptedEventFacts.splice(0,Math.max(0,this.acceptedEventFacts.length-12));
           }

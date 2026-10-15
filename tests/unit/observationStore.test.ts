@@ -489,3 +489,22 @@ it.each(['level','round','source','timing-context','requested-anchor','unsafe-de
  const bad:OpportunityFact=kind==='level'?{...first,level:124}:kind==='round'?{...first,round:2}:kind==='source'?{...first,proposer:{state:'known',right:{...first.proposer.right,evidence:{...first.proposer.right.evidence,source:{...b,baseUrl:'https://unconfigured.invalid'}}}}}:kind==='timing-context'?{...first,timing:{...first.timing,parameters:{...first.timing.parameters,context:{...first.timing.parameters.context,level:124}}}}:kind==='requested-anchor'?{...first,timing:{...first.timing,parameters:{...first.timing.parameters,evidence:{...first.timing.parameters.evidence,requestedHeadHash:'WrongAnchor'}}}}:kind==='unsafe-deadline'?{...first,timing:{...first.timing,deadline:Number.MAX_SAFE_INTEGER+1}}:kind==='unsafe-remaining'?{...first,timing:{...first.timing,remainingAtCapture:-1}}:{...first,capturedMonotonic:NaN};
  expect(store.captureOpportunities(record.identity,token,[bad,facts[1]])).toBe(false);expect(store.target(record.identity)?.opportunities).toBeUndefined();
 });
+
+it("independent whole review: retired observed quorum replay cannot append the same event again",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet);
+ const packet=(hash:string,payload:string,at:number)=>({...operation(hash),evidence:evidence(b,at),contents:[0,1].map(slot=>({kind:"preattestation" as const,level:123,round:0,slot,block_payload_hash:payload}))});
+ const original=packet("original-quorum","OriginalPayload",1),record=store.addOperations([original])[0];if(!record)throw new Error("Fixture missing");
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);store.accept(proof);
+ const first=store.acceptedEvents().find(event=>event.payload==="OriginalPayload");expect(first?.kind).toBe("observed-quorum");
+ for(let i=0;i<151;i++)store.addOperations([packet(`later-${i}`,`LaterPayload-${i}`,i+2)]);
+ expect(store.history().some(snapshot=>snapshot.record.target.payload==="OriginalPayload")).toBe(false);
+ expect(store.acceptedEvents().some(event=>event.payload==="OriginalPayload")).toBe(false);
+ store.addOperations(Array.from({length:10000},(_,i)=>({hash:`unrelated-${i}`,evidence:evidence(b,i+1000),contents:[]})));
+ expect(store.rawOperations().some(op=>op.hash==="original-quorum")).toBe(false);
+ const replayed=store.addOperations([{...original,evidence:evidence(b,20000)}])[0]!;
+ const phase=store.target(replayed.identity)?.phases?.pre;
+ expect([phase?.power,phase?.maximumPower,phase?.threshold,phase?.quorumObserved,phase?.uncertain,phase?.evidence.receivedMonotonic]).toEqual([5,5,4,true,true,20000]);
+ expect(phase?.evidence.source.baseUrl).toBe(b.baseUrl);
+ expect(store.acceptedEvents().filter(event=>event.phaseIdentity===first!.phaseIdentity)).toHaveLength(0);
+ expect(store.rawOperations().length).toBeLessThanOrEqual(10000);expect(store.history().length).toBeLessThanOrEqual(150);expect(store.crossingState().retained).toBeLessThanOrEqual(500);expect(store.acceptedEvents().length).toBeLessThanOrEqual(12);
+});

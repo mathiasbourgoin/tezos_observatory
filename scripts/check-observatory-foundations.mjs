@@ -243,7 +243,12 @@ try {
           before=assertions;store.addCandidate(candidate(999,'Event13',999));check(store.acceptedEvents(),events,'Candidate identity joining shared payload cannot duplicate its event');
           const b=sources.mainnet.find(value=>value.baseUrl!==observer.baseUrl);if(!b)throw new Error('Second configured event observer missing');
           const bTarget=store.addOperations([{...fact('B-first-quorum','Event13',1000,0,b),contents:[...fact('B-pre','Event13',1000,0,b).contents,...fact('B-threshold','Event13',1000,1,b).contents]}])[0];if(!bTarget)throw new Error('Second-source event target missing');
-          store.accept(await new NetworkData('mainnet').reconcile(bTarget.target,signal));check([store.acceptedEvents().at(-1)?.kind,store.acceptedEvents().at(-1)?.evidence.source.baseUrl],['observed-quorum',b.baseUrl],'Another source first at quorum cannot borrow a prior source below state into a crossing');
+          const bProof=await new NetworkData('mainnet').reconcile(bTarget.target,signal);store.accept(bProof);
+          check([store.target(bTarget.identity)?.phases?.pre?.power,store.target(bTarget.identity)?.phases?.pre?.quorumObserved,store.target(bTarget.identity)?.phases?.pre?.uncertain],[5,true,true],'Another source after historical loss still exposes attributed positive quorum with uncertainty');
+          check([store.target(bTarget.identity)?.admission?.context.observer.source.baseUrl,store.target(bTarget.identity)?.phases?.pre?.evidence.source.baseUrl],[b.baseUrl,b.baseUrl],'Original post-loss B target retains its actual admission and positive receipt provenance');
+          check(store.acceptedEvents(),events,'Unknown first-ever event after historical loss cannot append or clear retained sibling events or borrow a crossing');
+          const freshSource=seeded().store,freshB=freshSource.addOperations([{...fact('fresh-B-first-quorum','Event13',1000,0,b),contents:[...fact('fresh-B-pre','Event13',1000,0,b).contents,...fact('fresh-B-threshold','Event13',1000,1,b).contents]}])[0];if(!freshB)throw new Error('Fresh second-source target missing');
+          freshSource.accept({...bProof,...freshSource.generation(b)});check([freshSource.acceptedEvents().at(-1)?.kind,freshSource.acceptedEvents().at(-1)?.evidence.source.baseUrl],['observed-quorum',b.baseUrl],'Before historical loss another source first at quorum cannot borrow prior source below state into a crossing');
           const afterSource=store.acceptedEvents();store.observeHead({...head,hash:'Fork120',evidence:receipt()});store.addOperations([{...fact('obsolete-context','Event13',1001,1),evidence:{...receipt(),observedHeadHash:'H120',observedHeadLevel:120}}]);check(store.acceptedEvents(),afterSource,'Changed context cannot fabricate an event from obsolete raw membership');finish('candidate-source-context-separation',before);
           check(completed,['event-ownership','history-replay-event-independence','candidate-source-context-separation'],'All native AC32 event/history clauses completed');
         }
@@ -294,10 +299,23 @@ try {
           check(lost.store.target(returning.identity)?.admission?.head.hash,'H120','Genuine same-observer RPC proof establishes original context return');
           check([crosses(lost.store).length,lost.store.target(returning.identity)?.phases?.pre?.uncertain],[priorCrossings,true],'Forgotten prior crossing/below state cannot recreate a crossing after reorg return');finish(originallyCrossed?'forgotten-crossing-return':'forgotten-below-return',before);
         }
+        before=assertions;const originalQuorum={...vote(0,'preattestation','RetiredOriginal',1),hash:'exact-original-quorum',contents:[0,1].map(slot=>({kind:'preattestation',level:121,round:0,slot,block_payload_hash:'RetiredOriginal'}))};
+        const retired=await create([originalQuorum]),originalEvent=retired.store.acceptedEvents()[0];check(originalEvent?.kind,'observed-quorum','Before retirement a genuine first quorum emits its attributed event');
+        for(let index=0;index<14;index++)retired.store.addOperations([{...vote(0,'preattestation',`RetiredEvent-${index}`,100+index),contents:[0,1].map(slot=>({kind:'preattestation',level:121,round:0,slot,block_payload_hash:`RetiredEvent-${index}`}))}]);
+        check(retired.store.acceptedEvents().some(event=>event.phaseIdentity===originalEvent.phaseIdentity),false,'The original event has actually left its bounded owner');
+        retired.store.addOperations(Array.from({length:151},(_,index)=>vote(0,'preattestation',`RetiredOwner-${index}`,1000+index)));
+        check(retired.store.history().some(snapshot=>snapshot.record.target.payload==='RetiredOriginal'),false,'The original full history owner is actually evicted');
+        retired.store.addOperations(Array.from({length:10000},(_,index)=>({hash:`retired-unrelated-${index}`,contents:[],evidence:{...receipt(),receivedMonotonic:2000+index}})));
+        check(retired.store.rawOperations().some(operation=>operation.hash===originalQuorum.hash),false,'The original canonical raw operation is actually evicted');
+        const replayed=retired.store.addOperations([{...originalQuorum,evidence:{...originalQuorum.evidence,receivedMonotonic:20000}}])[0];if(!replayed)throw new Error('Missing reconstructed phase target');
+        const reconstructed=retired.store.target(replayed.identity)?.phases?.pre;
+        check([reconstructed?.power,reconstructed?.maximumPower,reconstructed?.threshold,reconstructed?.quorumObserved,reconstructed?.uncertain,reconstructed?.evidence.receivedMonotonic],[4,4,4,true,true,20000],'Retired exact replay preserves attributed positive power and new as-of with explicit uncertainty');
+        check(retired.store.acceptedEvents().filter(event=>event.phaseIdentity===originalEvent.phaseIdentity).length,0,'Forgotten observed quorum cannot append a second event after all identity owners retire');
+        check([retired.store.rawOperations().length<=10000,retired.store.history().length<=150,retired.store.crossingState().retained<=500,retired.store.acceptedEvents().length<=12],[true,true,true,true],'Replay suppression adds no unbounded event identity tombstones');finish('retired-observed-quorum-replay',before);
         before=assertions;const rawLoss=await create([vote(0)]);rawLoss.store.addOperations(Array.from({length:10001},(_,index)=>vote(0,'preattestation','P',4000+index)));
         check([rawLoss.store.rawOperations().length,rawLoss.store.crossingState().retained<=500,rawLoss.store.crossingState().uncertain],[10000,true,true],'Actual raw loss enforces finite ownership and sticky uncertainty');
         check(rawLoss.store.target(rawLoss.record.identity)?.phases?.pre?.maximumPower,3,'Retained exact known maximum survives raw loss');check(crosses(rawLoss.store).length,0,'Same-payload raw flood cannot invent a crossing');finish('raw-loss-bounds',before);
-        check(completed,['first-quorum','independent-phases','corrections-and-replay','shared-attribution-no-clock-retirement','event-eviction-does-not-reset','forgotten-below-return','forgotten-crossing-return','raw-loss-bounds'],'Every native AC31 clause completed after both production engines');
+        check(completed,['first-quorum','independent-phases','corrections-and-replay','shared-attribution-no-clock-retirement','event-eviction-does-not-reset','forgotten-below-return','forgotten-crossing-return','retired-observed-quorum-replay','raw-loss-bounds'],'Every native AC31 clause completed after both production engines');
       } else if(criterion==='AC-14') {
         let before=assertions;body=full([]);const early=await pending(),preidentity=makeStore();
         preidentity.store.accept({...proof,...preidentity.store.generation(observer),snapshot:early});
