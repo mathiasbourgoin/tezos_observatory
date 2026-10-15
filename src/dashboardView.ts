@@ -24,7 +24,7 @@ export interface NetworkViewModel {
   nextProposalObservation?:{observed:boolean;source:string};
   producer?:string;
   comparison?:{providers:readonly {name:string;url:string}[];enabled:boolean;running:boolean;result?:()=>ComparisonResult|undefined};
-  status: 'loading' | 'healthy' | 'unknown' | 'stalled' | 'degraded';
+  status: 'loading' | 'healthy' | 'unknown' | 'stalled' | 'degraded' | 'paused';
   level?: number; consensusLevel?: number; round?: number; activityRound?: number; hash?: string; payload?: string;
   appliedLevel?: number; appliedRound?: number;
   observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
@@ -477,7 +477,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       const selectedCandidate = model.candidates?.find(candidate => candidate.identity === model.selectedIdentity);
       set(selectedKind, observed ? selectedCandidate?.hash ? `Observed proposal · ${model.producer?`block producer ${model.producer}`:'producer unknown'}` : 'Observed votes · proposal hash and producer unavailable' : 'Live unavailable · waiting for coherent observed evidence');
       set(selectedPayload, observed ? `Payload ${model.payload ?? 'unavailable'} · ${model.source ?? 'Source unavailable'}` : 'No observation inferred from the protocol clock');
-      const labels = {loading: 'Connecting', healthy: 'Observed advance', unknown:'Progress unknown',stalled: 'Prediction elapsed', degraded: 'RPC coverage degraded'};
+      const labels = {loading: 'Connecting', healthy: 'Observed advance', unknown:'Progress unknown',stalled: 'Prediction elapsed', degraded: 'RPC coverage degraded',paused:'Paused'};
       set(status, labels[model.status]); set(tabStatus, labels[model.status]); tab.dataset.status = model.status; set(level, number(model.appliedLevel)); set(round, number(model.appliedRound));
       const levelLabel=level.parentElement?.querySelector('.eyebrow'), roundLabel=round.parentElement?.querySelector('.eyebrow');
       if(levelLabel)set(levelLabel as HTMLElement,'Applied block level');

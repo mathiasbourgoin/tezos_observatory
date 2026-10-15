@@ -3,8 +3,9 @@ import {attachFailureTrace,choose,head,headers,openDetails,prepare,send,vote} fr
 test.afterEach(async({page},info)=>attachFailureTrace(page,info));
 
 test('supported alternatives stay closed, rank within the current tuple and preserve an inspected pin',async({page})=>{
- const initial=head(100);await prepare(page,false,initial);await page.locator('.network-tab.shadownet').click();
+ const initial=head(100);await prepare(page,false,initial,100,false,false,undefined,undefined,'PFixture',true);await send(page,'mainnet-head',initial);
  await page.route('https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header',route=>route.fulfill({json:{...initial,chain_id:'NetFixture'}}));
+ await page.locator('.network-tab.shadownet').click();await send(page,'shadownet-head',initial);
  const panel=page.locator('.network-panel.shadownet'),choices=panel.locator('.observed-proposals');
  await expect(choices).not.toHaveAttribute('open','');await expect(panel.locator('.consensus-section .observed-proposals')).toHaveCount(0);
  const packet=(slot:number,payload:string,kind='preattestation')=>({...vote(slot),hash:`${payload}-${kind}-${slot}`,contents:[{...vote(slot).contents[0]!,kind,block_payload_hash:payload}]});
