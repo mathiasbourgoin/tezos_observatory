@@ -67,3 +67,27 @@ for(const width of [1440,390])for(const direction of ['up','right'] as const)for
  if(refreshPosition)return;
  await send(page,'shadownet-operations',[vote(4,next.level,(direction==='up'?1:0)+3)]);await expect(panel.locator('.navigator-current')).toContainText(direction==='up'?'101 · r4':'102 · r3');await expect(scene).toHaveAttribute('data-direction','static');expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
 });
+
+
+test('Already-applied vote anchor survives the next head proof gap and completes a full adjacent journey',async({page},info)=>{
+ await page.setViewportSize({width:1440,height:1000});const first=head(101),next=head(102);await prepare(page,false,first,101);await selectNetwork(page,'shadownet');
+ const panel=page.locator('.network-panel.shadownet'),scene=panel.locator('.navigator-junction'),current=panel.locator('.navigator-current');
+ await expect(panel.locator('.headline')).toContainText('101');await send(page,'shadownet-operations',[vote(0,101,0)]);await expect(current).toContainText('101 · r0');await expect(panel.locator('.pre .gauge-exact')).toHaveText('600 / 30,000');
+ const oldContent=await current.textContent();await scene.scrollIntoViewIfNeeded();
+ await send(page,'shadownet-head',next);await expect(panel.locator('.headline')).toContainText('102');await expect(panel.locator('.navigator-status')).toContainText('awaiting current proof');await expect(panel.locator('.navigator-status')).toContainText('as of');
+ expect(await current.textContent()).toBe(oldContent);await expect(panel.locator('.pre .gauge-exact')).toHaveText('Unavailable');await expect(panel.locator('.att .gauge-exact')).toHaveText('Unavailable');
+ await page.evaluate(()=>{
+  const scene=document.querySelector<HTMLElement>('.shadownet .navigator-junction')!,stage=scene.querySelector<HTMLElement>('.navigator-stage')!,status=document.querySelector('.shadownet .navigator-status')!,animations:{start:number;finish?:number;cancel?:number;duration:number;easing:string}[]=[],frames:{at:number;x:number;y:number;height:number;statusY:number;active:number;ghosts:string[]}[]=[];
+  Object.assign(window,{appliedGapMotion:{animations,frames}});const original=Element.prototype.animate;
+  Element.prototype.animate=function(keyframes,options){const animation=original.call(this,keyframes,options);if(this===stage){const item={start:performance.now(),duration:Number(animation.effect!.getTiming().duration),easing:animation.effect!.getTiming().easing} as typeof animations[number];animations.push(item);animation.addEventListener('finish',()=>{item.finish=performance.now();});animation.addEventListener('cancel',()=>{item.cancel=performance.now();});}return animation;};
+  const start=performance.now(),sample=()=>{const box=scene.getBoundingClientRect();frames.push({at:performance.now(),x:box.x,y:box.y,height:box.height,statusY:status.getBoundingClientRect().y,active:stage.getAnimations().length,ghosts:[...scene.querySelectorAll('.navigator-motion-card')].map(node=>node.textContent??'')});if(performance.now()-start<1900)requestAnimationFrame(sample);};requestAnimationFrame(sample);
+ });
+ await send(page,'shadownet-operations',[vote(1,102,0)]);await expect(scene).toHaveAttribute('data-direction','right');await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(1);await expect(panel.locator('.pre .gauge-exact')).toHaveText('600 / 30,000');
+ await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
+ const evidence=await page.evaluate(()=>(window as unknown as {appliedGapMotion:{animations:{start:number;finish?:number;cancel?:number;duration:number;easing:string}[];frames:{at:number;x:number;y:number;height:number;statusY:number;active:number;ghosts:string[]}[]}}).appliedGapMotion);await info.attach('already-applied-vote-proof-gap',{body:JSON.stringify(evidence),contentType:'application/json'});
+ expect(evidence.animations).toHaveLength(1);const animation=evidence.animations[0]!;expect(animation.duration).toBe(1200);expect(animation.easing).toBe('linear');expect(animation.cancel).toBeUndefined();expect(animation.finish!-animation.start).toBeGreaterThanOrEqual(1100);expect(animation.finish!-animation.start).toBeLessThanOrEqual(1450);
+ const moving=evidence.frames.filter(frame=>frame.active>0);expect(moving.length).toBeGreaterThan(3);expect(moving.every(frame=>frame.ghosts.includes(oldContent??''))).toBe(true);
+ for(const frame of evidence.frames){expect(frame.x).toBe(evidence.frames[0]!.x);expect(frame.y).toBe(evidence.frames[0]!.y);expect(frame.height).toBe(evidence.frames[0]!.height);expect(frame.statusY).toBe(evidence.frames[0]!.statusY);}
+ await expect(current).toContainText('102 · r0');await expect(scene).toHaveAttribute('data-relationship','context');await expect(panel.locator('.navigator-previous')).toContainText('Context only · not ancestry');
+ await send(page,'shadownet-head',head(104));await expect(panel.locator('.headline')).toContainText('104');await expect(current).toContainText('Observation unavailable');await expect(scene).toHaveAttribute('data-direction','static');expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
+});

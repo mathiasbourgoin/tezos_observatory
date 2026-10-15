@@ -28,3 +28,12 @@ it('retains only presentation through the ordinary applied-head proof gap',()=>{
  expect(retainNavigator(before,pending,{...pending,observation:after})).toBe(false);
  expect(retainNavigator(before,live,{...live,observation:before},true)).toBe(true);
 });
+
+it('retains an already-applied coherent vote anchor across exactly one newer applied-head proof gap',()=>{
+ const applied={...live,appliedLevel:101,hash:'B101'},pending={...applied,status:'unknown' as const,appliedLevel:102,hash:'B102'};
+ expect(retainNavigator(before,applied,pending)).toBe(true);
+ expect(retainNavigator(before,pending,pending)).toBe(true);
+ expect(retainNavigator(before,pending,{...pending,appliedLevel:103,hash:'B103'})).toBe(false);
+ expect(retainNavigator(before,pending,{...pending,hash:'Fork102'})).toBe(false);
+ for(const change of [{source:'Other'},{chain:'Other'},{protocol:'Other'}])expect(retainNavigator(before,applied,{...pending,observation:{...before,coherent:false,...change}})).toBe(false);
+});
