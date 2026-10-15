@@ -549,14 +549,15 @@ function opportunitySelection(runtime:Runtime){
  const context=record?.admission?.context??(head?view.snapshot?.derived?.contexts.get(head.level):undefined);
  const level=record?.target.level??head?.level,round=record?.target.round??(head?proposalRound(head.fitness,head.level):undefined);
  if(!head||!context||level===undefined||round===undefined||!runtime.monitor.contextAuthorized(context))return undefined;
- const key=JSON.stringify([identity??head.hash,headFactsKey(head),reference?headFactsKey(reference):null,context.key,level,round]);
- return {key,head,requestHead:requestHead??head,reference,context,level,round,identity:record?.identity};
+ const token=record?runtime.monitor.opportunityToken(record.identity):undefined;
+ const key=JSON.stringify([identity??head.hash,headFactsKey(head),reference?headFactsKey(reference):null,context.key,level,round,token??null]);
+ return {key,head,requestHead:requestHead??head,reference,context,level,round,identity:record?.identity,token};
 }
 async function loadOpportunities(runtime:Runtime):Promise<void>{
  const selected=opportunitySelection(runtime);if(!selected||root.dataset.selected!==runtime.network||!collectionAllowed()||!runtime.collectionActive||selected.key===runtime.opportunityKey)return;
  runtime.opportunityController.abort();runtime.opportunityController=new AbortController();
  const signal=runtime.opportunityController.signal;runtime.opportunityKey=selected.key;delete runtime.opportunityFacts;
- const token=selected.identity?runtime.monitor.opportunityToken(selected.identity):undefined;
+ const token=selected.token;
  const result=await Promise.all([0,1].map(async index=>{
    const level=selected.level+index,round=index===0?selected.round+1:0;
    // A parent context cannot prove the execution protocol two levels ahead.

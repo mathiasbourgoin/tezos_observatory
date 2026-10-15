@@ -493,6 +493,19 @@ async function opportunityFixture(){
  return {store,record,proof,current,facts,token:token!};
 }
 
+it('rejects an old opportunity token after an observer epoch refresh while accepting its current exact-context token',async()=>{
+ const {store,record,current,facts,token}=await opportunityFixture();
+ const {chainId:_chainId,...partial}=current;
+ store.observeHead({...partial,evidence:evidence(b,2)});
+ const refreshed=store.opportunityToken(record.identity)!;
+ expect(refreshed.contextFacts).toBe(token.contextFacts);
+ expect(refreshed.observerGeneration).toBeGreaterThan(token.observerGeneration);
+ expect(store.captureOpportunities(record.identity,token,facts)).toBe(false);
+ expect(store.captureOpportunities(record.identity,refreshed,facts)).toBe(true);
+ expect(store.opportunityToken(record.identity)).toEqual(refreshed);
+ expect(store.target(record.identity)?.opportunities).toEqual(facts);
+});
+
 it('captures both exact opportunity branches without refreshing selected receipt history order or newer count',async()=>{
  const {store,record,facts,token}=await opportunityFixture();expect(store.pin(record.identity)).toBe(true);const before=store.inspection(),receipt=before.snapshot!.evidence;
  expect(store.captureOpportunities(record.identity,token,facts)).toBe(true);
