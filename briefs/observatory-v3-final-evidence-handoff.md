@@ -23,6 +23,12 @@ Avoid circular dependencies by recording actual independent sub-results before t
 
 Manual CHECK-38 remains a separate mandatory judgment by the fresh reviewer and QA. Actual hierarchy, readability, meaningful use of wide space, action density, consistency, originality, long-value/dense states, composed contrast and applicable native surfaces must be inspected. Numerical overflow checks, screenshot counts or a source-hash receipt alone are insufficient.
 
+## Product CI and mandatory release verification
+
+Root inspected the actual Quality workflow: it runs ordinary `npm run test:e2e` without `V3_RELEASE_EVIDENCE`. A fresh GitHub runner cannot supply previously performed independent manual evidence implicitly. Root therefore approved Astra's explicit test-discovery separation before freeze: the five bundle/receipt consumers move intact to `tests/e2e/v3Release.ts`, outside ordinary `*.spec.ts` discovery; the actual compiled inspection import remains in `v3Contract.spec.ts`. `playwright.v3.config.ts` must explicitly discover both ordinary specs and `v3Release.ts`, and the official37 check interfaces retain all their titles and assertions. This decision changes no accepted command interface or contract requirement.
+
+Ordinary CI proves the reproducible product regression and verifier unit scopes only. Full release acceptance additionally requires all official foundation/V3/metric checks, actual immutable evidence and manual judgments. Missing release evidence must still produce ERROR, never a conditional skip or author approval. Verify the discovery difference is exactly the five consumers, use the official configuration for the complete mapping audit, and execute both scopes on final source. A green ordinary CI run alone cannot establish complete release readiness. Fresh final reviewers must inspect this separation and its negative missing-bundle behavior. At this handoff update the separation is implementation work, not a verified completed change.
+
 ## Shared final evidence interface for interval metrics
 
 The interval-metrics AC-15 guard must reuse the V3 product-local evidence consumer (`loadV3Evidence` / `requireIndependentReceipt`) and the root-selected immutable bundle at `V3_RELEASE_EVIDENCE`, rather than introduce a second receipt framework. The current consumer is still implementation work, not an accepted verifier. Missing helper, bundle, required independent receipts or complete evidence remains ERROR; lazy loading for AC-15 must not prevent the other nineteen metric criteria from executing.
