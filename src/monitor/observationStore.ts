@@ -392,7 +392,16 @@ export class ObservationStore<T> {
       if(this.selectedPin?.identity!==identity)this.selectedPin=Object.freeze({instance:frozen.identity,identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});
       return true;
     }
-    const snapshot=[...this.sessionHistory.values()].find(value=>value.identity===identity||value.record.identity===identity||value.candidates.some(candidate=>candidate.identity===identity));if(!snapshot)return false;
+    let snapshot=[...this.sessionHistory.values()].find(value=>value.identity===identity||value.record.identity===identity||value.candidates.some(candidate=>candidate.identity===identity));
+    if(!snapshot){
+      // Raw receipt identities can change after their observer head is learned.
+      // Resolve an accepted alias only through the same fully proven session.
+      const record=this.instances.get(identity),admission=record?.admission;
+      const captured=record&&admission&&!record.contextInvalid&&this.contextAuthorized(admission.context)?this.sessionHistory.get(this.sessionIdentity(record)):undefined;
+      const capturedAdmission=captured?.record.admission;
+      if(capturedAdmission&&admission&&capturedAdmission.collectionGeneration===admission.collectionGeneration&&capturedAdmission.observerGeneration===admission.observerGeneration)snapshot=captured;
+    }
+    if(!snapshot)return false;
     this.selectedPin=Object.freeze({instance:snapshot.identity,identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=undefined;return true;
   }
   followLive():void {this.selectedPin=undefined;this.frozenPin=undefined;}

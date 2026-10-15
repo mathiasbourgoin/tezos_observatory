@@ -17,6 +17,30 @@ const installRpc=(current=head(122))=>{const reads:string[]=[];vi.stubGlobal("fe
  return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:3},{delegate:"D2",first_slot:1,attesting_power:2}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});
  });return reads;};
 afterEach(()=>vi.unstubAllGlobals());
+it('pins an accepted raw alias after its exact session capture changes representative',async()=>{
+ installRpc();const store=new ObservationStore<Derived>('mainnet',sources.mainnet),data=new NetworkData('mainnet');
+ const first=store.addOperations([operation('before-proof')])[0]!;
+ store.accept(await data.reconcile(first.target,new AbortController().signal));
+ const phase=store.target(first.identity)?.phases?.pre;expect(store.inspection().selectedIdentity).toBe(first.identity);
+ const second=store.addOperations([{...operation('after-proof'),evidence:{...evidence(b,2),observedHeadHash:'H122',observedHeadLevel:122}}])[0]!;
+ expect(second.identity).not.toBe(first.identity);
+ const live=store.inspection();expect(live.selectedIdentity).toBe(first.identity);expect(live.snapshot?.record.identity).toBe(second.identity);
+ expect(store.pin(first.identity)).toBe(true);
+ expect(store.inspection()).toMatchObject({mode:'pin',selectedIdentity:first.identity,frozen:false});
+ expect(store.inspection().snapshot?.record.phases?.pre?.currentEvidence).toBe(phase?.currentEvidence);
+ const captured=store.inspection().snapshot;
+ store.addOperations(Array.from({length:151},(_,index)=>({...operation(`retire-alias-${index}`),evidence:{...evidence(b,3+index),observedHeadHash:'H122',observedHeadLevel:122},contents:[{...operation().contents[0]!,block_payload_hash:`RetireAlias${index}`}]})));
+ expect(store.inspection()).toMatchObject({mode:'pin',selectedIdentity:first.identity,frozen:true});
+ store.addOperations([{...operation('later-power'),evidence:{...evidence(b,200),observedHeadHash:'H122',observedHeadLevel:122},contents:[{...operation().contents[0]!,slot:1}]}]);
+ expect(store.inspection().snapshot).toBe(captured);
+ expect(store.inspection().snapshot?.record.phases?.pre?.power).toBe(3);
+ expect(store.inspection().snapshot?.record.phases?.pre?.currentEvidence).toBe(phase?.currentEvidence);
+ store.observeHead({...head(122),hash:'Fork122',evidence:evidence(b,201)});
+ expect(store.inspection().snapshot).toBe(captured);store.followLive();
+ expect(store.pin(first.identity)).toBe(false);
+ const unrelated=store.addOperations([{...operation('other-observer',123,a),evidence:{...evidence(a,202),observedHeadHash:'H122',observedHeadLevel:122}}])[0]!;
+ expect(store.pin(unrelated.identity)).toBe(false);
+});
 it('follows strongest phase support within the latest qualified tuple, keeps ties stable and preserves pins',async()=>{
  installRpc();const store=new ObservationStore<Derived>('mainnet',sources.mainnet),data=new NetworkData('mainnet'),signal=new AbortController().signal;
  const packet=(hash:string,payload:string,slot:number,at:number,kind:'preattestation'|'attestation'='preattestation')=>({hash,evidence:evidence(b,at),contents:[{kind,level:123,round:0,slot,block_payload_hash:payload}]});
