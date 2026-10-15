@@ -146,6 +146,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private headStreaming = false;
   private headFallbackActive = false;
   private derivingGeneration: number | null = null;
+  private readonly deferredReconciliations = new Set<string>();
 
   constructor(private readonly options: NetworkMonitorOptions<T>) {
     this.observations=new ObservationStore(options.network,[...options.headSources,...options.operationSources,...(options.proposalSources??[])]);
@@ -305,6 +306,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     this.lifecycleController.abort();
     this.state.cancelWork();
     this.derivingGeneration = null;
+    this.deferredReconciliations.clear();
     this.headTransport.stop();
     this.operationTransport?.stop();
     this.proposalTransport?.stop();
@@ -393,8 +395,15 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
         if (
           lifecycle === this.lifecycle &&
           this.derivingGeneration === generation
-        )
+        ) {
           this.derivingGeneration = null;
+          const deferred = [...this.deferredReconciliations];
+          this.deferredReconciliations.clear();
+          for (const identity of deferred) {
+            const record = this.observations.target(identity);
+            if (record) this.reconcileTarget(record);
+          }
+        }
       });
   }
   private recordProvenProgress(current:RpcContext,evidence:ObservationEvidence|undefined):void {
@@ -481,6 +490,15 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
   private reconcileTarget(record:ObservationTarget<T>,manual=false):boolean {
     if(!this.running || !this.options.reconcile)return false;
     const source=record.target.source;
+    const snapshot=this.state.snapshot(),head=snapshot?.head,observer=head?.evidence?.source;
+    if(!manual && snapshot && this.derivingGeneration===snapshot.generation && observer?.network===source.network && observer.baseUrl===source.baseUrl && (record.target.level===head?.level || record.target.level===(head?.level??-1)+1)){
+      // Let this owner's proof finish before another owner requests the same
+      // immutable helpers. Reconciliation still performs its own source proof.
+      this.deferredReconciliations.add(record.identity);
+      const retained=new Set([...this.observations.unresolvedTargets(),...this.observations.acceptedTargets()].map(value=>value.identity));
+      for(const identity of this.deferredReconciliations)if(!retained.has(identity))this.deferredReconciliations.delete(identity);
+      return true;
+    }
     let reconciler=this.reconcilers.get(source.baseUrl);
     if(!reconciler){
       reconciler=new ObserverReconciliation(source,{

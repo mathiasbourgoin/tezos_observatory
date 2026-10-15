@@ -573,3 +573,56 @@ it('keeps the exact applied proof on duplicates and records a fresh material rec
  expect(returned).not.toBe(first);expect(returned?.context).toBe(first?.context);expect(returned?.evidence.receivedMonotonic).toBeGreaterThan(first?.evidence.receivedMonotonic??Infinity);expect(returned?.evidence.receivedMonotonic).toBeGreaterThan(second?.evidence.receivedMonotonic??Infinity);expect(returned?.context.evidence.receivedMonotonic).toBe(1);
  heads.value(header(10));expect(views.at(-1)?.appliedProof).toBe(returned);expect(Object.isFrozen(returned)).toBe(true);monitor.stop();
 });
+
+
+it('reuses completed head helpers when same-observer votes arrive during derivation',async()=>{
+ vi.useFakeTimers();FakeTransport.instances=[];
+ const observer=sources.shadownet[0]!,reads:string[]=[],views:NetworkMonitorView<Derived>[]=[],release:Array<()=>void>=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{
+  const url=String(input);reads.push(url);
+  if(url.endsWith('/header')){const hash=url.split('/blocks/')[1]?.split('/')[0],level=hash==='head'?100:Number(hash?.slice(1));return Response.json({...header(level),chain_id:'NetFixture'});}
+  if(url.endsWith('/protocols'))return Response.json({protocol:'PFixture',next_protocol:'PFixture'});
+  if(url.includes('/blocks/B100/'))await new Promise<void>(resolve=>release.push(resolve));
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData('shadownet'),monitor=new NetworkMonitor<Derived>({network:'shadownet',headSources:[observer],operationSources:[observer],derive:(head,signal)=>data.derive(head,signal),reconcile:(target,signal)=>data.reconcile(target,signal),fallbackOperations:async()=>[],onUpdate:view=>views.push(view),streamFactory:settings=>new FakeTransport(settings) as never});
+ monitor.start();(FakeTransport.instances[0] as FakeTransport<BlockHeader>).value(header(100),observer);
+ await vi.advanceTimersByTimeAsync(0);
+ (FakeTransport.instances[1] as FakeTransport<import('../../src/rpc/models').MonitorOperationBatch>).value([{hash:'during-derive',contents:[{kind:'preattestation',level:101,round:0,slot:0,block_payload_hash:'P'}]}],observer);
+ await vi.advanceTimersByTimeAsync(0);
+ release.forEach(finish=>finish());await vi.advanceTimersByTimeAsync(0);
+ expect(views.at(-1)?.observationTargets[0]?.phases?.pre?.power).toBe(5);
+ expect(reads.filter(url=>url.includes('/B100/helpers/attestation_rights?level=101'))).toHaveLength(1);
+ expect(reads.filter(url=>url.includes('/B100/context/constants'))).toHaveLength(1);
+ expect(reads).toHaveLength(9); // four pinned proofs, four helpers, one own-head reconciliation.
+ monitor.stop();
+});
+
+
+it.each(['other-source','other-level','manual','failure','transition','stop'] as const)('fences derivation reuse for %s without sharing unfinished cancellation owners',async mode=>{
+ vi.useFakeTimers();let finish:()=>void=()=>undefined,finishNew:()=>void=()=>undefined;
+ const derive=vi.fn((head:BlockHeader)=>new Promise<NetworkDerivedState>((resolve,reject)=>{
+  const done=()=>mode==='failure'?reject(new Error('Proof unavailable')):resolve({refreshedAt:head.level});
+  if(head.level===10)finish=done;else finishNew=done;
+ }));
+ const reconcile=vi.fn(async(_target:import('../../src/monitor/observerReconciliation').ReconciliationTarget,_signal:AbortSignal)=>{throw new Error('No authority in this raw-only fixture');});
+ const other={...source,baseUrl:'https://other'},observer=mode==='other-source'?other:source;
+ const {monitor,heads,operations,views}=setup({derive,reconcile,operationSources:[source,other]});
+ heads.value(header(10));
+ operations.value([{hash:'queued',contents:[{kind:'preattestation',level:mode==='other-level'?99:11,round:0,slot:0,block_payload_hash:'P'}]}],observer);
+ if(mode==='manual')expect(monitor.reconcileObservation(views.at(-1)!.unresolvedTargets[0]!.identity)).toBe(true);
+ await vi.advanceTimersByTimeAsync(0);
+ if(mode==='other-source'||mode==='other-level'||mode==='manual')expect(reconcile).toHaveBeenCalledTimes(1);
+ else expect(reconcile).not.toHaveBeenCalled();
+ if(mode==='stop')monitor.stop();
+ if(mode==='transition')heads.value(header(11));
+ finish();await vi.advanceTimersByTimeAsync(0);
+ if(mode==='stop'||mode==='transition')expect(reconcile).not.toHaveBeenCalled();
+ if(mode==='failure')expect(reconcile).toHaveBeenCalledTimes(1);
+ if(mode==='transition'){
+  finishNew();await vi.advanceTimersByTimeAsync(0);expect(reconcile).toHaveBeenCalledTimes(1);
+  expect(reconcile.mock.calls[0]?.[0]).toMatchObject({observerHead:{hash:'B11'}});
+ }
+ monitor.stop();
+});
