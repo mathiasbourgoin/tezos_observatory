@@ -1,12 +1,12 @@
 # Foundations S10 — full-contract parity inventory
 
-Status: closure inventory, pending fresh whole-foundation review/QA. S9 base `acef9685edddf231c952f0119e97e49d58db7227` executed all38 original commands. Independent review found finite-clock/calendar and clock-attribution counterexamples, corrected in `212bbe90b53003353e6c8be4bdb7be3bd7ac4a9a` and `b964fed57cacbc3c33174f4a4e00755a9c6f94bf`. The latter frozen correction passed258unit/136browser/check/build and original12/15/33/34 gates. A fresh complete38-command run passed on that source; exact commands/counts/source hashes are in [final machine evidence](../roster/observatory-foundations/final-checks.json). Historical green commands never override a later independent counterexample; no whole GO is asserted.
+Status: closure inventory, pending independent whole-review revalidation/QA/root acceptance. Independent S9 approval applies to b964fed only. The fresh whole reviewer on integrated69dacc8 issued NO-GO for fully retired observed-quorum duplicate events and autonomous B authority hidden by null primary snapshot despite passing its baseline checks. The owner reproduced both with genuine store/page assertions, then corrected them in1d9d4ca and current frozen `a2be763791ca437b5cf3fc0cb0f0ffb7ee283a4b`. Current Node22 check/build260unit/140browser and original native-spelledAC3=25groups including both engines pass; complete original38 rerun passed on this exact source. Historical b964/acef green inventories never override later independent counterexamples. No whole GO is asserted.
 
 ## Authority and method
 
 The [validated specification](../specs/observatory-foundations.md), complete intake preserved in [the implementer brief](./observatory-foundations-implementer.md), [accepted plan](./observatory-foundations-plan.md), [reviewer brief](./observatory-foundations-reviewer.md) and [QA scope](./observatory-foundations-qa-scope.md) remain binding. Requirements, acceptance-criterion links and check links below were read from the accepted specification records, not inferred by ordinal. Mechanical reconciliation found **94 active requirements,38 acceptance criteria,38 planned checks, no unmapped requirement and no missing check**. This proves inventory parity; independent review must still judge whether the assertions exercise every clause.
 
-Production consumers live under `src/rpc`, `src/monitor`, `src/consensus`, `src/main.ts` and `src/dashboardView.ts`. The actual source/check hashes and exact original command strings are recorded in [S9 evidence](../roster/observatory-foundations/slice-9-checks.json). Every browser-required original command ran Chromium and Firefox; native-spelled AC16/17/19/23 additionally required both engines internally without changing the original interface. Missing, empty, skipped, retried/incomplete or runtime-failed executions are errors, with runtime failure taking priority over another engine’s assertion failure.
+Production consumers live under `src/rpc`, `src/monitor`, `src/consensus`, `src/main.ts` and `src/dashboardView.ts`. Current actual source/check hashes and all exact original command strings/results are recorded in [final machine evidence](../roster/observatory-foundations/final-checks.json); [S9 evidence](../roster/observatory-foundations/slice-9-checks.json) remains historical. Every browser-required original command ran Chromium and Firefox; native-spelled AC3/16/17/19/23 additionally required both engines internally without changing the original interface. Missing, empty, skipped, retried/incomplete or runtime-failed executions are errors, with runtime failure taking priority over another engine’s assertion failure.
 
 ## Eleven intake acceptance items
 
@@ -159,7 +159,7 @@ The following links are the specification’s accepted AC ownership. A check’s
 | FR-093 | AC-24 | `observationStore.ts` bounded history/raw facts, `sourceComparison.ts` shared raw capacity |
 | FR-094 | AC-38 | `sourceComparison.ts`, comparison-only `phaseEvidence.ts`, `main.ts` |
 
-## All38 original command results at S9 base
+## All38 original command results on frozen a2be763
 
 All commands in this inventory exited0 under Node22.23.3, with nonzero completed assertion groups. Exact commands and source hashes are in the linked JSON; the table preserves native command spelling and records stronger internal browser execution separately. Later corrections must rerun affected checks and whole-final verification must use the final source, rather than inheriting these historical results blindly.
 
@@ -167,7 +167,7 @@ All commands in this inventory exited0 under Node22.23.3, with nonzero completed
 |---|---|---|
 | CHECK-1 → AC-1 | 12 | Native actual admission/accounting consumer |
 | CHECK-2 → AC-2 | 11 | Native actual admission/accounting consumer |
-| CHECK-3 → AC-3 | 23 | Native actual admission/accounting consumer |
+| CHECK-3 → AC-3 | 25 | Chromium + Firefox (internally required for original no-flags command) |
 | CHECK-4 → AC-4 | 7 | Chromium + Firefox |
 | CHECK-5 → AC-5 | 2 | Chromium + Firefox |
 | CHECK-6 → AC-6 | 2 | Chromium + Firefox |
@@ -180,14 +180,14 @@ All commands in this inventory exited0 under Node22.23.3, with nonzero completed
 | CHECK-13 → AC-13 | 2 | Chromium + Firefox |
 | CHECK-14 → AC-14 | 32 | Native actual admission/accounting consumer |
 | CHECK-15 → AC-15 | 2 | Chromium + Firefox |
-| CHECK-16 → AC-16 | 13 | Chromium + Firefox |
-| CHECK-17 → AC-17 | 25 | Chromium + Firefox |
+| CHECK-16 → AC-16 | 13 | Chromium + Firefox (internally required for original no-flags command) |
+| CHECK-17 → AC-17 | 25 | Chromium + Firefox (internally required for original no-flags command) |
 | CHECK-18 → AC-18 | 21 | Native actual admission/accounting consumer |
-| CHECK-19 → AC-19 | 19 | Chromium + Firefox |
+| CHECK-19 → AC-19 | 19 | Chromium + Firefox (internally required for original no-flags command) |
 | CHECK-20 → AC-20 | 2 | Chromium + Firefox |
 | CHECK-21 → AC-21 | 7 | Chromium + Firefox |
 | CHECK-22 → AC-22 | 14 | Chromium + Firefox |
-| CHECK-23 → AC-23 | 9 | Chromium + Firefox |
+| CHECK-23 → AC-23 | 9 | Chromium + Firefox (internally required for original no-flags command) |
 | CHECK-24 → AC-24 | 10 | Chromium + Firefox |
 | CHECK-25 → AC-25 | 15 | Chromium + Firefox |
 | CHECK-26 → AC-26 | 2 | Chromium + Firefox |
@@ -195,8 +195,8 @@ All commands in this inventory exited0 under Node22.23.3, with nonzero completed
 | CHECK-28 → AC-28 | 13 | Chromium + Firefox |
 | CHECK-29 → AC-29 | 13 | Chromium + Firefox |
 | CHECK-30 → AC-30 | 20 | Chromium + Firefox |
-| CHECK-31 → AC-31 | 33 | Chromium + Firefox |
-| CHECK-32 → AC-32 | 12 | Chromium + Firefox |
+| CHECK-31 → AC-31 | 40 | Chromium + Firefox |
+| CHECK-32 → AC-32 | 15 | Chromium + Firefox |
 | CHECK-33 → AC-33 | 2 | Chromium + Firefox |
 | CHECK-34 → AC-34 | 33 | Chromium + Firefox |
 | CHECK-35 → AC-35 | 13 | Chromium + Firefox |
@@ -206,11 +206,11 @@ All commands in this inventory exited0 under Node22.23.3, with nonzero completed
 
 ## Closure that remains distinct
 
-- Independent S9 review must close the actual finite-clock and calendar-date findings on the corrected frozen SHA. Their ordinary factory safety does not waive the exported numerical/temporal boundary.
+- Independent S9 review closed its finite-clock/calendar/attribution findings atb964fed, INTERIM only. Fresh whole-review NO-GO69dacc8 found two further real cross-interaction defects. The [retired-event](observatory-foundations-whole-retired-event-fix.md) and [autonomous-B](observatory-foundations-whole-autonomous-b-fix.md) corrections need independent revalidation/final whole disposition, not acceptance from this inventory.
 - Fresh independent numerical audit recomputes actual totals/signers/thresholds/deficits. The asymmetric historical threshold defect discovered in that audit is corrected in S9 and has real-store/production regressions; it is not hidden by a successful original command.
 - Root owns [the bounded browser-origin RPC audit](./observatory-live-origin-2026-10-15.md), committed at `811c7f6`. Actual Chromium/Firefox origin fetches made26boundedGETs with assets blocked, no retries/polling. All14configuredheadreads succeeded in that sample; Mainnet next-level rights403 remains explicitly unavailable. Shadownet rights had25unique delegates/slots, total7000, threshold4667 and one valid zero-power delegate. No vote/pending/baking-right reads occurred, so this sample proves no current signers, participation, measured zero, proposer, crossing or finality and is not S9 live-rendered-timer evidence. Controlled production-page fixtures likewise do not establish public-provider completeness or a promised future timestamp. No duplicate live reads are performed by this implementer. The root-owned report/response files are intentionally not copied into the isolated owner branch; the relative link resolves after controlled root integration.
 - [The human glossary addendum](./observatory-foundations-glossary-addendum.md) supplies actual source/context/retention and S9 vocabulary. Root must synchronize the canonical human glossary and combined323-claim context without copying the isolated170-claim projections over root or granting premature passing managed verification.
-- Fresh final Node22 reproducibility gates, all38 original commands on the final source, whole-intake/spec review, independent QA and delegated root/lead acceptance precede Astra production integration. No deployment/publication is authorized by this artifact.
+- Owner final Node22 gates and all38 original commands now pass on a2be763; independent whole-fix revalidation/final exact-root review, QA and delegated root/lead acceptance still precede Astra production integration. No deployment/publication is authorized by this artifact.
 
 ## Preserved scope boundaries
 

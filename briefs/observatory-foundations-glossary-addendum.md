@@ -1,8 +1,8 @@
 # Foundations glossary addendum — human synchronization proposal
 
-This addendum supplements the root’s integrated S1–S8 human glossary. It does not replace that glossary or any managed projection. Definitions describe frozen implementation `b964fed57cacbc3c33174f4a4e00755a9c6f94bf` (S9 base `acef968` plus reviewed-boundary correction); the S9 independent review and whole-foundation review/QA remain separate gates. Root owns canonical synchronization against its combined 323-claim context; the implementer’s isolated 170-claim projections are unchanged.
+This addendum supplements the root’s integrated S1–S8 human glossary. It does not replace that glossary or any managed projection. Definitions describe frozen implementation `a2be763791ca437b5cf3fc0cb0f0ffb7ee283a4b` (accepted S9 base plus two fresh whole-review corrections); the S9 independent review and whole-foundation review/QA remain separate gates. Root owns canonical synchronization against its combined 323-claim context; the implementer’s isolated 170-claim projections are unchanged.
 
-Root already synchronized the S1–S8 core-source terms in `ba481e2`; the entries below preserve the human proposal/audit trail rather than requesting any overwrite. S9-specific definitions and the phase-specific threshold remain subject to root’s S9 acceptance.
+Root already synchronized the S1–S8 core-source terms in `ba481e2`; the entries below preserve the human proposal/audit trail rather than requesting any overwrite. S9 was independently approved INTERIM atb964fed. Root owns any canonical S9 synchronization; the two subsequent whole-review corrections remain subject to independent revalidation.
 
 ## Core source and context terms
 
@@ -29,3 +29,8 @@ Root already synchronized the S1–S8 core-source terms in `ba481e2`; the entrie
 ## Synchronization boundary
 
 Retain the existing canonical definitions for source-limited zero/coverage, raw unknown-rights signers, crossing-history uncertainty, independent 150/100/100 products, frozen pins, first-arrival lower-bound counts after full identity retirement, explicit stable committee ordering and separate comparison authority/shared raw retention. This proposal adds no new policy and grants no passing managed-claim verification. Replace the canonical glossary’s historical “prediction unfinished” statements only after root accepts the S9 review; whole-foundation and Astra acceptance stay separately qualified.
+
+## Whole-review correction clarifications for controlled sync
+
+- **Uncertain quorum display versus event**: reconstructed positive power, threshold, reached state, source and actual new as-of remain inspectable when bounded prior phase history is uncertain. They do not prove that an observed-quorum event was never emitted. No reconstructed first-ever event is appended under that uncertainty, and retained sibling events are neither cleared nor rewritten. Before history loss a genuine first quorum still emits its source-attributed observed-quorum event; prior-below crossing remains separately justified. Sources: [FR078/081/092 and C24](../specs/observatory-foundations.md), [phase/event owner](../src/monitor/observationStore.ts), [independent-finding correction](observatory-foundations-whole-retired-event-fix.md).
+- **Source-local rendering without primary snapshot**: actual admitted B head/context/derived numerical facts and retained B inspection remain readable when primary A has no applied snapshot. No A snapshot, observation, history or receipt is synthesized. Primary-A applied values and its independent clock remain unavailable; actual B proof remains separately attributed. Sources: [FR025–028/AC3](../specs/observatory-foundations.md), [actual rendering](../src/main.ts), [whole-review correction](observatory-foundations-whole-autonomous-b-fix.md).
