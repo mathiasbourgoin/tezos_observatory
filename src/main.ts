@@ -44,7 +44,7 @@ const collectionAllowed = (): boolean => pageActive && !userPaused && !document.
 const runtimes = new Map<NetworkName, Runtime>();
 const dashboard = createDashboard(root, {
   revision: __APP_REVISION__,
-  onNetworkChange(){for(const runtime of runtimes.values()){syncAuxiliary(runtime);scheduleRender(runtime);}},
+  onNetworkChange(){for(const runtime of runtimes.values())syncCollection(runtime);},
   onReadEligibility(network){const runtime=runtimes.get(network);if(runtime)void readEligibility(runtime);},
   onPauseChange(paused) {
     userPaused = paused;
@@ -123,7 +123,7 @@ async function readEligibility(runtime:Runtime):Promise<void>{
 }
 
 function syncCollection(runtime:Runtime):void {
-  if(!collectionAllowed()) {
+  if(!collectionAllowed()||root.dataset.selected!==runtime.network) {
     if(runtime.collectionActive)stopCollection(runtime);
   } else if(!runtime.collectionActive) {
     runtime.collectionActive=true;runtime.producers.start();runtime.comparison.resume();runtime.data.resume();
@@ -182,7 +182,7 @@ function navigatorObservation(record:ObservationTarget<Derived>):NonNullable<Net
 }
 function applyIndependentClock(runtime:Runtime,model:NetworkViewModel):void {
  const snapshot=runtime.view?.snapshot,appliedHead=snapshot?.head,appliedRound=appliedHead?proposalRound(appliedHead.fitness,appliedHead.level):undefined;
- const paused=!collectionAllowed(),degraded=runtime.view?.headStream.error!==null,now=Date.now();
+ const paused=!collectionAllowed()||!runtime.collectionActive,degraded=runtime.view?.headStream.error!==null,now=Date.now();
   const clockParameters=appliedHead?snapshot?.derived?.constantsByLevel.get(appliedHead.level+1):undefined,clockContext=clockParameters?.context;
   if(appliedHead&&!paused&&!degraded&&appliedRound!==undefined&&clockParameters&&clockParameters.evidence&&clockContext&&runtime.monitor.contextAuthorized(clockContext)&&clockContext.protocolHash===clockContext.observer.protocolHash&&clockContext.observer.source.baseUrl===appliedHead.evidence?.source.baseUrl&&observedHeaderMatches(clockContext.observer.header,appliedHead)){
     const boundary=conditionalRoundBoundary({referenceTimestamp:Date.parse(appliedHead.timestamp),referenceRound:appliedRound,branch:'next-level',minimum:clockParameters.minimum,increment:clockParameters.increment,roundBasis:'proven'});
@@ -237,7 +237,7 @@ function renderPinned(runtime:Runtime):boolean {
  Object.assign(model,observationMeaning(view,model.observation));applyIndependentClock(runtime,model);applyProducer(runtime,model);model.comparison=comparisonModel(runtime);updateDashboard(runtime,model);return true;
 }
 
-function updateDashboard(runtime:Runtime,model:NetworkViewModel):void {dashboard.update(runtime.network,{...model,unresolvedObservations:(runtime.view?.unresolvedTargets??[]).map(record=>({identity:record.identity,level:record.target.level,round:record.target.round,source:record.target.source.baseUrl,...(record.target.payload?{payload:record.target.payload}:{}),...(record.target.candidate?{hash:record.target.candidate.header.hash}:{})})),eligibilityLoading:runtime.eligibilityLoading,eligibilityAvailable:eligibilitySelection(runtime)!==undefined,...(model.observation?.identity===runtime.cameraReceipt?.identity&&runtime.cameraReceipt?{cameraAcceptedMonotonic:runtime.cameraReceipt.emittedMonotonic}:{}),blockIntervals:runtime.intervals.view()});}
+function updateDashboard(runtime:Runtime,model:NetworkViewModel):void {dashboard.update(runtime.network,{...model,...(!runtime.collectionActive?{status:"paused" as const,connection:root.dataset.selected!==runtime.network?"Paused · select network to resume":"Paused"}:{}),unresolvedObservations:(runtime.view?.unresolvedTargets??[]).map(record=>({identity:record.identity,level:record.target.level,round:record.target.round,source:record.target.source.baseUrl,...(record.target.payload?{payload:record.target.payload}:{}),...(record.target.candidate?{hash:record.target.candidate.header.hash}:{})})),eligibilityLoading:runtime.eligibilityLoading,eligibilityAvailable:eligibilitySelection(runtime)!==undefined,...(model.observation?.identity===runtime.cameraReceipt?.identity&&runtime.cameraReceipt?{cameraAcceptedMonotonic:runtime.cameraReceipt.emittedMonotonic}:{}),blockIntervals:runtime.intervals.view()});}
 
 function render(runtime: Runtime): void {
   const view = runtime.view;
@@ -405,7 +405,7 @@ function render(runtime: Runtime): void {
     };
   };
   const degraded = view.headStream.error !== null;
-  const paused = !collectionAllowed();
+  const paused = !collectionAllowed()||!runtime.collectionActive;
   const predictionElapsed=!paused&&runtime.opportunityFacts?.some(fact=>fact.timing.state==='known'&&fact.timing.basis==='observed-selected'&&appliedHead!==undefined&&headFactsKey(fact.timing.reference)===headFactsKey(appliedHead)&&fact.timing.parameters.context.observer.header.hash===appliedHead.hash&&Math.max(0,performance.now()-fact.capturedMonotonic)>=fact.timing.remainingAtCapture);
   const model: NetworkViewModel = {
     status: degraded ? "degraded" : predictionElapsed?"stalled":appliedHead!==undefined && view.progression?.to.header.hash===appliedHead.hash && view.progression.to.source.baseUrl===appliedHead.evidence?.source.baseUrl && ["next-level","same-level-round","skipped-levels"].includes(view.progression.kind)?"healthy":"unknown",
