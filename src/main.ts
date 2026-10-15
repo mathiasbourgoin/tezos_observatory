@@ -45,7 +45,7 @@ const dashboard = createDashboard(root, {
   },
   onPin(network){const runtime=runtimes.get(network),identity=runtime?.selectedIdentity??runtime?.view?.inspection.selectedIdentity;if(runtime&&identity)runtime.monitor.pinObservation(identity);},
   onFollow(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=true;runtime.monitor.followLive();}},
-  onLatest(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=false;runtime.monitor.latestObservation();}},
+  onLatest(network){const runtime=runtimes.get(network);if(runtime){delete runtime.selectedIdentity;runtime.followLiveSelection=!runtime.monitor.latestObservation();}},
   onRetry(network,identity){if(collectionAllowed())runtimes.get(network)?.monitor.reconcileObservation(identity);},
   onReconnect() {
     if (collectionAllowed()) for (const runtime of runtimes.values()) {

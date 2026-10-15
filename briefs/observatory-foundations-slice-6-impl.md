@@ -47,3 +47,11 @@ Independent review reproduced a missed first-arrival case on ab57c0e: pin an alr
 The original AC25 production scenario now first pins the candidate-free instance and verifies first-hash promotion remains0 before its existing distinct-candidate/new-instance/replay/Latest/Follow cases. Final158 unit tests and TypeScript/build pass; strengthened exact AC25 passes15 assertion groups including Chromium and Firefox. S7-only test WIP was saved outside the checkout before the correction and is excluded from this commit. Final full-browser result follows after the immobile run.
 
 Final isolated correction: immobile78/78 browser PASS41.8s;158unit/check/build/scope/diffcheck PASS. Original PNG artifacts restored. The correction preserves the frozen original evidence and is a separate local review commit.
+
+## Separate review correction: failed Latest render
+
+Independent review of1843e57 obtained77PASS/1FAIL in the original78-browser run: after Latest found no coherent current selection, its scheduled render lost the explicit live-unavailable note and selected an old context-invalid inspector while store mode remained Follow. Earlier owner78PASS is preserved as the actual prior result, not evidence that this failure was transient. The immediate assertion could read the preceding Follow render. Waiting two animation frames for the actual Latest render reproduced the genuine failure in both engines through original AC25 (exit1), with no runtime/setup error.
+
+The existing Latest facade already returns whether it selected a coherent record. The page now synchronizes Follow intent to that result: unsuccessful Latest stays Follow with explicit unavailable context; successful Latest pins once. No request, resume or numerical authority is added. The original AC25 test now waits for its actual render before checking unavailable status. Strengthened exact AC25 passes15groups including both engines; TypeScript/build pass. S7 source/tests remain saved outside this correction. Final unit/full-browser results follow.
+
+Final failed-Latest correction:158unit/17files PASS; immobile78/78browser PASS43.6s; TypeScript/build/scope/diffcheck PASS; strengthened exact originalAC25 PASS15groups with Chromium and Firefox. Original PNG artifacts restored.
