@@ -5,6 +5,25 @@ import type {BlockHeader} from '../../src/rpc/models';
 import type {OpportunityFact} from '../../src/consensus/roundSchedule';
 
 afterEach(()=>vi.unstubAllGlobals());
+
+it.each([8640000000000000,-8640000000000000])('preserves the renderable calendar boundary %s and rejects its next millisecond',async boundary=>{
+ const {facts,selected,allowed}=await fixture();
+ const at=(value:number)=>facts.map(fact=>({...fact,capturedAt:value,timing:fact.timing.state==='known'?{...fact.timing,remainingAtCapture:Math.max(0,fact.timing.deadline-value)}:fact.timing})) as [OpportunityFact,OpportunityFact];
+ expect(captureOpportunityFacts(at(boundary),selected,120,2,allowed)).toEqual(at(boundary));
+ expect(()=>new Date(boundary).toISOString()).not.toThrow();
+ expect(captureOpportunityFacts(at(boundary+Math.sign(boundary)),selected,120,2,allowed)).toBeUndefined();
+});
+
+it('rejects a safe integer capture date that cannot be rendered as a calendar date',async()=>{
+ const {facts,selected,allowed}=await fixture(),altered=facts.map(fact=>({...fact,capturedAt:Number.MAX_SAFE_INTEGER,timing:fact.timing.state==='known'?{...fact.timing,remainingAtCapture:0}:fact.timing})) as [OpportunityFact,OpportunityFact];
+ expect(captureOpportunityFacts(altered,selected,120,2,allowed)).toBeUndefined();
+});
+
+it.each(['proposer','timing'] as const)('rejects an unrenderable original %s receipt instead of publishing a reader exception',async kind=>{
+ const {facts,selected,allowed}=await fixture(),first=facts[0];if(first.proposer.state!=='known'||first.timing.state!=='known')throw new Error('Missing actual fixture evidence');
+ const invalid:OpportunityFact=kind==='proposer'?{...first,proposer:{state:'known',right:{...first.proposer.right,evidence:{...first.proposer.right.evidence,receivedAt:Number.MAX_SAFE_INTEGER}}}}:{...first,timing:{...first.timing,parameters:{...first.timing.parameters,evidence:{...first.timing.parameters.evidence,receivedAt:Number.MAX_SAFE_INTEGER}}}};
+ expect(captureOpportunityFacts([invalid,facts[1]],selected,120,2,allowed)).toBeUndefined();
+});
 async function fixture(){
  const at=Date.now(),source=sources.mainnet[0]!;
  const selectedHeader:BlockHeader={chainId:'NetFixture',level:120,hash:'H120',predecessor:'H119',timestamp:new Date(at).toISOString(),fitness:['02','00000078','','ffffffff','00000002'],payload_hash:'P'};

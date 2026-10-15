@@ -453,6 +453,13 @@ it('captures both exact opportunity branches without refreshing selected receipt
  expect(store.target(record.identity)?.opportunities?.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined)).toEqual(facts.map(fact=>fact.proposer.state==='known'?fact.proposer.right.evidence.source.baseUrl:undefined));
 });
 
+it('rejects unrenderable opportunity capture dates without publishing historical facts',async()=>{
+ const {store,record,facts,token}=await opportunityFixture();
+ const invalid=facts.map(fact=>({...fact,capturedAt:Number.MAX_SAFE_INTEGER,timing:fact.timing.state==='known'?{...fact.timing,remainingAtCapture:0}:fact.timing})) as [OpportunityFact,OpportunityFact];
+ expect(store.captureOpportunities(record.identity,token,invalid)).toBe(false);
+ expect(store.target(record.identity)?.opportunities).toBeUndefined();
+});
+
 it.each(['rights-only','timing-only','neither'] as const)('captures independent %s branch availability without borrowing another branch fact',async availability=>{
  const {store,record,facts,token}=await opportunityFixture();const absent={state:'unavailable' as const,reason:'Not captured under this exact branch context'};
  const pair:[OpportunityFact,OpportunityFact]=[{...facts[0],...(availability==='timing-only'||availability==='neither'?{proposer:absent}:{}),...(availability==='rights-only'||availability==='neither'?{timing:absent}:{})},{...facts[1],proposer:absent,timing:absent}];

@@ -3,6 +3,7 @@ import type {BakingRight,Constants,TargetContext} from '../rpc/networkData';
 import type {ObservationEvidence} from '../rpc/models';
 
 const secondsBeforeRound=(round:number,minimum:number,increment:number):number=>round*minimum+increment*round*(round-1)/2;
+export const validCalendarMilliseconds=(value:number):boolean=>Number.isSafeInteger(value)&&Math.abs(value)<=8640000000000000;
 
 /** Round zero starts after the predecessor's own round duration. All times in ms. */
 export function roundSchedule(
@@ -21,12 +22,12 @@ export function roundSchedule(
   const elapsed = Math.max(0, (now - anchor) / 1000);
   const before = (r: number): number => secondsBeforeRound(r,minimum,increment);
   const b = minimum - increment / 2;
-  let round =
+  let round = elapsed===0?0:
     increment === 0
       ? Math.floor(elapsed / minimum)
-      : Math.floor(
-          (2 * elapsed) / (Math.sqrt(b * b + 2 * increment * elapsed) + b),
-        );
+      : Math.floor(b>=0
+          ? (2 * elapsed) / (Math.sqrt(b * b + 2 * increment * elapsed) + b)
+          : (Math.sqrt(b * b + 2 * increment * elapsed) - b) / increment);
   round = Math.max(0, round);
   if (before(round) > elapsed) round = Math.max(0, round - 1);
   if (before(round + 1) <= elapsed) round += 1;
@@ -71,11 +72,11 @@ export interface ConditionalRoundInput {
 /** A conditional protocol boundary; never advances an observed instance. */
 export function conditionalRoundBoundary(input:ConditionalRoundInput):number|undefined {
   const {referenceTimestamp,referenceRound,minimum,increment}=input;
-  if(input.roundBasis!=='proven'||![referenceTimestamp,referenceRound,minimum,increment].every(Number.isSafeInteger)||Math.abs(referenceTimestamp)>8640000000000000||referenceRound<0||referenceRound>0x7fffffff||minimum<=0||increment<0||(input.branch==='same-level'&&referenceRound===0x7fffffff))return undefined;
+  if(input.roundBasis!=='proven'||![referenceTimestamp,referenceRound,minimum,increment].every(Number.isSafeInteger)||!validCalendarMilliseconds(referenceTimestamp)||referenceRound<0||referenceRound>0x7fffffff||minimum<=0||increment<0||(input.branch==='same-level'&&referenceRound===0x7fffffff))return undefined;
   // S(R+1)-S(R)=D(R). For a successor, D(R) uses its execution
   // parameters, including the term contributed by the predecessor round.
   const seconds=minimum+referenceRound*increment,milliseconds=seconds*1000,boundary=referenceTimestamp+milliseconds;
-  return [seconds,milliseconds,boundary].every(Number.isSafeInteger)&&Math.abs(boundary)<=8640000000000000?boundary:undefined;
+  return [seconds,milliseconds,boundary].every(Number.isSafeInteger)&&validCalendarMilliseconds(boundary)?boundary:undefined;
 }
 
 
@@ -104,5 +105,5 @@ export function protocolRoundStart(input:ProtocolRoundInput):number|undefined {
   if(!Number.isSafeInteger(input.targetRound)||input.targetRound<0||input.targetRound>0x7fffffff)return undefined;
   const zero=conditionalRoundBoundary({...input,branch:'next-level'});if(zero===undefined)return undefined;
   const seconds=secondsBeforeRound(input.targetRound,input.minimum,input.increment),milliseconds=seconds*1000,timestamp=zero+milliseconds;
-  return [seconds,milliseconds,timestamp].every(Number.isSafeInteger)&&Math.abs(timestamp)<=8640000000000000?timestamp:undefined;
+  return [seconds,milliseconds,timestamp].every(Number.isSafeInteger)&&validCalendarMilliseconds(timestamp)?timestamp:undefined;
 }

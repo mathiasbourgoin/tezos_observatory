@@ -1,7 +1,7 @@
 import type {BlockHeader,ObservationEvidence,RpcSource} from '../rpc/models';
 import type {RpcContext,TargetContext} from '../rpc/networkData';
 import {headFactsKey} from '../monitor/headGeneration';
-import {conditionalRoundBoundary,protocolRoundStart,proposalRound,tenderbakeFitness,type OpportunityFact} from './roundSchedule';
+import {conditionalRoundBoundary,protocolRoundStart,proposalRound,tenderbakeFitness,validCalendarMilliseconds,type OpportunityFact} from './roundSchedule';
 
 const header=(value:BlockHeader):BlockHeader=>Object.freeze({...value,...(value.evidence?{evidence:evidence(value.evidence)}:{}),fitness:Object.freeze([...value.fitness])});
 const evidence=(value:ObservationEvidence):ObservationEvidence=>Object.freeze({...value,source:Object.freeze({...value.source})});
@@ -26,7 +26,7 @@ export function captureOpportunityFacts(facts:readonly [OpportunityFact,Opportun
     value.observer.header.chainId===selected.observer.chainId &&
     (candidateObserver||sameRpc(value.observer,selected.observer)) &&
     value.anchor.chainId===value.observer.chainId && value.anchor.nextProtocolHash===value.protocolHash &&
-    allowed(receipt.source) && receipt.chainId===value.observer.chainId && receipt.protocolHash===value.protocolHash &&
+    allowed(receipt.source) && validCalendarMilliseconds(receipt.receivedAt) && receipt.chainId===value.observer.chainId && receipt.protocolHash===value.protocolHash &&
     receipt.targetLevel===target && receipt.contextHeadHash===value.observer.header.hash &&
     receipt.requestedHeadHash===value.anchor.header.hash;
   };
@@ -34,7 +34,7 @@ export function captureOpportunityFacts(facts:readonly [OpportunityFact,Opportun
   const result:OpportunityFact[]=[];
   for(let index=0;index<2;index++){
     const fact=facts[index];
-    if(!fact||fact.branch!==(index===0?'same-level':'next-level')||fact.level!==level+index||fact.round!==(index===0?round+1:0)||!fact.condition||!Number.isSafeInteger(fact.capturedAt)||!Number.isFinite(fact.capturedMonotonic)||fact.capturedMonotonic<0)return undefined;
+    if(!fact||fact.branch!==(index===0?'same-level':'next-level')||fact.level!==level+index||fact.round!==(index===0?round+1:0)||!fact.condition||!validCalendarMilliseconds(fact.capturedAt)||!Number.isFinite(fact.capturedMonotonic)||fact.capturedMonotonic<0)return undefined;
     let proposer:OpportunityFact['proposer'];
     if(fact.proposer.state==='known'){
       const right=fact.proposer.right;

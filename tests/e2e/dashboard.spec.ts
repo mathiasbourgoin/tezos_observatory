@@ -985,3 +985,14 @@ test('foundations AC-34 conditional timers never substitute for applied values o
  await page.route('**/context/constants',route=>route.fulfill({status:503,body:'Exact timing inputs unavailable'}));await send(page,'mainnet-head',{...skipped,hash:'ObservedTimingMissing104'});await expect(panel).toContainText('Observed same-height reorg');await expect(panel.locator('.countdown')).toHaveText('Timing unavailable');await page.clock.runFor(15000);await expect(panel.locator('.status-chip')).toHaveText('Progress unknown');await expect(panel.locator('.applied-context')).toContainText('level 104 · round 0');expect(await panel.locator('.event-history').textContent()).toBe(events);
  testInfo.annotations.push({type:'foundation-verified',description:'AC-34'});
 });
+
+test('valid timing with a large increment keeps a future round-zero clock estimate finite',async({page})=>{
+ await page.clock.install({time:new Date(Date.now()-60000)});
+ await page.addInitScript(()=>{const original=window.fetch.bind(window);window.fetch=async(input,options)=>{const response=await original(input,options),url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url);if(url.pathname.endsWith('/context/constants'))return Response.json({...await response.json(),minimal_block_delay:'1',delay_increment_per_round:'3'});return response;};});
+ await prepare(page,false,head(100,0));const panel=page.locator('.network-panel.mainnet');
+ await expect(panel.locator('.baker-opportunity').first()).toContainText('Conditional timer');
+ await expect(panel.locator('.timing-detail')).toContainText('estimated round 0');
+ await expect(panel.locator('.timing-detail')).not.toContainText('NaN');
+ await expect(panel.locator('.timing-detail')).not.toContainText('Invalid Date');
+ await expect(panel.locator('.headline')).toContainText('Applied block round0');
+});

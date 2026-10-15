@@ -1,6 +1,8 @@
 # Foundations slice 9 — conditional opportunity facts
 
-Status: INTERIM implementation verified; frozen for independent slice review. This is an INTERIM slice checkpoint, not completion of the parent implementation, whole review, QA or permission to deploy. S10 parity, numerical audit, bounded live-origin evidence and fresh whole gates remain required.
+Status: INTERIM implementation verified; frozen for independent slice review.
+
+Independent review subsequently exposed finite pre-boundary clock and unrenderable capture/receipt calendar cases. [The separate correction artifact](./observatory-foundations-slice-9-review-fixes.md) records actual RED→GREEN evidence and corrected-state gates; the base results below remain historical evidence for their exact source. This is an INTERIM slice checkpoint, not completion of the parent implementation, whole review, QA or permission to deploy. S10 parity, numerical audit, bounded live-origin evidence and fresh whole gates remain required.
 
 ## Behavior and authority
 

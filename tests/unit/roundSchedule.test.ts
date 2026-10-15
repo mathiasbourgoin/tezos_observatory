@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { roundSchedule, proposalRound, tenderbakeFitness, conditionalRoundBoundary, protocolRoundStart } from "../../src/consensus/roundSchedule";
 
 describe("Tenderbake schedule", () => {
+  it.each([2,3,20])('keeps future and exact round zero finite when increment %s is at least twice the minimum',increment=>{
+    expect(roundSchedule(10000,1,increment,9000)).toEqual({round:0,startedAt:10000,endsAt:11000});
+    expect(roundSchedule(10000,1,increment,10000)).toEqual({round:0,startedAt:10000,endsAt:11000});
+    for(const now of [10000.000001,10000.001,10999.999])expect(roundSchedule(10000,1,increment,now)).toEqual({round:0,startedAt:10000,endsAt:11000});
+    expect(roundSchedule(10000,1,increment,11000)).toEqual({round:1,startedAt:11000,endsAt:12000+increment*1000});
+    expect(roundSchedule(10000,1,increment,11000.001).round).toBe(1);
+  });
   it("advances on the exact boundary and uses cumulative durations", () => {
     expect(roundSchedule(1000, 6, 3, 6999).round).toBe(0);
     expect(roundSchedule(1000, 6, 3, 7000)).toEqual({

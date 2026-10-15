@@ -72,13 +72,19 @@ try {
   };
   rights=[{address:'D1',slot:0,power:3,context:authorityContextFor(source)},{address:'D2',slot:1,power:2,context:authorityContextFor(source)}];
   if(criterion==='AC-34') {
-    const {conditionalRoundBoundary,protocolRoundStart}=await server.ssrLoadModule('/consensus/roundSchedule.ts');
+    const {conditionalRoundBoundary,protocolRoundStart,roundSchedule,validCalendarMilliseconds}=await server.ssrLoadModule('/consensus/roundSchedule.ts');
     const current={referenceTimestamp:27000,referenceRound:2,minimum:6,increment:3,roundBasis:'proven'};
     check(conditionalRoundBoundary({...current,branch:'same-level'}),39000,'Selected same-level R+1 uses its own execution durations');
     check(conditionalRoundBoundary({...current,branch:'next-level',minimum:10,increment:4}),45000,'Successor durations include the actual predecessor-round term');
     check(protocolRoundStart({...current,referenceTimestamp:0,targetRound:2}),27000,'Hypothetical selected round derives from proven parent without a synthetic observed header');
     check(conditionalRoundBoundary({...current,branch:'next-level',roundBasis:'unknown'}),undefined,'Unsupported migration basis does not fabricate a timer');
     for(const invalid of [{minimum:0},{increment:-1},{referenceRound:0x80000000},{referenceTimestamp:Number.MAX_SAFE_INTEGER},{minimum:Number.MAX_SAFE_INTEGER}])check(conditionalRoundBoundary({...current,...invalid,branch:'same-level'}),undefined,'Unsafe or unsupported protocol timing inputs remain unavailable');
+    for(const increment of [2,3,20]){
+      for(const now of [9000,10000,10000.000001,10999.999])check(roundSchedule(10000,1,increment,now),{round:0,startedAt:10000,endsAt:11000},'Valid negative/zero linear coefficient keeps a finite pre-boundary estimate');
+      check(roundSchedule(10000,1,increment,11000),{round:1,startedAt:11000,endsAt:12000+increment*1000},'Exact first boundary remains finite without an arbitrary protocol constraint');
+    }
+    for(const boundary of [8640000000000000,-8640000000000000]){check(validCalendarMilliseconds(boundary),true,'Last renderable calendar millisecond remains valid');check(validCalendarMilliseconds(boundary+Math.sign(boundary)),false,'Next unrenderable calendar millisecond is rejected');}
+    check(validCalendarMilliseconds(Number.MAX_SAFE_INTEGER),false,'A safe integer is not sufficient calendar evidence');
   } else if(['AC-7','AC-28','AC-29','AC-30','AC-35','AC-36','AC-37','AC-38'].includes(criterion)) {
     const {SourceComparison}=await server.ssrLoadModule('/rpc/sourceComparison.ts');
     const originalFetch=globalThis.fetch,originalNow=Object.getOwnPropertyDescriptor(performance,'now');let clock=1000;
