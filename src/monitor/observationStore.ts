@@ -44,6 +44,8 @@ export interface AcceptedPhase {
   readonly maximumThreshold:number;
   readonly maximumBasis:string;
   readonly maximumEvidence:ObservationEvidence;
+  /** Receipt of the current phase power, distinct from first observation and peak. */
+  readonly currentEvidence:ObservationEvidence;
   readonly power:number;
   readonly threshold:number;
   readonly basis:string;
@@ -471,7 +473,8 @@ export class ObservationStore<T> {
           const crossing=!!old && sameBasis && newVoteEvidence && !old.uncertain && !old.quorumObserved && old.maximumPower<admission.constants.quorum && power>=admission.constants.quorum;
           const firstQuorum=power>=admission.constants.quorum && !old?.quorumObserved;
           const newMaximum=!old || power>old.maximumPower;
-          const state:AcceptedPhase=Object.freeze({key:identity,phase,power,maximumPower:Math.max(old?.maximumPower??0,power),maximumTotal:newMaximum?admission.constants.committee:old.maximumTotal,maximumThreshold:newMaximum?admission.constants.quorum:old.maximumThreshold,maximumBasis:newMaximum?basis:old.maximumBasis,maximumEvidence:newMaximum?evidence:old.maximumEvidence,threshold:admission.constants.quorum,basis,quorumObserved:old?.quorumObserved===true||firstQuorum,crossed:old?.crossed===true||crossing,uncertain:old?.uncertain??this.crossingHistoryUncertain,evidence:old?.evidence??evidence});
+          const currentEvidence=evidence;
+          const state:AcceptedPhase=Object.freeze({key:identity,phase,power,currentEvidence,maximumPower:Math.max(old?.maximumPower??0,power),maximumTotal:newMaximum?admission.constants.committee:old.maximumTotal,maximumThreshold:newMaximum?admission.constants.quorum:old.maximumThreshold,maximumBasis:newMaximum?basis:old.maximumBasis,maximumEvidence:newMaximum?evidence:old.maximumEvidence,threshold:admission.constants.quorum,basis,quorumObserved:old?.quorumObserved===true||firstQuorum,crossed:old?.crossed===true||crossing,uncertain:old?.uncertain??this.crossingHistoryUncertain,evidence:old?.evidence??evidence});
           this.phaseFacts.set(identity,state);
           const eventIdentity=JSON.stringify([identity,crossing?"crossing":"observed-quorum"]);
           // Retired phase/event owners cannot prove this quorum was never emitted.

@@ -4,7 +4,8 @@
     "V3 AC-09 real hash-pinned metadata attributes block baker independently from payload proposer",
     "V3 AC-09 matching block producers shared and separate payloads render without pooled power throughout the matrix",
     "V3 AC-01 applied tuple votes and unchanged-head age never imply next-level progress",
-    "V3 AC-01 applied tuple relationship and next-level observation remain qualified throughout the matrix"
+    "V3 AC-01 applied tuple relationship and next-level observation remain qualified throughout the matrix",
+    "V3 AC-01 phase receipts remain distinct through staggered arrival replay and retained pin"
   ],
   "AC-02": [
     "V3 AC-02 actual round progress moves the scene down for an upward camera and duplicates stay still",
@@ -83,7 +84,8 @@
     "V3 AC-10 complete pre zero and opposite partial coverage render throughout the matrix",
     "V3 AC-10 complete att zero and opposite partial coverage render throughout the matrix",
     "malformed source coverage stays partial until a fresh permitted coherent snapshot",
-    "foundations AC-13 coherent source zero becomes stale while historical receipt stays inspectable"
+    "foundations AC-13 coherent source zero becomes stale while historical receipt stays inspectable",
+    "V3 AC-01 phase receipts remain distinct through staggered arrival replay and retained pin"
   ],
   "AC-11": [
     "V3 AC-02 actual round progress moves the scene down for an upward camera and duplicates stay still",

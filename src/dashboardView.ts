@@ -2,7 +2,7 @@ import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockInter
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
 export type Network = 'mainnet' | 'shadownet';
-export interface VoteView {count: number; expected: number; power: number; total: number;threshold?:number}
+export interface VoteView {count: number; expected: number; power: number; total: number;threshold?:number;proof?:{description:string;receivedAt:number;receivedMonotonic:number}|undefined}
 export interface DelegateView {address: string; alias?: string;searchAlias?:string; power: number; forbidden?: boolean; eligibility?: 'eligible' | 'forbidden' | 'unavailable'; eligibilityState?:'stale'|'context-invalid'; eligibilityNote?:string;preReceipt?:string;attReceipt?:string;contextNote?:string}
 export interface SourceView {name: string; url: string; status: string; detail?: string}
 export interface RecentConsensusView {identity?:string;level: number; round: number; prePower?: number; attPower?: number; preTotal?:number;attTotal?:number;total: number; payload?: string;source?:string}
@@ -104,8 +104,13 @@ function gauge(label: string, kind: string) {
   const counts = el('div', 'gauge-counts'), power = el('span', '', 'Voting power unavailable'), ops = el('span', '', 'Operations unavailable'); counts.append(power, ops);
   const exact = el('strong', 'gauge-exact', 'Unavailable');
   header.insertBefore(exact, percentage);
-  const remaining = el('p', 'quorum-caption', 'Quorum unavailable'); root.append(header, track, counts, remaining);
-  return {root, update(vote: VoteView | undefined, quorum: number | undefined) {
+  const remaining = el('p', 'quorum-caption', 'Quorum unavailable');
+  const details=el('details','phase-provenance'),proof=el('p','phase-evidence table-note'),age=el('span','phase-age');details.append(el('summary','',`${label} source & receipt`),proof,age);
+  let receipt:VoteView['proof'];
+  const tick=()=>set(age,receipt?`Receipt age ${Math.max(0,Math.floor((performance.now()-receipt.receivedMonotonic)/1000))}s`:'Receipt age unknown');
+  root.append(header, track, counts, remaining,details);
+  return {root,tick, update(vote: VoteView | undefined, quorum: number | undefined) {
+    receipt=vote?.proof;set(proof,receipt?`${receipt.description} · Received ${new Date(receipt.receivedAt).toISOString()}`:"Phase source and receipt unavailable");if(receipt)proof.dataset.received=new Date(receipt.receivedAt).toISOString();else delete proof.dataset.received;tick();
     const known = vote !== undefined && vote.total > 0, percent = known ? 100 * vote.power / vote.total : 0;
     set(exact, known ? `${number(vote.power)} / ${number(vote.total)}` : 'Unavailable');
     set(percentage, known ? `${percent.toFixed(1)}%` : '—'); fill.style.width = `${Math.min(100, percent)}%`;
@@ -383,6 +388,7 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
     };
     const tick = (now: number): void => {
       if (!current) return;
+      pre.tick();att.tick();
       const age = current.observedMonotonic === undefined ? undefined : Math.max(0, (performance.now() - current.observedMonotonic) / 1000);
       const snapshotAge=current.snapshotMonotonic===undefined?undefined:Math.max(0,(performance.now()-current.snapshotMonotonic)/1000);
       const stableAge=current.appliedSinceMonotonic===undefined?undefined:Math.max(0,Math.floor((performance.now()-current.appliedSinceMonotonic)/1000));set(appliedStability,stableAge===undefined?'Applied-head session age unknown':`Applied head unchanged in this session · ${stableAge}s`);if(current.appliedSinceMonotonic===undefined)delete appliedStability.dataset.since;else appliedStability.dataset.since=String(current.appliedSinceMonotonic);

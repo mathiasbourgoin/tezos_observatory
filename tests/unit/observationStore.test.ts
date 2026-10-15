@@ -646,3 +646,31 @@ it.each(['pre','att'] as const)('admits independent %s snapshot zero and preserv
  expect(store.target(record.identity)?.coverageStale).toBe(true);expect(captured.record.coverageStale).toBe(false);expect(captured.record.coverage?.evidence).toBe(snapshot.evidence);
  expect(store.target(record.identity)?.phases?.[phase]?.power).toBe(0);
 });
+
+
+it("retains authentic current phase receipts separately from first and peak through basis changes replay and freeze",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),record=store.addOperations([base])[0]!;
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);store.accept(proof);store.pin(record.identity);
+ const first=store.inspection().snapshot?.record.phases?.pre;
+ expect(first?.currentEvidence.receivedMonotonic).toBe(1);
+ const corrected={...proof,...store.generation(b),rights:proof.rights.map(right=>({...right,power:right.slot===0?2:3,evidence:{...right.evidence,source:b,receivedAt:10,receivedMonotonic:10}}))};store.accept(corrected);
+ const decreased=store.inspection().snapshot?.record.phases?.pre;
+ expect(decreased?.power).toBe(2);expect(decreased?.maximumPower).toBe(3);
+ expect(decreased?.currentEvidence).toBe(first?.currentEvidence);expect(decreased?.maximumEvidence).toBe(first?.maximumEvidence);
+ expect(store.inspection().snapshot?.phaseCommittees.pre?.[0]?.evidence?.receivedMonotonic).toBe(10);
+ store.addOperations([{...base,hash:'new-current-signer',evidence:evidence(b,20),contents:[{...base.contents[0]!,slot:1}]}]);
+ const increased=store.inspection().snapshot?.record.phases?.pre;expect(increased?.power).toBe(5);expect(increased?.currentEvidence.receivedMonotonic).toBe(20);expect(increased?.evidence.receivedMonotonic).toBe(1);
+ store.addOperations([{...base,hash:'new-current-signer',evidence:evidence(b,30),contents:[{...base.contents[0]!,slot:1}]}]);expect(store.inspection().snapshot?.record.phases?.pre?.currentEvidence).toBe(increased?.currentEvidence);
+ for(let index=0;index<151;index++)store.addCandidate({identity:`phase-freeze-${index}`,header:{...head(123),hash:`PhaseFreeze${index}`,payload_hash:`PhasePayload${index}`},evidence:evidence(b,index+100)});
+ expect(store.inspection().frozen).toBe(true);expect(store.inspection().snapshot?.record.phases?.pre?.currentEvidence).toBe(increased?.currentEvidence);
+ expect(first?.power).toBe(3);expect(first?.currentEvidence.receivedMonotonic).toBe(1);
+});
+
+it("updates current receipt for genuinely replaced equal-power membership without changing first or peak receipt",async()=>{
+ installRpc();const store=new ObservationStore<Derived>("mainnet",sources.mainnet),base=operation(),record=store.addOperations([base])[0]!;
+ const proof=await new NetworkData("mainnet").reconcile(record.target,new AbortController().signal);
+ store.accept({...proof,constants:{...proof.constants,committee:6},rights:proof.rights.map(right=>({...right,power:3}))});
+ const original=store.target(record.identity)?.phases?.pre;expect(original?.power).toBe(3);
+ store.addOperations(Array.from({length:10000},(_,index)=>({...base,hash:`phase-turnover-${index}`,evidence:evidence(b,20+index),contents:[{...base.contents[0]!,slot:index===9999?1:999}]})));
+ const current=store.target(record.identity)?.phases?.pre;expect(current?.power).toBe(3);expect(current?.currentEvidence.receivedMonotonic).toBe(10019);expect(current?.evidence).toBe(original?.evidence);expect(current?.maximumEvidence).toBe(original?.maximumEvidence);
+});

@@ -1,7 +1,8 @@
+import {burstSettlement} from './burstTiming';
 import {attachFailureTrace} from './productionFixture';
 import {annotateV3} from './v3Verification';
 import {expect, test, type Page, type Locator} from '@playwright/test';
-import type {ObservationStore} from '../../src/monitor/observationStore';
+import type {ObservationStore,ObservationTarget} from '../../src/monitor/observationStore';
 import type {Derived} from '../../src/rpc/networkData';
 
 // Runtime/import failures must remain execution errors in semantic reports.
@@ -1124,7 +1125,7 @@ test('V3 AC-01 exact high-round applied and successor votes retain independent i
 
 for(const reader of ['settled','rapid'] as const)test(reader==='settled'?'V3 AC-13 adjacent burst settles its final right destination without queued motion or reader movement':'V3 AC-13 rapid admission burst preserves the actual final destination',async({page},testInfo)=>{
  await prepare(page,false);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
- await page.evaluate(async path=>{const {NetworkMonitor}=await import(path),original=NetworkMonitor.prototype.emit;const trace:unknown[]=[];Object.assign(window,{burstDomainTrace:trace});NetworkMonitor.prototype.emit=function(){if(this.options.network==='mainnet')trace.push({at:performance.now(),accepted:this.observations.acceptedTargets(),unresolved:this.observations.unresolvedTargets(),snapshot:this.state.snapshot(),progression:this.progression});return original.call(this);};},inspectionModule());
+ await page.evaluate(async path=>{const {NetworkMonitor}=await import(path),original=NetworkMonitor.prototype.emit;const trace:unknown[]=[];Object.assign(window,{burstDomainTrace:trace});NetworkMonitor.prototype.emit=function(){if(this.options.network==='mainnet')trace.push({at:performance.now(),accepted:this.observations.acceptedTargets(),coherent:this.observations.acceptedTargets().filter((record:ObservationTarget<Derived>)=>record.admission&&!record.contextInvalid&&this.observations.contextAuthorized(record.admission.context)).map((record:ObservationTarget<Derived>)=>record.target.candidate?.header.hash).filter(Boolean),unresolved:this.observations.unresolvedTargets(),snapshot:this.state.snapshot(),progression:this.progression});return original.call(this);};},inspectionModule());
  const first={...head(101,0),hash:'Burst101R0'},round={...head(101,1),hash:'Burst101R1'},next={...head(102,0),hash:'Burst102',predecessor:round.hash};
  for(const header of [first,round,next])headers.get(page)!.set(header.hash,header);
  await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
@@ -1138,7 +1139,7 @@ for(const reader of ['settled','rapid'] as const)test(reader==='settled'?'V3 AC-
  await send(page,'mainnet-head',round);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await expect(panel.locator('.navigator-current')).toContainText('102 · r0');await expect(scene).toHaveAttribute('data-direction','right');
  await expect.poll(()=>scene.evaluate(node=>node.getAnimations().length)).toBe(0);await page.waitForTimeout(40);
  const frames=await page.evaluate(()=>(window as unknown as {burstFrames:{at:number;identity:string;direction:string;animations:number;transform:string;scrollY:number;documentHeight:number;focus:string}[]}).burstFrames);await testInfo.attach('actual-camera-frame-trace',{body:JSON.stringify(frames),contentType:'application/json'});
- expect(Math.max(...frames.map(frame=>frame.animations))).toBeLessThanOrEqual(1);const final=frames.filter(frame=>frame.identity.includes('102 · r0'));expect(final.length).toBeGreaterThan(1);const settled=final.find(frame=>frame.animations===0);expect(settled).toBeDefined();expect(settled!.at-final[0]!.at).toBeLessThanOrEqual(200);expect(final.filter(frame=>frame.at>=settled!.at).every(frame=>frame.animations===0)).toBe(true);
+ expect(Math.max(...frames.map(frame=>frame.animations))).toBeLessThanOrEqual(1);expect(frames.some(frame=>frame.animations===1)).toBe(true);const final=frames.filter(frame=>frame.identity.includes('102 · r0'));const admissions=await page.evaluate(()=>(window as unknown as {burstDomainTrace:{at:number;coherent:string[]}[]}).burstDomainTrace.flatMap(sample=>sample.coherent.map(hash=>({at:sample.at,hash,coherent:true}))));const measurement=burstSettlement(admissions,final,next.hash);await testInfo.attach('accepted-observation-to-settlement',{body:JSON.stringify(measurement),contentType:'application/json'});expect(measurement.elapsed).toBeLessThanOrEqual(200);expect(final.filter(frame=>frame.at>=measurement.settledAt).every(frame=>frame.animations===0)).toBe(true);
  await expect(search).toBeFocused();expect(Math.abs(await page.evaluate(()=>scrollY)-scroll)).toBeLessThanOrEqual(1);
  const replacement={...next,hash:'BurstReplacement102'};headers.get(page)!.set(replacement.hash,replacement);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:replacement.hash,header:replacement});await expect(scene).toHaveAttribute('data-direction','static');await expect(panel.locator('.navigator-status')).toContainText('Candidate changed');expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
  const requests=await page.evaluate(()=>window.mockRequests.length);await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(requests);
@@ -1169,6 +1170,7 @@ for(const malformed of ['att','pre'] as const)test(`V3 AC-10 independently compl
  for(const mode of ['live','pin']){
   if(mode==='pin')await panel.getByRole('button',{name:'Inspect candidate PhaseCoverageProbe',exact:true}).click();
   await expect(panel.locator(`.${known} .gauge-exact`)).toHaveText('0 / 30,000');await expect(panel.locator(`.${malformed} .gauge-exact`)).toHaveText('Unavailable');
+  await expect(panel.locator(`.${known} .phase-evidence`)).toContainText('Source-snapshot coverage captured');await expect(panel.locator(`.${known} .phase-evidence`)).toContainText('Received');await expect(panel.locator(`.${malformed} .phase-evidence`)).toHaveText('Phase source and receipt unavailable');
   const result={mode,known,pre:await panel.locator('.pre .gauge-exact').textContent(),att:await panel.locator('.att .gauge-exact').textContent(),evidence:await panel.locator('.network-notice').textContent()};await info.attach(`phase-coverage-${mode}`,{body:JSON.stringify(result),contentType:'application/json'});
   const row=panel.locator('.committee-evidence tbody tr').first();await expect(row).toContainText('Absent in selected source snapshot');await expect(row).toContainText('Partial / unavailable');
  }
@@ -1253,4 +1255,29 @@ test('V3 AC-01 applied tuple votes and unchanged-head age never imply next-level
  await send(page,'mainnet-head',next);await expect(age).not.toHaveAttribute('data-since',before??'');await expect(panel.locator('.applied-context')).toContainText('level 101');await send(page,'mainnet-operations',[vote(1,101,0)]);await expect(panel.locator('.selected-relationship')).toContainText('already-applied');
  const nextSince=await age.getAttribute('data-since');await page.clock.runFor(5000);const returnedFork={...next,hash:'NextObservedFork101'};await send(page,'mainnet-head',returnedFork);await expect.poll(async()=>Number(await age.getAttribute('data-since'))).toBeGreaterThan(Number(nextSince));const forkSince=await age.getAttribute('data-since');await page.clock.runFor(7000);await send(page,'mainnet-head',next);await expect.poll(async()=>Number(await age.getAttribute('data-since'))).toBeGreaterThan(Number(forkSince));const returnedSince=await age.getAttribute('data-since');expect(Number(returnedSince)).toBeGreaterThan(Number(nextSince));await page.clock.runFor(3000);await send(page,'mainnet-head',next);await expect(age).toHaveAttribute('data-since',returnedSince??'');
  await info.attach('applied-tuple-material-progress',{body:JSON.stringify({initialSince:before,finalSince:await age.getAttribute('data-since'),relationship:await panel.locator('.selected-relationship').textContent(),next:await panel.locator('.next-proposal-observation').textContent()}),contentType:'application/json'});
+});
+
+
+test('V3 AC-01 phase receipts remain distinct through staggered arrival replay and retained pin',async({page},info)=>{
+ await page.clock.install({time:new Date('2026-10-15T12:00:30Z')});await prepare(page,false,head(100));
+ const panel=page.locator('.network-panel.mainnet');await send(page,'mainnet-operations',[vote(0)]);
+ await expect(panel.locator('.pre .gauge-exact')).toHaveText('600 / 30,000');
+ const pre=panel.locator('.pre .phase-evidence'),att=panel.locator('.att .phase-evidence');
+ await expect(pre).toContainText('Received');const first=await pre.getAttribute('data-received');
+ await page.clock.runFor(5000);const packet={...vote(1),hash:'phase-receipt-later-att',contents:[{...vote(1).contents[0],kind:'attestation'}]};
+ await send(page,'mainnet-operations',[packet]);await expect(panel.locator('.att .gauge-exact')).toHaveText('600 / 30,000');
+ await expect(att).toContainText('Received');const second=await att.getAttribute('data-received');
+ expect(Date.parse(second??'')-Date.parse(first??'')).toBeGreaterThanOrEqual(5000);
+ for(const node of [pre,att]){await expect(node).toContainText('Observer https://rpc.tzkt.io/mainnet');await expect(node).toContainText('Chain NetFixture');await expect(node).toContainText('Rights responder');await expect(node).toContainText('Context head');}
+ await page.clock.runFor(2000);await send(page,'mainnet-operations',[packet]);await expect(att).toHaveAttribute('data-received',second??'');await expect(pre).toHaveAttribute('data-received',first??'');
+ await panel.getByText('Preattestations source & receipt',{exact:true}).click();await panel.getByText('Attestations source & receipt',{exact:true}).click();
+ const age=async(phase:string)=>Number((await panel.locator(`.${phase} .phase-age`).innerText()).match(/(\d+)s/)?.[1]);expect(await age('att')).toBeGreaterThanOrEqual(2);expect((await age('pre'))-(await age('att'))).toBeGreaterThanOrEqual(5);
+ await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();
+ await expect(att).toHaveAttribute('data-received',second??'');await expect(pre).toHaveAttribute('data-received',first??'');
+ await expect(att).toContainText('Historical as-of');await expect(pre).toContainText('Historical as-of');
+ for(let index=0;index<151;index++){const candidate={...head(101),hash:`PhaseFreeze${index}`,payload_hash:`PhasePayload${index}`};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});}
+ await expect(panel.locator('.session-controls')).toContainText('Pinned frozen snapshot');
+ await expect(att).toHaveAttribute('data-received',second??'');await expect(pre).toHaveAttribute('data-received',first??'');
+
+ await info.attach('phase-receipts',{body:JSON.stringify({first,second,pre:await pre.textContent(),att:await att.textContent()}),contentType:'application/json'});
 });

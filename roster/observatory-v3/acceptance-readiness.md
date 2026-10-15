@@ -1,6 +1,6 @@
 # V3 acceptance readiness — author inventory
 
-Current author source: work in progress above `a69508f`; no final immutable candidate yet. All 37 guard mappings now name concrete production scenarios. The strict runner rejects missing scenarios, skips, retries, runtime errors and absent evidence. CHECK38 remains an independent manual AND gate. No official CHECK01–37 full PASS is claimed.
+Current author source: the corrective checkpoint containing this report, based on independently reviewed `f75cfe64c836a9e1efe620861184e75dc7bd2f2d`. The earlier combined checkpoint `dc89e07` and its interrupted captures are historical, not current release evidence. All 37 guard mappings now name concrete production scenarios. The strict runner rejects missing scenarios, skips, retries, runtime errors and absent evidence. CHECK38 remains an independent manual AND gate. No official CHECK01–37 full PASS is claimed.
 
 Completed development additions: reciprocal phase zeros; complete radio open/checked/focus/hover/disabled surfaces; System/OS/storage notices; independent comparison agreement/divergence/chain mismatch/stale; conditional timers live/captured/elapsed and independent missing timing/rights/migration; silent/coalesced announcements; real browser zoom in both engines and themes. The complete keyboard task journey passed both engines. Native title screenshots have actual X11 pixels on the short-phone sample; the complete 36-cell native capture and its final pixel interpretation remain outstanding.
 
@@ -8,7 +8,7 @@ The source-bound bundle consumer now requires every registered variant in all 36
 
 | CHECK / AC | Existing concrete coverage | Work or receipts still required |
 |---|---|---|
-| 01 | High-round exact scales; producer09; source-health assertion | Mapped; final source execution pending |
+| 01 | High-round exact scales; producer09; applied-tuple meaning; independent per-phase receipts/ages with replay, retained and frozen pin | Mapped; final source execution pending |
 | 02 | UP/RIGHT tests, burst36PASS; foundation clock expiry | Mapped; final source execution pending |
 | 03 | Paired phone29 + historical6s/missing rights/timing foundations | Timer variants executed in both engines; S9/early-pin independently accepted at2f29631; final source rerun |
 | 04 | Selection pins; authoritative navigation; original eviction/bounds | Mapped foundations and dense matrix; final source rerun |
@@ -20,7 +20,7 @@ The source-bound bundle consumer now requires every registered variant in all 36
 | 10 | Reciprocal phase zero LIVE/pin and original malformed retry; independent scoped GO49c | Mapped; final source rerun |
 | 11 | Adjacent UP/RIGHT, unknown ancestry, gap/reorg matrix | Static gap/reorg no-animation assertions added; final source rerun |
 | 12 | Original reorg retained inspection + frozen dense matrix | Mapped retained/frozen/missing-capture cases; final source rerun |
-| 13 | Integrated36PASS includes24burst executions + reduced-motion existing case | Scoped independent combined QA110+6 passed2f29631; final source timing/scroll traces required |
+| 13 | Exact coherent acceptance→settlement measurement, including pre-first-frame latency; scoped source traces + reduced-motion | Scoped independent combined QA110+6 passed2f29631; final source timing/scroll traces required |
 | 14 | Phone29 plus9-base measurements essential14/metadata12 | Final source matrix |
 | 15 | Original historical6s + active/history eviction tests | Mapped; final source rerun |
 | 16 | Original AC22 + dense100facts/150history matrix | Mapped; final source rerun |
@@ -53,3 +53,12 @@ Storage: complete development evidence is under `/var/tmp/tezos-observatory-evid
 Independent-receipt checks08/24/34 will require real reviewer/QA deterministic and visual sub-receipts before returning0. This avoids treating the final aggregate QA verdict as its own prerequisite. Missing receipts remain ERROR>=2; the author never writes an independent GO receipt.
 
 Ordinary CI discovers all product `*.spec.ts` scenarios, including the compiled inspection test. The five independent release consumers are in `v3Release.ts`, explicitly included by the official V3 configuration. Actual discovery regression proves exactly this five-test difference. Official AC25 without a bundle returns ERROR2; normal CI alone is not release acceptance.
+
+
+Corrective audit batch: phase provenance now projects actual independent operation/coverage receipts and separate helper receipts; the only new domain field is `AcceptedPhase.currentEvidence`, captured from the already-calculated deduplicated phase evidence. Production inventory validation compares the complete current dist keyset before validating hashes. Discovery remains lazy and works without dist. Timing guards measure from actual coherent admission rather than the first rendered destination frame. Each repair has retained RED evidence and targeted GREEN evidence; independent review must renew the batch. The active context manifest is the exact root-generated393-obligation artifact.
+
+The final70×36 capture remains paused until the independent corrective review disposition. Missing independent receipts still produce ERROR; author targeted passes do not authorize deployment or manual CHECK38.
+
+## Maintainer delivery scope amendment
+
+The maintainer's latest instruction, “sois pragmatique, le mieux est l’ennemi du bien”, supersedes the exhaustive delivery sequence above. This delivery closes exactly the three confirmed HIGH findings, then uses independent focused correction review, the core ordinary regression suite, essential390-short/1440/3440 light/dark captures in both engines, and actual live interval/source validation. The70×36 matrix and broader exhaustive acceptance obligations are deferred for this delivery, not reported PASS or silently removed from their registered contracts. No further enhancement or broad refactoring is included. Author358 units passed with dist absent; final check and build passed. Independent correction review and the reduced delivery checks still require their own evidence.

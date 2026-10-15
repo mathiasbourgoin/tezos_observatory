@@ -43,3 +43,11 @@ it('ordinary discovery retains every product scenario while official discovery a
  'V3 AC-36 native and zoom surface evidence is complete and source bound',
  ]);
 },60000);
+
+it('production binding rejects omitted, extra and mutated unbound imported assets through the real loader',async()=>{
+ const fixture:unknown=await import(new URL('./productionInventoryFixture.mjs',import.meta.url).href);
+ if(!fixture||typeof fixture!=='object'||!('productionInventoryProbe' in fixture)||typeof fixture.productionInventoryProbe!=='function')throw new Error('Fixture unavailable');
+ const result=fixture.productionInventoryProbe(process.cwd());
+ expect(result.baseline.accepted).toBe(true);
+ for(const name of ['omitted','mutated','extra'])expect(result[name]).toMatchObject({accepted:false,error:expect.stringContaining('Production inventory is not exhaustive')});
+});

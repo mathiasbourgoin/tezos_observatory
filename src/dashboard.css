@@ -216,3 +216,5 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 @media(min-width:701px) and (max-width:1100px){.inspection-workspace>.block-intervals{grid-column:1;grid-row:2}.inspection-workspace>.committee-evidence{grid-row:3}.inspection-workspace>.session-rail{grid-row:4}.inspection-workspace>.source-pane{grid-row:5}}
 
 .block-intervals>a{color:var(--copper)}
+
+.phase-provenance summary{min-height:24px;font-size:12px;cursor:pointer}.phase-evidence{overflow-wrap:anywhere}.phase-age{font-size:12px}

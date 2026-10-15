@@ -16,11 +16,14 @@ export const combinedHashes=value=>sha256(JSON.stringify(Object.fromEntries(Obje
 export function sourceFiles(repository=process.cwd()){
  return execFileSync('git',['ls-files','--cached','--others','--exclude-standard'],{cwd:repository,encoding:'utf8'}).split('\n').filter(name=>/^(src\/|tests\/|scripts\/|package(?:-lock)?\.json$|(?:tsconfig\.json|README\.md)$|(?:playwright(?:\.(?:v3|native))?|vite)\.config\.ts$|roster\/observatory-v3\/(?:check-scenarios|render-variants)\.json$|roster\/observatory-block-intervals\/(?:check-coverage|render-variants)\.json$)/.test(name)).sort();
 }
+function productionFiles(repository){
+ const files=[];const visit=(prefix='')=>{for(const item of readdirSync(resolve(repository,'dist',prefix),{withFileTypes:true})){const name=prefix+item.name;if(item.isDirectory())visit(name+'/');else files.push(name);}};visit();return files.sort();
+}
 export function sourceBindings(repository=process.cwd()){
  const hashFiles=(root,names)=>Object.fromEntries(names.map(name=>[name,sha256(readFileSync(resolve(root,name)))]));
  const sources=hashFiles(repository,sourceFiles(repository));
  const contracts=hashFiles(repository,['specs/observatory-foundations.md','specs/observatory-v3.md','specs/observatory-block-intervals.md','specs/claims-authority.json']);
- const files=[];const visit=(prefix='')=>{for(const item of readdirSync(resolve(repository,'dist',prefix),{withFileTypes:true})){const name=prefix+item.name;if(item.isDirectory())visit(name+'/');else files.push(name);}};visit();
+ const files=productionFiles(repository);
  const production=hashFiles(resolve(repository,'dist'),files.sort());
  return {revision:execFileSync('git',['rev-parse','HEAD'],{cwd:repository,encoding:'utf8'}).trim(),sources,contracts,production,sourceCombined:combinedHashes(sources),contractCombined:combinedHashes(contracts),productionCombined:combinedHashes(production)};
 }
@@ -61,6 +64,11 @@ export function loadV3Evidence(root,repository=process.cwd()){
  if(!Object.keys(sources).length||!Object.keys(contracts).length||!Object.keys(artifacts).length)throw new Error('Empty source/contract/artifact inventory');
  const combined=combinedHashes;
  if(manifest.sourceCombined!==combined(sources)||manifest.contractCombined!==combined(contracts))throw new Error('Invalid combined source/contract binding');
+ const production=object(manifest.production,'production assets');
+ if(JSON.stringify(Object.keys(production).sort())!==JSON.stringify(productionFiles(repository)))throw new Error('Production inventory is not exhaustive');
+ if(combined(production)!==manifest.productionCombined)throw new Error('Invalid production asset binding');
+ if(!Object.keys(production).length)throw new Error('Missing production assets');
+ for(const [name,hash] of Object.entries(production))boundFile(resolve(repository,'dist'),name,hash);
  for(const [name,hash] of Object.entries(artifacts))boundFile(root,name,hash);
  const requiredVariants=JSON.parse(readFileSync(resolve(repository,'roster/observatory-v3/render-variants.json'),'utf8'));
  if(!Array.isArray(manifest.variants)||JSON.stringify([...manifest.variants].sort())!==JSON.stringify(requiredVariants.variants))throw new Error('Missing/duplicate applicable variants');
@@ -87,7 +95,7 @@ export function loadV3Evidence(root,repository=process.cwd()){
   }
   validateSurfaceRecords(manifest,records,surface);
  }
- const production=object(manifest.production,'production assets');if(combined(production)!==manifest.productionCombined)throw new Error('Invalid production asset binding');if(!Object.keys(production).length)throw new Error('Missing production assets');for(const [name,hash] of Object.entries(production))boundFile(resolve(repository,'dist'),name,hash);
+
  return {root,manifest,artifacts};
 }
 export function requireIndependentReceipt(bundle,criterion,role,kind){
