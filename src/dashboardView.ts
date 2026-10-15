@@ -407,6 +407,18 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
     let current: NetworkViewModel | undefined,previousAnnouncement:string|undefined;
     const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
     let cameraAnimation:Animation|undefined,departures:HTMLElement|undefined,cameraX=0,cameraY=0,cameraAnchor:ObservedNavigatorView|undefined;
+    const anchorKey=(anchor:ObservedNavigatorView):string=>JSON.stringify([anchor.identity,anchor.source,anchor.chain,anchor.protocol,anchor.contextHead,anchor.contextParent,anchor.level,anchor.round,anchor.hash,anchor.payload]);
+    const cardPresentation=(node:HTMLElement)=>{
+      const copy=node.cloneNode(true) as HTMLElement,originals=[node,...node.querySelectorAll<HTMLElement>('*')],copies=[copy,...copy.querySelectorAll<HTMLElement>('*')];
+      for(const [index,original] of originals.entries()){
+        const child=copies[index];if(!child)continue;
+        const rendered=getComputedStyle(original);
+        for(const property of ['order','flex-shrink','flex-grow','flex-basis','align-self','font-size','font-weight','font-family','line-height','letter-spacing','text-transform','padding','margin','min-height','max-width','display','white-space','overflow-wrap'])child.style.setProperty(property,rendered.getPropertyValue(property));
+      }
+      return {node:copy,scrolls:originals.map(original=>({top:original.scrollTop,left:original.scrollLeft}))};
+    };
+    // Only the inert departing visual may reuse this last coherent, context-bound card.
+    let observedCard:{key:string;presentation:ReturnType<typeof cardPresentation>}|undefined;
     const cancelCamera=():void=>{cameraAnimation?.cancel();cameraAnimation=undefined;departures?.remove();departures=undefined;previousNode.style.opacity='';};
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cancelCamera();set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
     const moveCamera=(model:NetworkViewModel):void=>{
@@ -429,7 +441,8 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       // Local coordinates are descriptive, never proportional to absolute network rounds.
       junction.dataset.direction=direction;junction.dataset.cameraX=String(cameraX);junction.dataset.cameraY=String(cameraY);
       const elapsed=cameraElapsed(model.cameraAcceptedMonotonic,performance.now());
-      if(direction!=='static'&&!reducedMotion.matches&&elapsed!==undefined){
+      const coherentCard=before&&observedCard?.key===anchorKey(before)?observedCard.presentation:undefined;
+      if(direction!=='static'&&!reducedMotion.matches&&elapsed!==undefined&&coherentCard){
         const origin=junction.querySelector<HTMLElement>(direction==='up'?'[data-branch=same-level]':'[data-branch=next-level]');
         if(!origin)return;
         const frame=stage.getBoundingClientRect(),destination=currentNode.getBoundingClientRect(),slot=origin.getBoundingClientRect();
@@ -442,13 +455,13 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
           :[previousNode,currentNode,stage.querySelector('[data-branch=next-level]'),...stage.querySelectorAll('.navigator-edge')];
         for(const node of oldNodes){
           if(!(node instanceof HTMLElement))continue;
-          const rect=node.getBoundingClientRect(),style=getComputedStyle(node),copy=node.cloneNode(true) as HTMLElement;
+          const presentation=node===currentNode?coherentCard:cardPresentation(node);
+          const rect=node.getBoundingClientRect(),style=getComputedStyle(node),copy=presentation.node.cloneNode(true) as HTMLElement;
           copy.className=node.classList.contains('navigator-edge')?'navigator-motion-edge':'navigator-motion-card';copy.setAttribute('aria-hidden','true');copy.inert=true;
           copy.removeAttribute('id');for(const child of copy.querySelectorAll('[id]'))child.removeAttribute('id');
           Object.assign(copy.style,{left:`${rect.x-frame.x-dx}px`,top:`${rect.y-frame.y-dy}px`,width:`${rect.width}px`,height:`${rect.height}px`,padding:style.padding,borderTop:style.borderTop,borderRight:style.borderRight,borderBottom:style.borderBottom,borderLeft:style.borderLeft,background:style.background,color:style.color,font:style.font,gap:style.gap,display:style.display});
-          const originals=[...node.querySelectorAll<HTMLElement>('*')],copies=[...copy.querySelectorAll<HTMLElement>('*')];
-          for(const [index,original] of originals.entries()){const child=copies[index];if(!child)continue;const rendered=getComputedStyle(original);for(const property of ['order','flex-shrink','flex-grow','flex-basis','align-self','font-size','font-weight','font-family','line-height','letter-spacing','text-transform','padding','margin','min-height','max-width','display','white-space','overflow-wrap'])child.style.setProperty(property,rendered.getPropertyValue(property));}
-          scrolls.push({node:copy,top:node.scrollTop,left:node.scrollLeft});for(const [index,original] of originals.entries()){const child=copies[index];if(child)scrolls.push({node:child,top:original.scrollTop,left:original.scrollLeft});}
+          const copies=[copy,...copy.querySelectorAll<HTMLElement>('*')];
+          for(const [index,position] of presentation.scrolls.entries()){const child=copies[index];if(child)scrolls.push({node:child,...position});}
           departing.append(copy);
         }
         stage.append(departing);departures=departing;if(direction==='right')previousNode.style.opacity='0';for(const scroll of scrolls){scroll.node.scrollTop=scroll.top;scroll.node.scrollLeft=scroll.left;}
@@ -483,6 +496,7 @@ export function createDashboard(root: HTMLElement, options: {onReadEligibility?:
       observedHash=anchor?.hash;copyHash.disabled=!observedHash;
       set(currentHash,anchor?.hash?short(anchor.hash):'Proposal hash unavailable');currentHash.title=anchor?.hash??'No proposal hash observed';
       currentNode.dataset.identity=anchor?.identity??'';
+      if(anchor?.coherent)observedCard={key:anchorKey(anchor),presentation:cardPresentation(currentNode)};
       const parent=anchor?.predecessor;
       set(previousTarget,parent?`${number(parent.level)} · r${parent.round}`:'Previous block unavailable');
       set(previousKind,parent?.hash?'Observed block':parent?'Votes only':'Live unavailable');
