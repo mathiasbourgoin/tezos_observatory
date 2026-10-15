@@ -11,3 +11,5 @@ Required for this delivery:
 5. Prepare the concrete reviewed publication/deployment result, obtain the retained maintainer publication approval, then verify actual remote CI, GitHub Pages and the custom public deployment, served asset identity and live data qualifications.
 
 Deferred from the current pre-release gate: the exhaustive70×36 matrix, repetitive execution of every official interface and the complete manual contract audit. Retain their inventories and pending statuses; do not generate substitute proof or classify missing evidence as PASS. No further speculative feature work or broad refactoring delays this delivery. Preserve the complete product roadmap including Pages, custom deployment, live-value correctness and original design requirements.
+
+Accepted UI timing limitation: see briefs/observatory-v3-pragmatic-timing-disposition.md. Strict end-to-end AC13 remains unresolved/waived for this delivery; its measurement origin remains honest and thresholds unchanged. This is not a waiver of data correctness or native usability.

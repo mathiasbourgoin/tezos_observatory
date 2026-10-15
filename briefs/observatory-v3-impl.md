@@ -1,3 +1,9 @@
+# Current pragmatic implementation handoff
+
+mode: full
+
+Current delivery source30ed19191bc8f98985d344748bdfe709435b4b7c, byte-equivalent to independently reviewed author0b9d3d8. Current author report: roster/observatory-v3/implementation-checkpoint.md. Independent scoped source review, final360unit/14practical QA and freshlead are documented in observatory-v3-pragmatic reports. Strict timing remains explicitly unresolved/waived; exhaustive obligations are deferred, not passed. The historicaldc89handoff below is retained as history, not current source clearance.
+
 # observatory-v3: combined implementation handoff
 
 mode: full

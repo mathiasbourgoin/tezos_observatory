@@ -74,3 +74,5 @@ roster/observatory-block-intervals/spec-researcher.md
 roster/observatory-block-intervals/spec-stories-draft.md
 roster/observatory-block-intervals/task.md
 src/phaseProvenance.ts
+.github/workflows/quality.yml
+src/cameraTiming.ts
