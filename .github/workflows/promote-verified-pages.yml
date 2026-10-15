@@ -1,0 +1,78 @@
+name: Promote verified GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact main-ancestor source commit (40 hexadecimal characters)
+        required: true
+        type: string
+      quality_run_id:
+        description: Successful Quality run with an identical whole Git tree
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.verified.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify successful Quality evidence and check out its exact source tree
+        id: verified
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          QUALITY_RUN_ID: ${{ inputs.quality_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/verify-pages-promotion.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      # The complete browser suite already passed on the verified identical tree.
+      - run: npm run build
+      - name: Validate Pages artifact
+        run: |
+          test -s dist/index.html
+          test -s dist/favicon.svg
+          test -s dist/observatory-mark.svg
+          test -d dist/assets
+          test -z "$(find dist -type l -print -quit)"
+          test -z "$(find dist -type f -links +1 -print -quit)"
+      - name: Upload verified Pages artifact from this run
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy verified artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
