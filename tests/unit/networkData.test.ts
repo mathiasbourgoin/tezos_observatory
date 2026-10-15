@@ -12,7 +12,7 @@ const contextResponse=(url:string):Response|undefined=>{
  const level=hash==="BFork"?120:hash==="BForkParent"?119:Number(hash.slice(1));
  return Response.json({...head(level),hash,predecessor:hash==="BFork"?"BForkParent":head(level).predecessor,chain_id:"NetFixture"});
 };
-it("reuses committees and constants only for the exact observed head",async()=>{
+it("reuses committees and constants for the same immutable target",async()=>{
   const calls:string[]=[];
   const fetchMock=vi.fn(async(input:string|URL|Request)=>{
     const url=String(input);calls.push(url);
@@ -324,4 +324,106 @@ it.each(['pre','att','unknown','envelope','missing','cap','context'] as const)('
  expect(result.complete).toBe(false);
  expect(result.phaseCoverage?.[phase==='pre'?'att':'pre'].complete).toBe(phase==='pre'||phase==='att');
  expect(result.phaseCoverage?.[phase==='pre'?'pre':'att'].complete).toBe(false);
+});
+
+
+it("reuses completed immutable helpers across derive, exact-source reconciliation and head advance with fresh context",async()=>{
+ const wall=vi.spyOn(Date,'now').mockReturnValue(1000),monotonic=vi.spyOn(performance,'now').mockReturnValue(100);
+ const calls:string[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);calls.push(url);if(url.endsWith('/head/header'))return Response.json({...head(120),chain_id:'NetFixture'});const proof=contextResponse(url);if(proof)return proof;
+ if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+ return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});});
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal,source=data.source;
+ const initial=await data.derive(head(120),signal);
+ const rightsReceipt=initial.rights.get(121)?.[0]?.evidence,constantsReceipt=initial.constantsByLevel.get(121)?.evidence;
+ wall.mockReturnValue(2000);monotonic.mockReturnValue(200);
+ const reconciled=await data.reconcile({source,level:121,round:0},signal);
+ expect(reconciled.rights[0]?.context?.observer.header.hash).toBe('B120');
+ const advanced=await data.derive(head(121),signal);
+ expect(advanced.rights.get(121)?.[0]?.context?.observer.header.hash).toBe('B121');
+ expect(advanced.constantsByLevel.get(121)?.evidence?.contextHeadHash).toBe('B121');
+ for(const [original,reused] of [[rightsReceipt,advanced.rights.get(121)?.[0]?.evidence],[constantsReceipt,advanced.constantsByLevel.get(121)?.evidence]]){
+  expect(reused?.receivedAt).toBe(original?.receivedAt);expect(reused?.receivedMonotonic).toBe(original?.receivedMonotonic);
+  expect(reused?.source).toEqual(original?.source);expect(reused?.requestedHeadHash).toBe('B120');
+ }
+ expect(initial.rights.get(121)?.[0]?.context?.observer.header.hash).toBe('B120');
+ expect(calls.filter(url=>url.includes('/blocks/B120/helpers/attestation_rights?level=121'))).toHaveLength(1);
+ expect(calls.filter(url=>url.includes('/blocks/B120/context/constants'))).toHaveLength(1);
+});
+
+it('coalesces unfinished constants reads only for the same cancellation owner',async()=>{
+ const calls:string[]=[];let finish:(response:Response)=>void=()=>undefined;
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);const proof=contextResponse(url);if(proof)return proof;calls.push(url);return new Promise<Response>(resolve=>{finish=resolve;});});
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal;
+ const first=data.opportunityConstants(head(120),121,signal);
+ await vi.waitFor(()=>expect(calls).toHaveLength(1));
+ const second=data.opportunityConstants(head(120),121,signal);
+ await new Promise(resolve=>setTimeout(resolve,0));expect(calls).toHaveLength(1);
+ finish(Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5}));
+ expect((await first).minimum).toBe(6);expect((await second).minimum).toBe(6);expect(calls).toHaveLength(1);
+});
+
+it.each(['owner','waiter'] as const)('keeps unfinished constants independent when the %s is cancelled',async cancelled=>{
+ const calls:{signal:AbortSignal|undefined;finish:(response:Response)=>void}[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request,options?:RequestInit)=>contextResponse(String(input))??new Promise<Response>(finish=>{calls.push({signal:options?.signal??undefined,finish});}));
+ const data=new NetworkData('mainnet'),owner=new AbortController(),waiter=new AbortController();
+ const first=data.opportunityConstants(head(120),121,owner.signal).then(value=>({value}),()=>({value:undefined}));
+ await vi.waitFor(()=>expect(calls).toHaveLength(1));
+ const second=data.opportunityConstants(head(120),121,waiter.signal).then(value=>({value}),()=>({value:undefined}));
+ await vi.waitFor(()=>expect(calls).toHaveLength(2));
+ (cancelled==='owner'?owner:waiter).abort();
+ expect(calls[cancelled==='owner'?0:1]?.signal?.aborted).toBe(true);
+ calls[0]!.finish(Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5}));
+ calls[1]!.finish(Response.json({minimal_block_delay:'10',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5}));
+ const results=await Promise.all([first,second]);
+ expect(results[cancelled==='owner'?0:1]?.value).toBeUndefined();
+ expect(results[cancelled==='owner'?1:0]?.value?.minimum).toBe(cancelled==='owner'?10:6);
+ expect((await data.opportunityConstants(head(120),121,new AbortController().signal)).minimum).toBe(cancelled==='owner'?10:6);
+});
+
+it('keeps immutable helper receipts separate for observers with different proven protocols',async()=>{
+ const calls:string[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);calls.push(url);const primary=url.includes('smartpy');
+  if(url.endsWith('/head/header'))return Response.json({...head(120),chain_id:'NetFixture'});
+  if(url.endsWith('/protocols'))return Response.json({protocol:primary?'PPrimary':'PSecondary',next_protocol:primary?'PPrimary':'PSecondary'});
+  const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:primary?'Primary':'Secondary',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:primary?'6':'10',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal;
+ const primary=await data.derive(head(120),signal),source={network:'mainnet' as const,name:'Octez public',baseUrl:'https://tezos-mainnet.octez.io'};
+ const secondary=await data.reconcile({source,level:121,round:0},signal);
+ expect(primary.rights.get(121)?.[0]?.address).toBe('Primary');expect(secondary.rights[0]?.address).toBe('Secondary');
+ expect(secondary.constants.minimum).toBe(10);expect(secondary.constants.evidence?.source).toEqual(source);
+ expect(secondary.constants.evidence?.protocolHash).toBe('PSecondary');expect(secondary.rights[0]?.context?.protocolHash).toBe('PSecondary');
+ expect(calls.filter(url=>url.startsWith(source.baseUrl)&&url.endsWith('/B120/context/constants'))).toHaveLength(1);
+ expect(calls.filter(url=>url.startsWith(source.baseUrl)&&url.endsWith('/B120/helpers/attestation_rights?level=121'))).toHaveLength(1);
+ await data.reconcile({source,level:121,round:0},signal);
+ expect(calls.filter(url=>url.startsWith(source.baseUrl)&&url.endsWith('/B120/context/constants'))).toHaveLength(1);
+});
+
+it('reuses a fallback source receipt exactly and rejects incompatible observer proof on rebinding',async()=>{
+ const calls:string[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);calls.push(url);const primary=url.includes('smartpy');
+  if(url.endsWith('/head/header'))return Response.json({...head(120),chain_id:'NetFixture'});
+  if(url.endsWith('/B121/protocols')&&!primary)return Response.json({protocol:'Incompatible',next_protocol:'Incompatible'});
+  const proof=contextResponse(url);if(proof)return proof;
+  if(primary)return new Response('',{status:503});
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'Fallback',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData('mainnet'),signal=new AbortController().signal,primary=data.source;
+ const first=await data.derive(head(120),signal),source=first.rights.get(121)?.[0]?.evidence?.source;
+ if(!source)throw new Error('Fixture fallback receipt missing');
+ expect(source.baseUrl).not.toBe(primary.baseUrl);
+ const reconciled=await data.reconcile({source,level:121,round:0},signal);
+ expect(reconciled.rights[0]?.evidence?.source).toEqual(source);expect(reconciled.context.observer.source).toEqual(source);
+ expect(calls.filter(url=>url.startsWith(source.baseUrl)&&url.endsWith('/B120/helpers/attestation_rights?level=121'))).toHaveLength(1);
+ expect(calls.filter(url=>url.startsWith(source.baseUrl)&&url.endsWith('/B120/context/constants'))).toHaveLength(1);
+ const observer=first.contexts.get(121)?.observer;if(!observer)throw new Error('Fixture observer missing');
+ const advanced=await data.derive({...head(121),evidence:observer.evidence},signal);
+ expect(advanced.contexts.get(121)?.observer.source).toEqual(primary);
+ expect(advanced.rights.has(121)).toBe(false);expect(advanced.constantsByLevel.has(121)).toBe(false);
+ expect(advanced.errors.some(error=>error.includes('incompatible source context'))).toBe(true);
+ expect(calls.filter(url=>url.startsWith(source.baseUrl)&&url.endsWith('/B120/helpers/attestation_rights?level=121'))).toHaveLength(1);
 });
