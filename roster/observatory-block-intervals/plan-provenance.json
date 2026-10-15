@@ -1,0 +1,29 @@
+{
+  "task": "observatory-block-intervals",
+  "intake_sha256": "eeb0ddea800d19e14ea1c6b758e4fbc54dbf143ec82ca5ff8dbf3d8c5843e246",
+  "decomposition_source": "briefs/observatory-block-intervals-intake.md",
+  "coordination_answers": "briefs/observatory-block-intervals-integration-handoff.md",
+  "voices": [
+    {
+      "voice": 1,
+      "model": "gpt-6.1-sol",
+      "agent": "/root/block_intervals_plan/voice_1",
+      "fresh_context": true
+    },
+    {
+      "voice": 2,
+      "model": "gpt-6-astra",
+      "agent": "/root/block_intervals_plan_voice_2",
+      "fresh_context": true,
+      "started_after_voice_1_terminal": true,
+      "dispatched_by": "root"
+    }
+  ],
+  "native_claude_available": false,
+  "digests": {
+    "plan-voice-1-prompt.md": "795334cdd8b4a899ceb8274326224d102f7852973da987489992f43be591723a",
+    "plan-voice-2-prompt.md": "795334cdd8b4a899ceb8274326224d102f7852973da987489992f43be591723a",
+    "plan-voice-1.md": "3e78e4b1bb63af6a3f2c8d9b3e81303ef6676f9dab384b225222a126008b57dc",
+    "plan-voice-2.md": "7415d6ede676ad86f12e65610d2a95b3921489c7a6b39e1fd1d3d7ad64621101"
+  }
+}
