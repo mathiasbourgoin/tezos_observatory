@@ -37,3 +37,11 @@ it('retains an already-applied coherent vote anchor across exactly one newer app
  expect(retainNavigator(before,pending,{...pending,hash:'Fork102'})).toBe(false);
  for(const change of [{source:'Other'},{chain:'Other'},{protocol:'Other'}])expect(retainNavigator(before,applied,{...pending,observation:{...before,coherent:false,...change}})).toBe(false);
 });
+
+it('does not mistake an unscoped raw witness for a proven observer switch during pending head proof',()=>{
+ const applied={...live,appliedLevel:101,hash:'B101'},raw:ObservedNavigatorView={identity:'raw-TzKT',level:102,round:0,source:'https://rpc.tzkt.io/mainnet',coherent:false,receivedAt:2,receivedMonotonic:2};
+ const pending={...applied,status:'unknown' as const,appliedLevel:102,hash:'B102',observation:raw};
+ expect(retainNavigator(before,applied,pending)).toBe(true);
+ for(const scope of [{chain:'Net'},{protocol:'P'},{chain:'Other'},{protocol:'Other'}])expect(retainNavigator(before,applied,{...pending,observation:{...raw,...scope}})).toBe(false);
+ expect(retainNavigator(before,applied,{...pending,sources:[{name:'Heads',url:'https://other-heads',status:'stream'}]})).toBe(false);
+});
