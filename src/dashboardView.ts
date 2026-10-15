@@ -1,4 +1,4 @@
-import {cameraElapsed} from './cameraTiming';
+import {cameraElapsed,CAMERA_DURATION_MS} from './cameraTiming';
 import {formatInterval,intervalWindows,type IntervalView} from './rpc/blockIntervals';
 import {proposalRound,type OpportunityFact} from './consensus/roundSchedule';
 import type {ComparisonResult} from './rpc/sourceComparison';
@@ -331,6 +331,7 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
     copyHash.addEventListener('click',()=>{if(observedHash)void navigator.clipboard?.writeText(observedHash).then(()=>set(copyHash,'Copied')).catch(()=>set(copyHash,'Copy unavailable'));});
     currentNode.append(el('span','eyebrow','Observed / selected'),currentTarget,currentKind,currentHash,copyHash);
     junction.append(previousNode,currentNode,bakerRows);
+    for(const name of ['previous','round','level']){const edge=el('span',`navigator-edge navigator-edge-${name}`);edge.setAttribute('aria-hidden','true');junction.append(edge);}
     const navigatorStatus=el('p','navigator-status subtle','Solid: observation · dashed: conditional · no implied finality');
     const navigatorContext=el('aside','navigator-context');
     const selectedContext=el('dl','navigator-context-fields');
@@ -367,12 +368,16 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
     const keyedBakers = new Map<string, HTMLElement>(), keyedSources = new Map<string, HTMLElement>();
     let current: NetworkViewModel | undefined,previousAnnouncement:string|undefined;
     const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
-    let cameraAnimation:Animation|undefined,cameraX=0,cameraY=0,cameraAnchor:ObservedNavigatorView|undefined;
-    reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cameraAnimation?.cancel();cameraAnimation=undefined;set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
+    let cameraAnimations:Animation[]=[],outgoingNode:HTMLElement|undefined,observedCard:HTMLElement|undefined,cameraX=0,cameraY=0,cameraAnchor:ObservedNavigatorView|undefined;
+    const cancelCamera=():void=>{for(const animation of cameraAnimations)animation.cancel();cameraAnimations=[];outgoingNode?.remove();outgoingNode=undefined;previousNode.style.visibility='';};
+    reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cancelCamera();set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
     const moveCamera=(model:NetworkViewModel):void=>{
       const before=cameraAnchor,after=model.observation;
-      if(before?.identity===after?.identity&&current?.session?.mode===model.session?.mode&&current?.observation?.coherent===after?.coherent)return;
-      cameraAnimation?.cancel();cameraAnimation=undefined;
+      const sameMode=current?.session?.mode===model.session?.mode;
+      const enriched=before&&after&&before.coherent&&after.coherent&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol&&before.level===after.level&&before.round===after.round&&before.contextParent===after.contextParent&&(!!before.hash&&before.hash===after.hash||!!before.payload&&before.payload===after.payload&&(!before.hash||!after.hash));
+      // Vote/power enrichment and hash discovery for the same observed tuple do not interrupt travel.
+      if(sameMode&&(before?.identity===after?.identity&&current?.observation?.coherent===after?.coherent||enriched)){if(after?.coherent)cameraAnchor=after;return;}
+      cancelCamera();
       if(after?.coherent)cameraAnchor=after;
       let direction='static',reason=model.session?.mode==='pin'?'Pinned observation · stationary':!after?.coherent?'Context unavailable · stationary':!before?'Observed anchor':before.source!==after.source?'Observer changed · recentered':before.level===after.level&&before.round===after.round?'Candidate changed · recentered':after.level>before.level+1||after.round>before.round+1?'Observation gap · recentered without inferred steps':'Observed context changed · recentered';
       const continuity=before&&after&&before.coherent&&after.coherent&&current?.session?.mode==='follow'&&model.session?.mode==='follow'&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol;
@@ -387,11 +392,24 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
       junction.dataset.direction=direction;junction.dataset.cameraX=String(cameraX);junction.dataset.cameraY=String(cameraY);
       const elapsed=cameraElapsed(model.cameraAcceptedMonotonic,performance.now());
       if(direction!=='static'&&!reducedMotion.matches&&elapsed!==undefined){
-        cameraAnimation=junction.animate([{transform:direction==='up'?'translateY(-32px)':'translateX(48px)'},{transform:'translate(0,0)'}],{duration:160,easing:'cubic-bezier(.2,.7,.2,1)'});
-        // An explicit document-timeline origin also counts work before the first paint.
+        const origin=junction.querySelector<HTMLElement>(direction==='up'?'[data-branch=same-level]':'[data-branch=next-level]');
+        if(!origin)return;
+        const frame=junction.getBoundingClientRect(),destination=currentNode.getBoundingClientRect(),slot=origin.getBoundingClientRect(),previous=previousNode.getBoundingClientRect();
+        const dx=slot.x-destination.x,dy=slot.y-destination.y;
+        const outgoing=(observedCard??currentNode).cloneNode(true) as HTMLElement;
+        outgoing.className='navigator-motion-card';outgoing.setAttribute('aria-hidden','true');outgoing.inert=true;
+        Object.assign(outgoing.style,{left:`${destination.x-frame.x}px`,top:`${destination.y-frame.y}px`,width:`${destination.width}px`,height:`${destination.height}px`});
+        outgoingNode=outgoing;junction.append(outgoing);
+        if(direction==='right')previousNode.style.visibility='hidden';
+        const timing={duration:CAMERA_DURATION_MS,easing:'cubic-bezier(.25,.65,.3,1)'};
+        const incomingAnimation=currentNode.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],timing);
+        const outgoingAnimation=outgoing.animate([{transform:'translate(0,0)'},{transform:direction==='up'?`translate(0,${-dy}px)`:`translate(${previous.x-destination.x}px,0)`}],timing);
+        cameraAnimations=[incomingAnimation,outgoingAnimation];
+        // One bounded timeline per observed destination; never queue a stale intermediate step.
         const timelineNow=document.timeline.currentTime;
-        if(typeof timelineNow==='number')cameraAnimation.startTime=timelineNow-elapsed;
-        else {cameraAnimation.cancel();cameraAnimation=undefined;}
+        if(typeof timelineNow==='number')for(const animation of cameraAnimations)animation.startTime=timelineNow-elapsed;
+        else cancelCamera();
+        outgoingAnimation.onfinish=()=>{if(outgoingNode===outgoing){outgoing.remove();outgoingNode=undefined;cameraAnimations=[];previousNode.style.visibility='';}};
       }
     };
     const tick = (now: number): void => {
@@ -419,6 +437,7 @@ export function createDashboard(root: HTMLElement, options: {onRefreshIntervals?
       observedHash=anchor?.hash;copyHash.disabled=!observedHash;
       set(currentHash,anchor?.hash?short(anchor.hash):'Proposal hash unavailable');currentHash.title=anchor?.hash??'No proposal hash observed';
       currentNode.dataset.identity=anchor?.identity??'';
+      if(anchor?.coherent)observedCard=currentNode.cloneNode(true) as HTMLElement;
       const parent=anchor?.predecessor;
       set(previousTarget,parent?`${number(parent.level)} · r${parent.round}`:'Previous block unavailable');
       set(previousHash,parent?short(parent.hash):'Ancestry unknown');previousHash.title=parent?.hash??'';

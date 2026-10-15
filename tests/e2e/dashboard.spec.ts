@@ -1052,25 +1052,25 @@ test('V3 AC-04 selecting a retained candidate immediately pins and Previous foll
 });
 
 
-test('V3 AC-02 actual round progress moves the scene down for an upward camera and duplicates stay still',async({page})=>{
+test('V3 AC-02 actual round progress moves the observed card down for an upward camera and duplicates stay still',async({page})=>{
  await prepare(page,false);await send(page,'mainnet-operations',[vote(0,101,0)]);
  const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
  await expect(panel.locator('.navigator-current')).toContainText('r0');
  await page.evaluate(()=>{
   const scene=document.querySelector('.mainnet .navigator-junction');if(!scene)throw new Error('Scene missing');
   const samples:{direction:string;duration:number;transform:string}[]=[];(window as unknown as {cameraSamples:typeof samples}).cameraSamples=samples;
-  new MutationObserver(()=>{const direction=(scene as HTMLElement).dataset.direction;if(direction==='up'||direction==='right')requestAnimationFrame(()=>{const animation=scene.getAnimations()[0];if(animation)samples.push({direction,duration:Number(animation.effect?.getTiming().duration),transform:getComputedStyle(scene).transform});});}).observe(scene,{attributes:true,attributeFilter:['data-direction']});
+  new MutationObserver(()=>{const direction=(scene as HTMLElement).dataset.direction;if(direction==='up'||direction==='right')requestAnimationFrame(()=>{const animation=scene.querySelector('.navigator-current')?.getAnimations()[0];if(animation)samples.push({direction,duration:Number(animation.effect?.getTiming().duration),transform:getComputedStyle(scene.querySelector('.navigator-current')!).transform});});}).observe(scene,{attributes:true,attributeFilter:['data-direction']});
  });
  await send(page,'mainnet-operations',[vote(1,101,1)]);
  await expect(scene).toHaveAttribute('data-direction','up');await expect(scene).toHaveAttribute('data-camera-x','0');await expect(scene).toHaveAttribute('data-camera-y','-1');
  await expect.poll(()=>page.evaluate(()=>(window as unknown as {cameraSamples:{transform:string}[]}).cameraSamples.length)).toBeGreaterThan(0);
  const samples=await page.evaluate(()=>(window as unknown as {cameraSamples:{direction:string;duration:number;transform:string}[]}).cameraSamples);
- expect(samples.some(sample=>sample.duration===160&&Number(sample.transform.slice(7,-1).split(',')[5])<0)).toBe(true);
- await expect.poll(()=>scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+ expect(samples.some(sample=>sample.duration===320&&Number(sample.transform.slice(7,-1).split(',')[5])<0)).toBe(true);
+ await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
  await send(page,'mainnet-operations',[vote(1,101,1)]);await send(page,'mainnet-operations',[vote(2,101,1)]);
  await expect(scene).toHaveAttribute('data-camera-y','-1');await expect(panel.locator('.navigator-current')).toContainText('r1');
  await page.emulateMedia({reducedMotion:'reduce'});await send(page,'mainnet-operations',[vote(3,101,2)]);
- await expect(panel.locator('.navigator-current')).toContainText('r2');expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+ await expect(panel.locator('.navigator-current')).toContainText('r2');expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
 });
 
 test('V3 AC-04 dropdown and promoted first hash retain original navigation order',async({page})=>{
@@ -1093,7 +1093,7 @@ test('V3 AC-37 proven next level preserves camera Y after high round',async({pag
  const next={...head(102,0),hash:'V3Next102',predecessor:candidate.hash};headers.get(page)!.set(next.hash,next);
  await send(page,'mainnet-head',candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});
  await expect(panel.locator('.navigator-current')).toContainText('102 · r0');await expect(scene).toHaveAttribute('data-direction','right');await expect(scene).toHaveAttribute('data-camera-y',y??'0');
- await page.waitForTimeout(210);expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+ await page.waitForTimeout(360);expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
  const coords=await scene.evaluate(node=>[node.getAttribute('data-camera-x'),node.getAttribute('data-camera-y')]);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});expect(await scene.evaluate(node=>[node.getAttribute('data-camera-x'),node.getAttribute('data-camera-y')])).toEqual(coords);
 });
 
@@ -1140,16 +1140,16 @@ for(const reader of ['settled','rapid','delayed'] as const)test(reader==='settle
  await page.evaluate(()=>{
   const node=document.querySelector('.mainnet .navigator-junction')!,current=node.querySelector('.navigator-current')!;
   const frames:{at:number;identity:string;direction:string;animations:number;transform:string;scrollY:number;documentHeight:number;focus:string}[]=[];(window as unknown as {burstFrames:typeof frames}).burstFrames=frames;
-  const start=performance.now();const sample=()=>{frames.push({at:performance.now(),identity:current.textContent??'',direction:(node as HTMLElement).dataset.direction??'',animations:node.getAnimations().length,transform:getComputedStyle(node).transform,scrollY,documentHeight:document.documentElement.scrollHeight,focus:document.activeElement?.getAttribute('aria-label')??document.activeElement?.tagName??''});if(performance.now()-start<1200)requestAnimationFrame(sample);};requestAnimationFrame(sample);
+  const start=performance.now();const sample=()=>{frames.push({at:performance.now(),identity:current.textContent??'',direction:(node as HTMLElement).dataset.direction??'',animations:node.getAnimations({subtree:true}).length,transform:getComputedStyle(current).transform,scrollY,documentHeight:document.documentElement.scrollHeight,focus:document.activeElement?.getAttribute('aria-label')??document.activeElement?.tagName??''});if(performance.now()-start<1200)requestAnimationFrame(sample);};requestAnimationFrame(sample);
  });
  await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:round.hash,header:round});await expect(scene).toHaveAttribute('data-direction','up');
  await send(page,'mainnet-head',round);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await expect(panel.locator('.navigator-current')).toContainText('102 · r0');await expect(scene).toHaveAttribute('data-direction','right');
- await expect.poll(()=>scene.evaluate(node=>node.getAnimations().length)).toBe(0);await page.waitForTimeout(40);
+ await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);await page.waitForTimeout(40);
  const frames=await page.evaluate(()=>(window as unknown as {burstFrames:{at:number;identity:string;direction:string;animations:number;transform:string;scrollY:number;documentHeight:number;focus:string}[]}).burstFrames);await testInfo.attach('actual-camera-frame-trace',{body:JSON.stringify(frames),contentType:'application/json'});
- expect(Math.max(...frames.map(frame=>frame.animations))).toBeLessThanOrEqual(1);expect(frames.some(frame=>frame.animations===1)).toBe(true);const final=frames.filter(frame=>frame.identity.includes('102 · r0'));const admissions=await page.evaluate(()=>(window as unknown as {burstDomainTrace:{at:number;coherent:string[]}[]}).burstDomainTrace.flatMap(sample=>sample.coherent.map(hash=>({at:sample.at,hash,coherent:true}))));const measurement=burstSettlement(admissions,final,next.hash);await testInfo.attach('accepted-observation-to-settlement',{body:JSON.stringify(measurement),contentType:'application/json'});expect(measurement.elapsed).toBeLessThanOrEqual(200);expect(final.filter(frame=>frame.at>=measurement.settledAt).every(frame=>frame.animations===0)).toBe(true);
+ expect(Math.max(...frames.map(frame=>frame.animations))).toBeLessThanOrEqual(2);expect(frames.some(frame=>frame.animations===2)).toBe(true);const final=frames.filter(frame=>frame.identity.includes('102 · r0'));const admissions=await page.evaluate(()=>(window as unknown as {burstDomainTrace:{at:number;coherent:string[]}[]}).burstDomainTrace.flatMap(sample=>sample.coherent.map(hash=>({at:sample.at,hash,coherent:true}))));const measurement=burstSettlement(admissions,final,next.hash);await testInfo.attach('accepted-observation-to-settlement',{body:JSON.stringify(measurement),contentType:'application/json'});expect(measurement.elapsed).toBeLessThanOrEqual(400);expect(final.filter(frame=>frame.at>=measurement.settledAt).every(frame=>frame.animations===0)).toBe(true);
  await expect(search).toBeFocused();expect(Math.abs(await page.evaluate(()=>scrollY)-scroll)).toBeLessThanOrEqual(1);
- const replacement={...next,hash:'BurstReplacement102'};headers.get(page)!.set(replacement.hash,replacement);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:replacement.hash,header:replacement});await expect(scene).toHaveAttribute('data-direction','static');await expect(panel.locator('.navigator-status')).toContainText('Candidate changed');expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
- const requests=await page.evaluate(()=>window.mockRequests.length);await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(requests);
+ const replacement={...next,hash:'BurstReplacement102'};headers.get(page)!.set(replacement.hash,replacement);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:replacement.hash,header:replacement});await expect(scene).toHaveAttribute('data-direction','static');await expect(panel.locator('.navigator-status')).toContainText('Candidate changed');expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
+ const requests=await page.evaluate(()=>window.mockRequests.length);await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(requests);
 });
 
 
@@ -1164,8 +1164,8 @@ for(const storage of ['missing','corrupt','denied'] as const)test(`V3 AC-22 ${st
 
 test('V3 AC-13 reduced motion enabled during an actual transition cancels immediately and keeps the observed destination',async({page})=>{
  await prepare(page,false);await send(page,'mainnet-operations',[vote(0,101,0)]);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
- await send(page,'mainnet-operations',[vote(1,101,1)]);await expect(scene).toHaveAttribute('data-direction','up');await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);await expect(panel.locator('.navigator-status')).toContainText('Reduced motion');await expect(panel.locator('.navigator-current')).toContainText('101 · r1');
- await send(page,'mainnet-operations',[vote(2,101,2)]);await expect(panel.locator('.navigator-current')).toContainText('101 · r2');expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+ await send(page,'mainnet-operations',[vote(1,101,1)]);await expect(scene).toHaveAttribute('data-direction','up');await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);await expect(panel.locator('.navigator-status')).toContainText('Reduced motion');await expect(panel.locator('.navigator-current')).toContainText('101 · r1');
+ await send(page,'mainnet-operations',[vote(2,101,2)]);await expect(panel.locator('.navigator-current')).toContainText('101 · r2');expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
 });
 
 
@@ -1287,4 +1287,43 @@ test('V3 AC-01 phase receipts remain distinct through staggered arrival replay a
  await expect(att).toHaveAttribute('data-received',second??'');await expect(pre).toHaveAttribute('data-received',first??'');
 
  await info.attach('phase-receipts',{body:JSON.stringify({first,second,pre:await pre.textContent(),att:await att.textContent()}),contentType:'application/json'});
+});
+
+
+for(const width of [390,1440,3440])test(`Postdeploy stable equal navigator slots at ${width}px`,async({page},info)=>{
+ await page.setViewportSize({width,height:900});await prepare(page,false);
+ const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
+ const geometry=()=>scene.evaluate(node=>({frame:{width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height},slots:[...node.querySelectorAll('.navigator-previous,.navigator-current,.baker-opportunity')].map(slot=>({width:slot.getBoundingClientRect().width,height:slot.getBoundingClientRect().height})),bottom:node.getBoundingClientRect().bottom+scrollY,regionBottom:node.closest('.opportunities')!.getBoundingClientRect().bottom+scrollY}));
+ const before=await geometry();
+ for(const theme of ['light','dark']){await choose(page.getByLabel('Appearance'),theme);await send(page,'mainnet-operations',[vote(theme==='light'?0:1,101,0)]);await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
+  const after=await geometry();await info.attach(`slot-geometry-${theme}`,{body:JSON.stringify({before,after}),contentType:'application/json'});
+  expect(after.slots).toHaveLength(4);for(const slot of after.slots){expect(Math.abs(slot.width-after.slots[0]!.width)).toBeLessThan(1);expect(Math.abs(slot.height-after.slots[0]!.height)).toBeLessThan(1);}
+  expect(after.frame).toEqual(before.frame);expect(Math.abs(after.bottom-before.bottom)).toBeLessThan(1);expect(Math.abs(after.regionBottom-before.regionBottom)).toBeLessThan(1);expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
+  await panel.locator('.baker-opportunity').first().locator('summary').click();expect((await geometry()).frame).toEqual(before.frame);await panel.locator('.baker-opportunity').first().locator('summary').click();
+  await scene.screenshot({path:info.outputPath(`equal-slots-${theme}.png`)});
+ }
+});
+
+for(const direction of ['up','right'] as const)test(`Postdeploy actual ${direction} node travel stays inside a stationary frame and survives enrichment`,async({page},info)=>{
+ await page.setViewportSize({width:1440,height:1000});await prepare(page,false);
+ const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
+ const first={...head(101,0),hash:'MotionFirst101'},next=direction==='up'?{...head(101,1),hash:'MotionRound101'}:{...head(102,0),hash:'MotionNext102',predecessor:first.hash};
+ for(const header of [first,next])headers.get(page)!.set(header.hash,header);
+ await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
+ if(direction==='right')await send(page,'mainnet-head',first);
+ await page.evaluate(()=>{
+  const scene=document.querySelector<HTMLElement>('.mainnet .navigator-junction')!,current=scene.querySelector<HTMLElement>('.navigator-current')!,status=document.querySelector('.mainnet .navigator-status')!;
+  const frames:{at:number;x:number;y:number;frameX:number;frameY:number;frameHeight:number;statusY:number;outgoing:string;incoming:string;status:string|null;active:number;duration:number}[]=[];Object.assign(window,{nodeTravelFrames:frames});
+  const start=performance.now(),sample=()=>{const box=scene.getBoundingClientRect(),transform=new DOMMatrix(getComputedStyle(current).transform),animation=current.getAnimations()[0];frames.push({at:performance.now(),x:transform.m41,y:transform.m42,frameX:box.x,frameY:box.y,frameHeight:box.height,statusY:status.getBoundingClientRect().y,outgoing:scene.querySelector('.navigator-motion-card')?.textContent??'',incoming:current.textContent??'',status:status.textContent,active:scene.getAnimations({subtree:true}).length,duration:Number(animation?.effect?.getTiming().duration??0)});if(performance.now()-start<700)requestAnimationFrame(sample);};requestAnimationFrame(sample);
+ });
+ await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await expect(scene).toHaveAttribute('data-direction',direction);
+ // An additional vote and a replay enrich the current observation without cancelling its travel.
+ await send(page,'mainnet-operations',[vote(2,next.level,direction==='up'?1:0)]);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});
+ await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);await page.waitForTimeout(40);
+ const frames=await page.evaluate(()=>(window as unknown as {nodeTravelFrames:{at:number;x:number;y:number;frameX:number;frameY:number;frameHeight:number;statusY:number;outgoing:string;incoming:string;status:string|null;active:number;duration:number}[]}).nodeTravelFrames);await info.attach('node-slot-travel',{body:JSON.stringify(frames),contentType:'application/json'});
+ const moving=frames.filter(frame=>frame.active>0);expect(moving.length).toBeGreaterThan(3);expect(moving.every(frame=>frame.duration===320)).toBe(true);
+ expect(moving.some(frame=>direction==='up'?frame.y < -100:frame.x > 100)).toBe(true);expect(moving.some(frame=>frame.outgoing.includes('101 · r0'))).toBe(true);
+ for(const frame of frames){expect(frame.frameX).toBe(frames[0]!.frameX);expect(frame.frameY).toBe(frames[0]!.frameY);expect(frame.frameHeight).toBe(frames[0]!.frameHeight);expect(frame.statusY).toBe(frames[0]!.statusY);}
+ await expect(panel.locator('.navigator-current')).toContainText(direction==='up'?'101 · r1':'102 · r0');await expect(panel.locator('.navigator-motion-card')).toHaveCount(0);
+ await send(page,'mainnet-operations',[vote(4,next.level,(direction==='up'?1:0)+3)]);await expect(panel.locator('.navigator-current')).toContainText(direction==='up'?'101 · r4':'102 · r3');await expect(scene).toHaveAttribute('data-direction','static');expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
 });
