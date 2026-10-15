@@ -1,4 +1,5 @@
 import type {BlockHeader,CandidateObservation,RpcSource} from "../rpc/models";
+import {headFactsKey} from './headGeneration';
 
 export interface ReconciliationTarget {
   readonly source:RpcSource;
@@ -18,7 +19,15 @@ export function reconciliationKey(target:ReconciliationTarget):string {
 }
 
 interface QueuedTarget {key:string;target:ReconciliationTarget}
-interface ActiveTarget extends QueuedTarget {readonly controller:AbortController;readonly generation:number}
+interface ActiveTarget extends QueuedTarget {readonly controller:AbortController;readonly generation:number;ownedContext:boolean}
+
+function sharedContextKey(target:ReconciliationTarget):string|undefined {
+  const head=target.observerHead;if(!head)return undefined;
+  const candidate=target.candidate?.header;
+  if(candidate&&(candidate.level!==target.level || candidate.chainId!==undefined&&head.chainId!==undefined&&candidate.chainId!==head.chainId))return undefined;
+  const parent=candidate?.predecessor??(target.level===head.level+1?head.hash:head.predecessor);
+  return JSON.stringify([target.source.network,target.source.baseUrl,headFactsKey(head),target.protocolHash??null,target.level,target.round,target.payload??null,parent,target.observerGeneration??null,target.collectionGeneration??null]);
+}
 
 /** One source-local on-demand workflow; a timer exists only for a newer queued context. */
 export class ObserverReconciliation<T> {
@@ -67,6 +76,7 @@ export class ObserverReconciliation<T> {
 
   observeOwnedContext(head:BlockHeader,observerGeneration:number,collectionGeneration:number):void {
     const active=this.active;if(!active || !this.current(active))throw new Error("Obsolete reconciliation context");
+    active.ownedContext=true;
     const wasLatest=this.latestKey===active.key;
     active.target={...active.target,observerHead:head,observerGeneration,collectionGeneration};active.key=reconciliationKey(active.target);
     if(this.queued){this.queued.target={...this.queued.target,observerHead:head,observerGeneration,collectionGeneration};this.queued.key=reconciliationKey(this.queued.target);}
@@ -82,10 +92,16 @@ export class ObserverReconciliation<T> {
       return;
     }
     const queued=this.queued;this.queued=undefined;
-    const active:ActiveTarget={...queued,controller:new AbortController(),generation:this.generation};
+    const active:ActiveTarget={...queued,controller:new AbortController(),generation:this.generation,ownedContext:false};
     this.active=active;this.lastStartedAt=this.now();
     void this.options.run(active.target,active.controller.signal).then(value=>{
-      if(this.current(active) && this.latestKey===active.key){this.successfulKey=active.key;this.options.onResult(active.target,value);}
+      if(!this.current(active))return;
+      const queued=this.queued,shared=active.ownedContext&&queued!==undefined&&sharedContextKey(active.target)!==undefined&&sharedContextKey(active.target)===sharedContextKey(queued.target);
+      if(this.latestKey===active.key||shared){
+        this.successfulKey=shared&&queued?queued.key:active.key;
+        if(shared){this.queued=undefined;this.latestKey=active.key;}
+        this.options.onResult(active.target,value);
+      }
     }).catch(error=>{
       if(this.current(active)){this.failedKey=active.key;this.failedKeys.add(active.key);while(this.failedKeys.size>100){const oldest=this.failedKeys.values().next().value;if(oldest===undefined)break;this.failedKeys.delete(oldest);}this.options.onError?.(active.target,error);}
     }).finally(()=>{

@@ -3,6 +3,25 @@ import {ObserverReconciliation,reconciliationKey,type ReconciliationTarget} from
 const source={network:"mainnet" as const,name:"A",baseUrl:"https://A"};
 const target=(payload:string):ReconciliationTarget=>({source,level:123,round:0,payload});
 afterEach(()=>vi.useRealTimers());
+it('accepts an owned context shared by a queued candidate and raw target without another read',async()=>{
+ vi.useFakeTimers();let finish:(value:string)=>void=()=>undefined;const results:string[]=[];
+ const head={chainId:'NetFixture',level:122,hash:'H122',predecessor:'H121',timestamp:'2026-01-01T00:00:00Z',fitness:[]};
+ const candidate=(hash:string):ReconciliationTarget=>({...target('K'),candidate:{identity:hash,header:{...head,hash,level:123,predecessor:'H122',payload_hash:'K'},evidence:{source,receivedAt:1,receivedMonotonic:1}}});
+ const run=vi.fn(()=>new Promise<string>(resolve=>{finish=resolve;}));
+ const scheduler=new ObserverReconciliation(source,{run,onResult:(_target,value)=>results.push(value)});scheduler.start();
+ scheduler.request(candidate('H1'));scheduler.request(candidate('H2'));scheduler.request(target('K'));
+ scheduler.observeOwnedContext(head,0,0);finish('same proven context');await vi.advanceTimersByTimeAsync(0);
+ expect(results).toEqual(['same proven context']);expect(scheduler.state().queued).toBeUndefined();expect(run).toHaveBeenCalledTimes(1);scheduler.stop();
+});
+it.each(['head','payload','protocol','parent','generation'] as const)('does not reuse an active proof for a queued different %s',async kind=>{
+ vi.useFakeTimers();let finish:(value:string)=>void=()=>undefined;const onResult=vi.fn();
+ const head={chainId:'NetFixture',level:122,hash:'H122',predecessor:'H121',timestamp:'2026-01-01T00:00:00Z',fitness:[]};
+ const scheduler=new ObserverReconciliation(source,{run:()=>new Promise<string>(resolve=>{finish=resolve;}),onResult});scheduler.start();
+ scheduler.request({...target('K'),protocolHash:'P'});scheduler.observeOwnedContext(head,0,0);
+ const queued={...target('K'),observerHead:head,protocolHash:'P',observerGeneration:0,collectionGeneration:0};
+ scheduler.request(kind==='head'?{...queued,observerHead:{...head,hash:'Other'}}:kind==='payload'?{...queued,payload:'Other'}:kind==='protocol'?{...queued,protocolHash:'Other'}:kind==='generation'?{...queued,observerGeneration:1}:{...queued,candidate:{identity:'Other',header:{...head,hash:'Other',level:123,predecessor:'OtherParent'},evidence:{source,receivedAt:1,receivedMonotonic:1}}});
+ finish('obsolete');await vi.advanceTimersByTimeAsync(0);expect(onResult).not.toHaveBeenCalled();expect(scheduler.state().queued).toBeDefined();scheduler.stop();
+});
 
 it("coalesces one newest material target and separates starts by fifteen monotonic seconds",async()=>{
  vi.useFakeTimers();let now=0;const starts:{payload:string;at:number}[]=[],finishes:((value:string)=>void)[]=[],results:string[]=[];

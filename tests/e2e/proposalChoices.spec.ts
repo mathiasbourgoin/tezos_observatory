@@ -2,6 +2,19 @@ import {expect,test} from '@playwright/test';
 import {attachFailureTrace,choose,head,headers,openDetails,prepare,send,vote} from './productionFixture';
 test.afterEach(async({page},info)=>attachFailureTrace(page,info));
 
+test('a qualified raw Mainnet stream remains countable beside source-local snapshot fallback',async({page})=>{
+ const initial=head(100);await prepare(page,false,initial,100,false,false,undefined,undefined,'PFixture',true);
+ await page.route('https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header',route=>route.fulfill({json:{...initial,chain_id:'NetFixture'}}));
+ await send(page,'mainnet-head',initial);const panel=page.locator('.network-panel.mainnet');await expect(panel.locator('.headline')).toContainText('100');
+ for(const hash of ['QualifiedRawH1','QualifiedRawH2']){
+  const candidate={...head(101),hash};headers.get(page)!.set(hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash,header:candidate});
+ }
+ await send(page,'mainnet-operations',[vote(0)]);
+ await expect(panel.locator('.pre .gauge-counts')).toContainText('600 / 30,000 power');
+ await expect(panel.locator('.observed-proposals summary')).toHaveText('Proposals with observed votes (2)');
+ await expect(panel.locator('.authority-evidence')).toContainText('https://rpc.tzkt.io/mainnet');await expect(panel.locator('.connection-line')).toContainText('source-local snapshots');
+});
+
 test('supported alternatives stay closed, rank within the current tuple and preserve an inspected pin',async({page})=>{
  const initial=head(100);await prepare(page,false,initial,100,false,false,undefined,undefined,'PFixture',true);await send(page,'mainnet-head',initial);
  await page.route('https://rpc.shadownet.teztnets.com/chains/main/blocks/head/header',route=>route.fulfill({json:{...initial,chain_id:'NetFixture'}}));
