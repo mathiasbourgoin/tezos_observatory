@@ -275,6 +275,18 @@ it("caps actual eligibility reads at three workers and starts none on Mainnet",a
  await vi.waitFor(()=>expect(finishes).toHaveLength(6));for(const finish of finishes.slice(3))finish();await pending;
  expect(maximum).toBe(3);expect(active).toBe(0);
 });
+it('stops queued eligibility reads when its observer head advances',async()=>{
+ const finishes:Array<()=>void>=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input),proof=contextResponse(url);if(proof)return proof;
+  if(url.endsWith('/is_forbidden'))return new Promise<Response>(resolve=>{finishes.push(()=>resolve(Response.json(false)));});
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData('shadownet'),signal=new AbortController().signal;
+ const pending=data.loadEligibility(head(120),Array.from({length:6},(_,slot)=>({address:`D${slot}`,slot,power:1})),signal);
+ await vi.waitFor(()=>expect(finishes).toHaveLength(3));await data.derive(head(121),signal);
+ finishes.forEach(finish=>finish());await pending;expect(finishes).toHaveLength(3);expect(data.forbidden('D0')).toBeUndefined();
+});
 
 it("rejects same-protocol predecessor round contradictions from numerical authority",async()=>{
  vi.stubGlobal("fetch",async(input:string|URL|Request)=>{
