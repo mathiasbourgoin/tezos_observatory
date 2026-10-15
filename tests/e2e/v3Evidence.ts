@@ -17,7 +17,7 @@ export async function captureMatrix(page:Page,info:TestInfo,state:string,interac
  const cells=surface?[{viewport:surface.preserveViewport?await page.evaluate(()=>({width:innerWidth,height:innerHeight})):page.viewportSize()??bases[3],theme:surface.theme}]:bases.flatMap(viewport=>['light','dark'].map(theme=>({viewport,theme})));
  for(const {viewport,theme} of cells){
   if(!surface){await page.setViewportSize(viewport);await choose(page.getByLabel('Appearance'),theme);}if(!surface)await page.evaluate(()=>scrollTo(0,0));if(interaction)await interaction(page);
-  await expect.poll(()=>page.locator(`.network-panel.${network} .navigator-junction`).evaluate(node=>node.getAnimations().length)).toBe(0);
+  await expect.poll(()=>page.locator(`.network-panel.${network} .navigator-junction`).evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
   const measurement=await page.evaluate(network=>{
    const panel=`.network-panel.${network}`;
    type Color=[number,number,number,number];

@@ -98,7 +98,7 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 
 /* Local branching coordinates stay bounded regardless of absolute level / round. */
 .navigator-junction{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.4fr);grid-template-rows:auto auto;gap:16px 24px;position:relative;max-width:1400px;margin:16px auto}
-.navigator-junction>.baker-rows{display:contents}.navigator-previous{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:5px;padding:12px 0;min-width:0}
+.navigator-stage>.baker-rows{display:contents}.navigator-previous{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:5px;padding:12px 0;min-width:0}
 .navigator-current{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:5px;border:1px solid var(--ink);background:var(--selected);padding:12px;min-width:0}
 .navigator-junction .baker-opportunity[data-branch=same-level]{grid-column:2;grid-row:1}.navigator-junction .baker-opportunity[data-branch=next-level]{grid-column:3;grid-row:2;align-self:start}
 .branch-target{font-size:14px!important;color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}.branch-critical{font-size:14px;line-height:1.5}.branch-proof{font-size:12px}.branch-proof summary{min-height:24px;padding:4px 0}.branch-proof .opportunity-detail{display:block;font-size:12px;line-height:1.6;margin-top:8px}.navigator-status{margin-top:8px}.participant-context summary{min-height:28px;padding:3px 0}.participant-context p{font-size:12px}
@@ -271,7 +271,7 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .navigator-junction .baker-opportunity[data-branch=same-level]{grid-column:2;grid-row:1;display:flex}
 .navigator-junction .baker-opportunity[data-branch=next-level]{grid-column:3;grid-row:2;align-self:stretch}
 .navigator-junction .baker-opportunity>*{flex-shrink:0}
-.navigator-current>*{flex-shrink:0}.navigator-current .branch-target{font-size:20px!important}
+.navigator-current>*{flex-shrink:0}.navigator-current .branch-target,.navigator-previous .branch-target{font-size:20px!important}
 .navigator-current::before,.navigator-junction .baker-opportunity::before,.navigator-junction .baker-opportunity::after{display:none}
 .navigator-edge{position:relative;pointer-events:none;z-index:-1;align-self:start;justify-self:end;grid-row:2;top:30px;height:0;width:var(--branch-gap-x);margin-right:calc(-1 * var(--branch-gap-x));border-top:2px dashed var(--copper)}
 .navigator-edge-previous{grid-column:1;border-top:2px dotted var(--muted)}
@@ -279,8 +279,8 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .navigator-junction[data-relationship=unknown] .navigator-edge-previous{display:none}
 .navigator-edge-level{grid-column:2}
 .navigator-edge-round{grid-column:2;grid-row:1;align-self:end;justify-self:center;top:var(--branch-gap-y);height:var(--branch-gap-y);width:0;margin:0;border-top:0;border-left:2px dashed var(--copper)}
-.navigator-junction .navigator-motion-card{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;gap:5px;padding:12px;border:1px solid var(--ink);background:var(--selected);margin:0;z-index:2;pointer-events:none;overflow:hidden}.navigator-motion-card>.branch-target{font-size:20px!important}
-@media(max-width:700px){.navigator-junction{--navigator-slot-height:340px}.navigator-previous,.navigator-current,.navigator-junction .baker-opportunity{padding:8px 6px}.navigator-junction .branch-critical{max-width:none}.navigator-junction .navigator-current>.branch-target{font-size:18px!important}}
+.navigator-stage{position:relative;grid-column:1/-1;grid-row:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,var(--navigator-slot-height));gap:inherit;min-width:0}.navigator-departures{position:absolute;inset:0;pointer-events:none}.navigator-motion-card,.navigator-motion-edge{position:absolute;box-sizing:border-box;flex-direction:column;margin:0;pointer-events:none;overflow:hidden}.navigator-motion-card{z-index:2}
+@media(max-width:700px){.navigator-junction{--navigator-slot-height:340px}.navigator-previous,.navigator-current,.navigator-junction .baker-opportunity{padding:8px 6px}.navigator-junction .branch-critical{max-width:none}.navigator-junction .navigator-current>.branch-target,.navigator-junction .navigator-previous>.branch-target{font-size:18px!important}}
 
 /* Changing progress narration does not move the content below the path. */
 .navigator-status{box-sizing:border-box;height:4.2em;line-height:1.4;overflow:auto;overscroll-behavior:contain}
