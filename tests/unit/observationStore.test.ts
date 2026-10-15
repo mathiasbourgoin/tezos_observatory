@@ -1,6 +1,6 @@
 import {CandidateProducers,PRODUCER_PROTOCOL,metadataBaker} from '../../src/rpc/candidateProducer';
 import {afterEach,expect,it,vi} from "vitest";
-import {ObservationStore} from "../../src/monitor/observationStore";
+import {ObservationStore,observedPhasePowers} from "../../src/monitor/observationStore";
 import {NetworkData,sources,type Derived} from "../../src/rpc/networkData";
 import {asOperationBatch} from "../../src/rpc/guards";
 import {groupsFor,signerPower} from "../../src/consensus/phaseEvidence";
@@ -25,6 +25,7 @@ it('follows strongest phase support within the latest qualified tuple, keeps tie
  const strong=store.addOperations([packet('strong','Strong',0,1)])[0]!;store.accept({...proof,...store.generation(b)});
  expect(store.inspection().selectedIdentity).toBe(strong.identity);
  const phase=store.target(strong.identity)?.phases?.pre;
+ expect(observedPhasePowers(store.target(strong.identity)!)).toEqual({prePower:3});
  store.observeHead({...head(122),evidence:evidence(b,150)});expect(store.target(strong.identity)?.phases?.pre?.power).toBe(3);expect(store.target(strong.identity)?.phases?.pre?.currentEvidence).toBe(phase?.currentEvidence);
  expect(store.pin(weak.identity)).toBe(true);
  store.addOperations([packet('tie','Tie',0,200,'attestation')]);store.accept({...proof,...store.generation(b)});
@@ -662,6 +663,7 @@ it.each(['pre','att'] as const)('admits independent %s snapshot zero and preserv
  const snapshot={contextBefore:proof.context,contextAfter:proof.context,evidence:evidence(b,2),startedMonotonic:2,operations:[],complete:false,reasons:bad.reasons,phaseCoverage:{pre:phase==='pre'?good:bad,att:phase==='att'?good:bad}};
  store.accept({...proof,...store.generation(b),snapshot});const accepted=store.target(record.identity)!;
  expect(accepted.phases?.[phase]?.power).toBe(0);expect(accepted.phases?.[phase==='pre'?'att':'pre']).toBeUndefined();
+ expect(observedPhasePowers(accepted)).toEqual(phase==='pre'?{prePower:0}:{attPower:0});
  expect(accepted.coverage?.complete).toBe(false);expect(accepted.coverage?.phaseCoverage?.[phase].complete).toBe(true);
  const captured=store.history()[0]!;store.interrupt(b);store.accept({...proof,...store.generation(b),snapshot});
  expect(store.target(record.identity)?.coverageStale).toBe(true);expect(captured.record.coverageStale).toBe(false);expect(captured.record.coverage?.evidence).toBe(snapshot.evidence);

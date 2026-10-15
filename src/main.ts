@@ -204,10 +204,10 @@ function supportedChoices(records:readonly ObservationTarget<Derived>[],context:
  const coherent=records.filter(record=>record.admission&&!record.contextInvalid&&record.target.level===level&&record.target.round===round&&contextFacts(record.admission.context)===contextFacts(context));
  const represented=new Set(coherent.filter(record=>record.target.candidate).map(record=>record.target.payload));
  const choices=[...new Map(coherent.filter(record=>record.target.candidate||!represented.has(record.target.payload)).flatMap(record=>{
-  const support=observedPhasePowers(record);if(support.prePower+support.attPower<=0)return [];
+  const support=observedPhasePowers(record);if((support.prePower??0)+(support.attPower??0)<=0)return [];
   return [[record.identity,{identity:record.identity,level,round,...support,source:record.target.source.baseUrl,payloadShared:true,...(record.target.candidate?{hash:record.target.candidate.header.hash}:{}),...(record.target.payload?{payload:record.target.payload}:{})}] as const];
  })).values()];
- return choices.sort((a,b)=>b.prePower+b.attPower-a.prePower-a.attPower||Number(b.identity===selectedIdentity)-Number(a.identity===selectedIdentity)||a.identity.localeCompare(b.identity));
+ return choices.sort((a,b)=>(b.prePower??0)+(b.attPower??0)-(a.prePower??0)-(a.attPower??0)||Number(b.identity===selectedIdentity)-Number(a.identity===selectedIdentity)||a.identity.localeCompare(b.identity));
 }
 function renderPinned(runtime:Runtime):boolean {
  const view=runtime.view,pin=view?.inspection;if(!view||!pin||pin.mode!=="pin")return false;const snapshot=pin.snapshot,applied=view.snapshot?.head;

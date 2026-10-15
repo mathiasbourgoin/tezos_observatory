@@ -35,8 +35,8 @@ export interface ObservationTarget<T> {
   readonly opportunities?:readonly [OpportunityFact,OpportunityFact];
 }
 /** Each phase is independently observed; their sum is only a choice-ranking score. */
-export function observedPhasePowers(record:Pick<ObservationTarget<unknown>,"phases">):{prePower:number;attPower:number} {
-  return {prePower:record.phases?.pre?.power??0,attPower:record.phases?.att?.power??0};
+export function observedPhasePowers(record:Pick<ObservationTarget<unknown>,"phases">):{prePower?:number;attPower?:number} {
+  return {...(record.phases?.pre?{prePower:record.phases.pre.power}:{}),...(record.phases?.att?{attPower:record.phases.att.power}:{})};
 }
 /** Raw body operations have one owner, the canonical bounded raw store. */
 export type PendingCoverage=Omit<PendingSnapshot,"operations"> & {readonly normalizedOperationCount:number};
@@ -405,7 +405,7 @@ export class ObservationStore<T> {
     const current=records.find(record=>record.identity===this.liveIdentity&&record.target.level===newest.target.level&&record.target.round===newest.target.round);
     const context=(current??newest).admission?.context;if(!context)return undefined;
     const ranked=records.filter(record=>record.target.level===newest.target.level&&record.target.round===newest.target.round&&record.admission&&contextFacts(record.admission.context)===contextFacts(context));
-    const score=(record:ObservationTarget<T>):number=>{const power=observedPhasePowers(record);return power.prePower+power.attPower;};
+    const score=(record:ObservationTarget<T>):number=>{const power=observedPhasePowers(record);return (power.prePower??0)+(power.attPower??0);};
     ranked.sort((a,b)=>score(b)-score(a)||Number(b.identity===this.liveIdentity)-Number(a.identity===this.liveIdentity)||b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
     for(const record of ranked){const identity=this.sessionIdentity(record),snapshot=this.sessionHistory.get(identity)??(this.lastLiveSnapshot?.identity===identity?this.lastLiveSnapshot:undefined);if(snapshot){this.liveIdentity=record.identity;return {snapshot,record};}}
     return undefined;
