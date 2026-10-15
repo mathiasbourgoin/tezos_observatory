@@ -13,6 +13,7 @@ for(const width of [1440,390])for(const direction of ['up','right'] as const)for
  if(votesOnly)await send(page,'shadownet-operations',[vote(0,101,0)]);else await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
  const oldContent=await panel.locator('.navigator-current').textContent()??'';expect(oldContent).toContain('101 · r0');
  if(direction==='right'){
+  if(votesOnly)await expect(panel.locator('.baker-opportunity').first().locator('.branch-critical')).toContainText('Conditional timer');
   const branches=await panel.locator('.baker-rows').textContent();await send(page,'shadownet-head',first);
   if(votesOnly){
    await expect(panel.locator('.candidate-evidence')).toContainText('Numerical authority unavailable');
@@ -29,6 +30,14 @@ for(const width of [1440,390])for(const direction of ['up','right'] as const)for
   const start=performance.now(),sample=()=>{const box=scene.getBoundingClientRect(),transform=new DOMMatrix(getComputedStyle(stage).transform),animation=stage.getAnimations()[0];frames.push({at:performance.now(),x:transform.m41,y:transform.m42,frameX:box.x,frameY:box.y,frameHeight:box.height,statusY:status.getBoundingClientRect().y,outgoing:[...scene.querySelectorAll('.navigator-motion-card')].map(node=>node.textContent).join(' '),ghosts:[...scene.querySelectorAll('.navigator-motion-card')].map(node=>node.textContent??''),incoming:current.textContent??'',status:status.textContent,active:scene.getAnimations({subtree:true}).length,duration:Number(animation?.effect?.getTiming().duration??0),nodes:[...stage.querySelectorAll<HTMLElement>(':scope > .navigator-previous,:scope > .navigator-current,:scope > .navigator-edge,:scope > .baker-rows > .baker-opportunity')].map(node=>{const rect=node.getBoundingClientRect();return {name:node.dataset.branch?`branch:${node.dataset.branch}`:node.className,x:rect.x,y:rect.y,width:rect.width,height:rect.height,text:node.textContent??''};})});if(performance.now()-start<2500)requestAnimationFrame(sample);};requestAnimationFrame(sample);
  });
  if(votesOnly)await send(page,'shadownet-operations',[vote(1,102,0)]);else await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await expect(scene).toHaveAttribute('data-direction',direction);
+ if(votesOnly){
+  await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(1);
+  await scene.evaluate(node=>Object.assign(window,{pendingMotionAnimation:node.querySelector('.navigator-stage')!.getAnimations()[0]}));
+  await send(page,'shadownet-head',next);
+  await expect(panel.locator('.navigator-status')).toContainText('awaiting current proof');
+  expect(await scene.evaluate(node=>node.querySelector('.navigator-stage')!.getAnimations()[0]===(window as unknown as {pendingMotionAnimation:Animation}).pendingMotionAnimation)).toBe(true);
+  expect(await scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(1);
+ }
  // An additional vote and a replay enrich the current observation without cancelling its travel.
  await send(page,'shadownet-operations',[vote(2,next.level,direction==='up'?1:0)]);if(!votesOnly)await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});
  await expect.poll(()=>scene.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);await page.waitForTimeout(40);

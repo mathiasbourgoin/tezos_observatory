@@ -20,4 +20,5 @@ it('retains only presentation through the ordinary applied-head proof gap',()=>{
  for(const changed of [{appliedLevel:103},{appliedLevel:99},{hash:'Fork100'},{status:'paused' as const},{status:'loading' as const},{sources:[{name:'Heads',url:'https://other',status:'stream'}]},{observation:{...before,coherent:false,protocol:'Other'}},{session:{...live.session!,mode:'pin' as const}}])expect(retainNavigator(before,live,{...live,...changed})).toBe(false);
  expect(retainNavigator(before,pending,{...pending,hash:'Fork101'})).toBe(false);
  expect(retainNavigator(before,pending,{...pending,observation:after})).toBe(false);
+ expect(retainNavigator(before,live,{...live,observation:before},true)).toBe(true);
 });
