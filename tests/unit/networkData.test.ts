@@ -544,3 +544,55 @@ it('bounds completed literal head receipts independently of the context cache',a
  await data.derive(oldest,signal);
  expect(reads.filter(url=>url.endsWith('/blocks/B100/header'))).toHaveLength(1);
 });
+
+
+it.each([['header','caller'],['header','pause'],['protocols','caller'],['protocols','pause']] as const)('reuses only a chain-proven completed header when %s finishes before %s cancellation',async(completed,cause)=>{
+ const reads:string[]=[],data=new NetworkData('mainnet'),owner=new AbortController(),wall=vi.spyOn(Date,'now').mockReturnValue(1000);let finish:((value:unknown)=>void)|undefined,held=false;
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{
+  const url=String(input);reads.push(url);
+  if(url.includes('/B120/')&&url.endsWith(completed==='header'?'/protocols':'/header')&&!held){held=true;return {ok:true,json:()=>new Promise(resolve=>{finish=resolve;})} as Response;}
+  const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const abandoned=data.derive(head(120),owner.signal);await vi.waitFor(()=>expect(finish).toBeDefined());
+ await new Promise(resolve=>setTimeout(resolve,0));if(cause==='caller')owner.abort();else {data.pause();data.resume();}
+ finish!(completed==='header'?{protocol:'PFixture',next_protocol:'PFixture'}:{...head(120),chain_id:'NetFixture'});
+ expect((await abandoned).rights.size).toBe(0);
+ wall.mockReturnValue(2000);
+ const current=await data.derive(head(120),new AbortController().signal);
+ expect(current.contexts.get(121)?.observer.header.evidence?.receivedAt).toBe(completed==='header'?1000:2000);
+ expect(current.contexts.get(121)?.observer.evidence.receivedAt).toBe(2000);
+ expect(current.rights.get(121)?.[0]?.power).toBe(5);
+ expect(reads.filter(url=>url.endsWith('/B120/'+completed))).toHaveLength(completed==='header'?1:2);
+ expect(reads.filter(url=>url.endsWith('/B120/'+(completed==='header'?'protocols':'header')))).toHaveLength(2);
+ expect(reads).toHaveLength(completed==='header'?9:10);
+});
+
+
+it('keeps unfinished immutable components owned independently when another consumer cancels',async()=>{
+ const data=new NetworkData('mainnet'),firstOwner=new AbortController(),secondOwner=new AbortController();
+ const held:Array<{signal:AbortSignal;finish:()=>void}>=[],reads:string[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request,options?:RequestInit)=>{
+  const url=String(input);reads.push(url);const proof=contextResponse(url);
+  if(url.includes('/B120/')&&proof)return {ok:true,json:()=>new Promise(resolve=>held.push({signal:options!.signal as AbortSignal,finish:async()=>resolve(await proof.json())}))} as Response;
+  if(proof)return proof;
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const first=data.derive(head(120),firstOwner.signal);await vi.waitFor(()=>expect(held).toHaveLength(2));
+ const second=data.derive(head(120),secondOwner.signal);await vi.waitFor(()=>expect(held).toHaveLength(4));
+ firstOwner.abort();expect(held.slice(0,2).every(read=>read.signal.aborted)).toBe(true);expect(held.slice(2).every(read=>!read.signal.aborted)).toBe(true);
+ held.forEach(read=>read.finish());expect((await first).rights.size).toBe(0);expect((await second).rights.get(121)?.[0]?.power).toBe(5);
+ expect(reads.filter(url=>url.endsWith('/B120/header'))).toHaveLength(2);expect(reads.filter(url=>url.endsWith('/B120/protocols'))).toHaveLength(2);
+});
+
+it('evicts completed immutable components within the same twelve-entry retention bound',async()=>{
+ const data=new NetworkData('mainnet'),reads:string[]=[],signal=new AbortController().signal;
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);reads.push(url);const proof=contextResponse(url);if(proof)return proof;
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ await data.derive(head(120),signal);for(let level=122;level<135;level++)await data.derive(head(level),signal);await data.derive(head(120),signal);
+ expect(reads.filter(url=>url.endsWith('/B120/header'))).toHaveLength(2);expect(reads.filter(url=>url.endsWith('/B120/protocols'))).toHaveLength(2);
+});
