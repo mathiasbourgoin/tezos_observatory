@@ -608,11 +608,12 @@ for (const network of ["mainnet", "shadownet"] as const) {
     onCandidatesAdmitted:records=>runtime?.producers.admitted(records),
     fallbackOperations: async(head,signal,derived) => {
       if(network!=="mainnet")return data.pending(signal,head);
-      const context=derived?.contexts.get(head.level+1);
-      if(!context || context.observer.header.hash!==head.hash)throw new Error("Observer snapshot context not ready");
+      if(!derived)throw new Error("Observer snapshot context not ready");
+      const context=derived.contexts.get(head.level+1),rights=derived.rights.get(head.level+1),constants=derived.constantsByLevel.get(head.level+1);
+      if(!context || !rights || !constants || context.observer.header.hash!==head.hash)throw new Error("Observer snapshot context not ready");
       const snapshot=await data.pending(signal,head,context);
       if(!snapshot.complete)throw new Error(snapshot.reasons.join("; "));
-      return snapshot.operations;
+      return {kind:"source-snapshot" as const,admission:{head,derived,context,rights,constants,snapshot}};
     },
     fallbackHead: (signal) => data.head(signal),
     onUpdate(view) {
