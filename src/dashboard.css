@@ -112,3 +112,23 @@ h1,h2,h3,h4,p{margin:0}h1{font-size:22px;letter-spacing:-.045em;line-height:1.15
 .retained-history:empty{display:none}.retained-history li{margin:0}.history-choice{width:100%;border:0;border-bottom:1px solid var(--soft);text-align:left;display:flex;flex-direction:column;align-items:start;gap:3px;min-height:54px;padding:8px}
 .history-choice strong{font-size:14px;font-variant-numeric:tabular-nums}.history-choice .subtle{font-size:12px}
 @media(min-width:2200px){.retained-history{max-height:650px}}
+
+/* The upper alternative uses spare space above the right branch on phones. */
+@media(max-width:700px){
+.navigator-junction{grid-template-columns:minmax(0,.55fr) minmax(0,1fr) minmax(0,1.2fr)}
+.navigator-junction .baker-opportunity[data-branch=same-level]{grid-column:2/4;display:grid;grid-template-columns:1fr 1fr;gap:5px 10px}
+.navigator-junction .baker-opportunity[data-branch=same-level]>.eyebrow{grid-column:1/-1}
+.navigator-junction .baker-opportunity[data-branch=same-level]>.branch-target{grid-column:1}
+.navigator-junction .baker-opportunity[data-branch=same-level]>strong{grid-column:2}
+.navigator-junction .baker-opportunity[data-branch=same-level]>.branch-critical{grid-column:1/-1;max-width:none}
+.navigator-junction .baker-opportunity[data-branch=same-level]>.branch-proof{grid-column:1/-1}
+.navigator-junction .baker-opportunity[data-branch=same-level]::after{left:22%}
+.navigator-current>.branch-target{font-size:20px!important}
+.navigator-current>.eyebrow{font-weight:500}
+.navigator-status{line-height:1.4}
+}
+
+/* Exact participation and operational states remain essential text on phones. */
+.selected-kind,.quorum-caption,.gauge-counts{font-size:14px}
+.delegate-table{font-size:14px}.committee-evidence select{font-size:14px}
+@media(max-width:700px){.delegate-table{font-size:14px}.candidate-controls button{font-size:14px}}

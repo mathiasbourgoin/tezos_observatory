@@ -1005,6 +1005,8 @@ test('V3 first observation renders exact paired evidence in both themes across u
   await page.screenshot({path:testInfo.outputPath(`workspace-${testInfo.project.name}-${width}-${theme}.png`),fullPage:true});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
  }
+ const mark=page.locator('.header-mark');
+ for(const theme of ['light','dark']){await page.getByRole('combobox',{name:'Appearance'}).selectOption(theme);await mark.screenshot({path:testInfo.outputPath(`mark-${testInfo.project.name}-${theme}-native.png`)});await mark.evaluate(node=>{(node as HTMLElement).style.width='160px';(node as HTMLElement).style.height='160px';});await mark.screenshot({path:testInfo.outputPath(`mark-${testInfo.project.name}-${theme}-160.png`)});await mark.evaluate(node=>{(node as HTMLElement).style.width='';(node as HTMLElement).style.height='';});}
 });
 
 
@@ -1077,7 +1079,7 @@ test('V3 AC-04 dropdown and promoted first hash retain original navigation order
  const pValue=await select.locator('option').filter({hasText:'vhPayload101'}).getAttribute('value');await select.selectOption(pValue!);await expect(panel.getByRole('button',{name:'Inspect candidate V3PromotedP',exact:true})).toHaveAttribute('aria-pressed','true');
 });
 
-test('V3 AC-03 proven next level preserves camera Y after high round and bursts settle within 200 ms',async({page})=>{
+test('V3 AC-37 proven next level preserves camera Y after high round',async({page})=>{
  await prepare(page,false);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
  const candidate={...head(101,118),hash:'V3High118'};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});
  await expect(panel.locator('.navigator-current')).toContainText('101 · r118');const y=await scene.getAttribute('data-camera-y');
@@ -1092,13 +1094,13 @@ test('V3 AC-09 real hash-pinned metadata attributes block baker independently fr
  const protocol='PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY',baker='tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',other='tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6';
  await prepare(page,false,head(),100,false,false,undefined,undefined,protocol);
  const reads:string[]=[];await page.route('**/blocks/*/metadata',async route=>{reads.push(route.request().url());const hash=new URL(route.request().url()).pathname.split('/blocks/')[1]!.split('/')[0];await route.fulfill({json:{protocol,next_protocol:protocol,baker:hash==='V3ProducerH2'?baker:other,proposer:hash==='V3ProducerH2'?other:baker,level_info:{level:101,level_position:100,cycle:0,cycle_position:100,expected_commitment:false},balance_updates:[],consumed_milligas:'0',deactivated:[]}});});
- const panel=page.locator('.network-panel.mainnet');
- for(const [hash,payload,producer] of [['V3ProducerH2','P',baker],['V3ProducerH3','Q',other]]){
-  const candidate={...head(101),hash:hash!,payload_hash:payload!};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:`Inspect candidate ${hash}`,exact:true}).click();
-  await expect(panel.locator('.candidate-evidence')).toContainText(`Block producer / baker ${producer}`);await expect(panel.locator('.candidate-evidence')).toContainText(`metadata requested hash ${hash}`);await expect(panel.locator('.candidate-evidence')).toContainText('metadata source https://rpc.tzkt.io/mainnet');await expect(panel.locator('.candidate-evidence')).toContainText('metadata chain NetFixture');
+ const panel=page.locator('.network-panel.mainnet');await send(page,'mainnet-operations',[{...vote(0),contents:[{...vote(0).contents[0],block_payload_hash:'P'}]}]);await expect(panel.locator('.pre .gauge-exact')).toHaveText('600 / 30,000');
+ for(const [hash,payload,producer] of [['V3ProducerH1','P',other],['V3ProducerH2','P',baker],['V3ProducerH3','Q',other]] as const){
+  const candidate={...head(101),hash,payload_hash:payload};headers.get(page)!.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});await panel.getByRole('button',{name:`Inspect candidate ${hash}`,exact:true}).click();
+  await expect(panel.locator('.candidate-evidence')).toContainText(`Block producer / baker ${producer}`);await expect(panel.locator('.candidate-evidence')).toContainText(`metadata requested hash ${hash}`);await expect(panel.locator('.candidate-evidence')).toContainText('metadata source https://rpc.tzkt.io/mainnet');await expect(panel.locator('.candidate-evidence')).toContainText('metadata chain NetFixture');await expect(panel.locator('.pre .gauge-exact')).toHaveText(payload==='P'?'600 / 30,000':'Unavailable');if(hash==='V3ProducerH2')await expect(panel.locator('.candidate-evidence')).toContainText('Shared payload evidence');
  }
- expect(reads).toHaveLength(2);await panel.getByRole('button',{name:'Inspect candidate V3ProducerH2',exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText(`Block producer / baker ${baker}`);
- await panel.getByRole('button',{name:'Previous observation',exact:true}).isEnabled();await panel.getByRole('button',{name:'Latest',exact:true}).click();await panel.getByRole('button',{name:'Follow live',exact:true}).click();await page.getByLabel('Appearance').selectOption('dark');await page.waitForTimeout(100);expect(reads).toHaveLength(2);
+ expect(reads).toHaveLength(3);await panel.getByRole('button',{name:'Inspect candidate V3ProducerH2',exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText(`Block producer / baker ${baker}`);
+ await panel.getByRole('button',{name:'Previous observation',exact:true}).click();await expect(panel.locator('.candidate-evidence')).toContainText('V3ProducerH1');await panel.getByRole('button',{name:'Latest',exact:true}).click();await panel.getByRole('button',{name:'Follow live',exact:true}).click();await page.getByLabel('Appearance').selectOption('dark');await page.waitForTimeout(100);expect(reads).toHaveLength(3);
  testInfo.annotations.push({type:'v3-verified',description:'AC-09'});
 });
 
@@ -1111,4 +1113,56 @@ test('V3 AC-01 exact high-round applied and successor votes retain independent i
  await expect(panel.locator('.selected-title')).toHaveText('5,489,252 / r0');await expect(panel.locator('.navigator-current')).toContainText('Proposal hash unavailable');await expect(panel.locator('.candidate-evidence')).toContainText('Producer unknown');
  await page.evaluate(()=>window.mockStreams['mainnet-head']!.error(new Error('Fixture source interruption')));await expect(panel.locator('.status-chip')).toHaveText('RPC coverage degraded');await expect(panel.locator('.network-notice')).toContainText('Heads connection interrupted');await expect(panel.locator('.network-notice')).not.toContainText('chain stalled');
  testInfo.annotations.push({type:'v3-verified',description:'AC-01'});
+});
+
+
+test('V3 AC-13 adjacent burst settles its final right destination without queued motion or reader movement',async({page},testInfo)=>{
+ await prepare(page,false);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');
+ const first={...head(101,0),hash:'Burst101R0'},round={...head(101,1),hash:'Burst101R1'},next={...head(102,0),hash:'Burst102',predecessor:round.hash};
+ for(const header of [first,round,next])headers.get(page)!.set(header.hash,header);
+ await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:first.hash,header:first});await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
+ const search=panel.getByPlaceholder('Find participant by alias or address');await search.focus();await page.evaluate(()=>scrollTo(0,200));const scroll=await page.evaluate(()=>scrollY);
+ await page.evaluate(()=>{
+  const node=document.querySelector('.mainnet .navigator-junction')!,current=node.querySelector('.navigator-current')!;
+  const frames:{at:number;identity:string;direction:string;animations:number;transform:string}[]=[];(window as unknown as {burstFrames:typeof frames}).burstFrames=frames;
+  const start=performance.now();const sample=()=>{frames.push({at:performance.now(),identity:current.textContent??'',direction:(node as HTMLElement).dataset.direction??'',animations:node.getAnimations().length,transform:getComputedStyle(node).transform});if(performance.now()-start<1200)requestAnimationFrame(sample);};requestAnimationFrame(sample);
+ });
+ await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:round.hash,header:round});await expect(scene).toHaveAttribute('data-direction','up');
+ await send(page,'mainnet-head',round);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:next.hash,header:next});await expect(panel.locator('.navigator-current')).toContainText('102 · r0');await expect(scene).toHaveAttribute('data-direction','right');
+ await expect.poll(()=>scene.evaluate(node=>node.getAnimations().length)).toBe(0);await page.waitForTimeout(40);
+ const frames=await page.evaluate(()=>(window as unknown as {burstFrames:{at:number;identity:string;direction:string;animations:number;transform:string}[]}).burstFrames);await testInfo.attach('actual-camera-frame-trace',{body:JSON.stringify(frames),contentType:'application/json'});
+ expect(Math.max(...frames.map(frame=>frame.animations))).toBeLessThanOrEqual(1);const final=frames.filter(frame=>frame.identity.includes('102 · r0'));expect(final.length).toBeGreaterThan(1);const settled=final.find(frame=>frame.animations===0);expect(settled).toBeDefined();expect(settled!.at-final[0]!.at).toBeLessThanOrEqual(200);expect(final.filter(frame=>frame.at>=settled!.at).every(frame=>frame.animations===0)).toBe(true);
+ await expect(search).toBeFocused();expect(Math.abs(await page.evaluate(()=>scrollY)-scroll)).toBeLessThanOrEqual(1);
+ const replacement={...next,hash:'BurstReplacement102'};headers.get(page)!.set(replacement.hash,replacement);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:replacement.hash,header:replacement});await expect(scene).toHaveAttribute('data-direction','static');await expect(panel.locator('.navigator-status')).toContainText('Candidate changed');expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+ const requests=await page.evaluate(()=>window.mockRequests.length);await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);expect(await page.evaluate(()=>window.mockRequests.length)).toBe(requests);
+});
+
+
+for(const storage of ['missing','corrupt','denied'] as const)test(`V3 AC-22 ${storage} storage preserves system mode and explicit session choice`,async({page})=>{
+ await page.emulateMedia({colorScheme:'dark'});
+ await page.addInitScript(mode=>{if(mode==='corrupt')localStorage.setItem('observatory:theme','broken-value');else localStorage.removeItem('observatory:theme');if(mode==='denied'){Storage.prototype.getItem=()=>{throw new DOMException('Storage denied','SecurityError');};Storage.prototype.setItem=()=>{throw new DOMException('Storage denied','SecurityError');};}},storage);
+ await prepare(page,false);const theme=page.getByRole('combobox',{name:'Appearance'});await expect(theme).toHaveValue('system');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');await theme.selectOption('dark');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ await page.emulateMedia({colorScheme:'dark'});await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ if(storage==='denied')await expect(page.locator('.theme-notice')).toHaveText('Theme saved for this session only');else await expect(page.locator('.theme-notice')).toBeHidden();
+});
+
+test('V3 AC-13 reduced motion enabled during an actual transition cancels immediately and keeps the observed destination',async({page})=>{
+ await prepare(page,false);await send(page,'mainnet-operations',[vote(0,101,0)]);const panel=page.locator('.network-panel.mainnet'),scene=panel.locator('.navigator-junction');await expect(panel.locator('.navigator-current')).toContainText('101 · r0');
+ await send(page,'mainnet-operations',[vote(1,101,1)]);await expect(scene).toHaveAttribute('data-direction','up');await page.emulateMedia({reducedMotion:'reduce'});expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);await expect(panel.locator('.navigator-status')).toContainText('Reduced motion');await expect(panel.locator('.navigator-current')).toContainText('101 · r1');
+ await send(page,'mainnet-operations',[vote(2,101,2)]);await expect(panel.locator('.navigator-current')).toContainText('101 · r2');expect(await scene.evaluate(node=>node.getAnimations().length)).toBe(0);
+});
+
+
+for(const malformed of ['att','pre'] as const)test(`V3 AC-10 independently complete ${malformed==='att'?'pre':'att'} phase keeps measured zero in LIVE and pin`,async({page},info)=>{
+ const current=head();await prepare(page,false,current);await page.route('https://rpc.tzkt.io/mainnet/chains/main/blocks/head/header',route=>route.fulfill({json:{...current,chain_id:'NetFixture'}}));
+ const bad={hash:'MalformedPhaseOnly',contents:[{kind:malformed==='att'?'attestations_aggregate':'preattestations_aggregate',consensus_content:{level:101,round:0,block_payload_hash:'vhPayload101'},committee:malformed==='att'?[{slot:0},{slot:-1}]:[0,-1]}]};
+ await page.route('https://rpc.tzkt.io/mainnet/chains/main/mempool/pending_operations?*',route=>route.fulfill({json:{validated:[bad],refused:[],outdated:[],branch_refused:[],branch_delayed:[],unprocessed:[]}}));
+ const candidate={...head(101),hash:'PhaseCoverageProbe'};headers.get(page)?.set(candidate.hash,candidate);await send(page,'mainnet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});const panel=page.locator('.network-panel.mainnet'),known=malformed==='att'?'pre':'att';
+ for(const mode of ['live','pin']){
+  if(mode==='pin')await panel.getByRole('button',{name:'Inspect candidate PhaseCoverageProbe',exact:true}).click();
+  await expect(panel.locator(`.${known} .gauge-exact`)).toHaveText('0 / 30,000');await expect(panel.locator(`.${malformed} .gauge-exact`)).toHaveText('Unavailable');
+  const result={mode,known,pre:await panel.locator('.pre .gauge-exact').textContent(),att:await panel.locator('.att .gauge-exact').textContent(),evidence:await panel.locator('.network-notice').textContent()};await info.attach(`phase-coverage-${mode}`,{body:JSON.stringify(result),contentType:'application/json'});
+  const row=panel.locator('.committee-evidence tbody tr').first();await expect(row).toContainText('Absent in selected source snapshot');await expect(row).toContainText('Partial / unavailable');
+ }
 });

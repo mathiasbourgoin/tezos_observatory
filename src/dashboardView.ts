@@ -22,7 +22,7 @@ export interface NetworkViewModel {
   observedProposal?: {level: number; round: number; payload?: string; at?: number}; roundSource?: 'observed' | 'schedule';
   candidates?: readonly {identity:string;hash?:string;payload?:string;level:number;round:number}[];
   selectedIdentity?: string;
-  session?:{previous?:string;mode:"follow"|"pin";frozen:boolean;newer:number;newerPartial:boolean;selected?:string;canPin:boolean;accepted:number;unresolved:number;raw:number;instances:readonly {identity:string;label:string;level?:number;round?:number;source?:string;received?:number;partial?:boolean;candidates?:number}[]};
+  session?:{previous?:string;mode:"follow"|"pin";frozen:boolean;newer:number;newerPartial:boolean;selected?:string;canPin:boolean;accepted:number;unresolved:number;raw:number;instances:readonly {identity:string;label:string;level?:number;round?:number;source?:string;received?:number;receivedMonotonic?:number;partial?:boolean;candidates?:number}[]};
   retryIdentity?:string;
   canRetry?:boolean;
   candidateEvidence?: string;
@@ -310,20 +310,21 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     let current: NetworkViewModel | undefined,previousAnnouncement:string|undefined;
     const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
     let cameraAnimation:Animation|undefined,cameraX=0,cameraY=0,cameraAnchor:ObservedNavigatorView|undefined;
-    reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cameraAnimation?.cancel();cameraAnimation=undefined;}});
+    reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){cameraAnimation?.cancel();cameraAnimation=undefined;set(navigatorStatus,'Reduced motion · static observed destination. Solid: verified ancestry · dotted: context only · dashed: conditional.');}});
     const moveCamera=(model:NetworkViewModel):void=>{
       const before=cameraAnchor,after=model.observation;
-      if(before?.identity===after?.identity&&current?.session?.mode===model.session?.mode)return;
+      if(before?.identity===after?.identity&&current?.session?.mode===model.session?.mode&&current?.observation?.coherent===after?.coherent)return;
       cameraAnimation?.cancel();cameraAnimation=undefined;
       if(after?.coherent)cameraAnchor=after;
-      let direction='static';
+      let direction='static',reason=model.session?.mode==='pin'?'Pinned observation · stationary':!after?.coherent?'Context unavailable · stationary':!before?'Observed anchor':before.source!==after.source?'Observer changed · recentered':before.level===after.level&&before.round===after.round?'Candidate changed · recentered':after.level>before.level+1||after.round>before.round+1?'Observation gap · recentered without inferred steps':'Observed context changed · recentered';
       const continuity=before&&after&&before.coherent&&after.coherent&&current?.session?.mode==='follow'&&model.session?.mode==='follow'&&before.source===after.source&&before.chain===after.chain&&before.protocol===after.protocol;
       if(continuity&&after.receivedMonotonic>=before.receivedMonotonic){
         if(after.level===before.level&&after.round===before.round+1&&after.contextParent===before.contextParent)direction='up';
         else if(after.level===before.level+1&&after.predecessor&&(before.hash?after.predecessor.hash===before.hash:!!before.payload&&after.predecessor.payload===before.payload&&after.predecessor.round===before.round&&after.predecessor.parentHash===before.contextParent))direction='right';
       }
-      if(direction==='up')cameraY-=1;
-      if(direction==='right')cameraX+=1;
+      if(direction==='up'){cameraY-=1;reason='Observed adjacent round · camera UP';}
+      if(direction==='right'){cameraX+=1;reason='Observed adjacent level · camera RIGHT';}
+      set(navigatorStatus,`${reason}${reducedMotion.matches?' · reduced motion, static destination':''}. Solid: verified ancestry · dotted: context only · dashed: conditional.`);
       // Local coordinates are descriptive, never proportional to absolute network rounds.
       junction.dataset.direction=direction;junction.dataset.cameraX=String(cameraX);junction.dataset.cameraY=String(cameraY);
       if(direction!=='static'&&!reducedMotion.matches){
@@ -355,7 +356,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       const parent=anchor?.predecessor;
       set(previousTarget,parent?`${number(parent.level)} · r${parent.round}`:'Previous block unavailable');
       set(previousHash,parent?short(parent.hash):'Ancestry unknown');previousHash.title=parent?.hash??'';
-      set(previousRelation,parent?.relation==='ancestry'?'Verified ancestry':parent?'Parent context · no block ancestry':'Observation gap');
+      set(previousRelation,parent?.relation==='ancestry'?'Verified ancestry':parent?'Context only · not ancestry':'Observation gap');
       junction.dataset.relationship=parent?.relation??'unknown';
       const observed = model.roundSource === 'observed';
       set(selectedTitle, observed ? `${number(model.consensusLevel ?? model.level)} / r${number(model.round)}` : 'Observation unavailable');
@@ -376,9 +377,10 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       if(session){
         const wanted=new Set(session.instances.map(instance=>instance.identity));
         for(const [key,button] of historyButtons)if(!wanted.has(key)){button.parentElement?.remove();historyButtons.delete(key);}
-        for(const instance of [...session.instances].sort((a,b)=>(a.received??0)-(b.received??0)||a.identity.localeCompare(b.identity))){
+        const ordered=[...session.instances].sort((a,b)=>(a.receivedMonotonic??0)-(b.receivedMonotonic??0)||a.identity.localeCompare(b.identity));
+        for(const [index,instance] of ordered.entries()){
           let button=historyButtons.get(instance.identity);
-          if(!button){button=el('button','history-choice');button.type='button';button.addEventListener('click',()=>options.onSelect?.(network,instance.identity));button.append(el('strong'),el('span','subtle'));const row=el('li');row.append(button);retainedList.append(row);historyButtons.set(instance.identity,button);}
+          if(!button){button=el('button','history-choice');button.type='button';button.addEventListener('click',()=>options.onSelect?.(network,instance.identity));button.append(el('strong'),el('span','subtle'));const row=el('li');row.append(button);const next=ordered.slice(index+1).map(value=>historyButtons.get(value.identity)?.parentElement).find(value=>value!==undefined);retainedList.insertBefore(row,next??null);historyButtons.set(instance.identity,button);}
           set(button.children[0] as HTMLElement,instance.level===undefined?instance.label:`${number(instance.level)} · r${number(instance.round)}`);
           set(button.children[1] as HTMLElement,`${instance.source??'Source unavailable'} · ${instance.candidates??0} candidates${instance.partial?' · partial':''}`);
           button.setAttribute('aria-label',`Inspect retained instance ${instance.label}`);button.setAttribute('aria-pressed',String(instance.identity===session.selected));button.title=instance.received===undefined?'Receipt unavailable':`First received ${new Date(instance.received).toISOString()} · receipt order, not ancestry`;

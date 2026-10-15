@@ -94,9 +94,10 @@ export function pendingPhaseComplete(snapshot:Pick<PendingSnapshot,"complete"|"r
   return proof?proof.complete && proof.reasons.length===0:snapshot.complete && snapshot.reasons.length===0;
 }
 /** Shared retention loss withdraws both phase authorities without changing receipt facts. */
-export function invalidatePendingCoverage<S extends Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">>(snapshot:S,reason:string):S {
-  const reasons=Object.freeze([...new Set([...snapshot.reasons,reason])]);
-  return Object.freeze({...snapshot,complete:false,reasons,...(snapshot.phaseCoverage?{phaseCoverage:Object.freeze({pre:Object.freeze({complete:false,reasons}),att:Object.freeze({complete:false,reasons})})}:{})});
+export function invalidatePendingCoverage<S extends Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">>(snapshot:S,reason:string):Readonly<Omit<S,"complete"|"reasons"|"phaseCoverage"> & Pick<PendingSnapshot,"complete"|"reasons"|"phaseCoverage">> {
+  const {complete:_previousComplete,reasons:previousReasons,phaseCoverage,...retained}=snapshot;
+  const reasons=Object.freeze([...new Set([...previousReasons,reason])]);
+  return Object.freeze({...retained,complete:false,reasons,...(phaseCoverage?{phaseCoverage:Object.freeze({pre:Object.freeze({complete:false,reasons}),att:Object.freeze({complete:false,reasons})})}:{})});
 }
 export interface DelegateRight {
   readonly context?: TargetContext;

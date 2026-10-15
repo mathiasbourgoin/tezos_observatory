@@ -36,9 +36,9 @@ export async function send(page: Page, channel: Channel, value: unknown): Promis
   }, {channel, value});
 }
 
-export async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false,sourceB=false,rpcCommittee?:{total:number;quorum:number;powers:readonly number[]},aliases?:readonly {address:string;alias:string}[],protocol='PFixture'): Promise<void> {
+export async function prepare(page: Page, initialOperations = true, initialHead=head(),expectedLevel=initialHead.level,initiallyHidden=false,sourceB=false,rpcCommittee?:{total:number;quorum:number;powers:readonly number[]},aliases?:readonly {address:string;alias:string}[],protocol='PFixture',holdInitialHeads=false): Promise<void> {
   headers.set(page,new Map([[initialHead.hash,initialHead],[initialHead.predecessor,{...head(initialHead.level-1),hash:initialHead.predecessor}]]));
-  await page.addInitScript(({initialOperations, initialHead, initiallyHidden,sourceB}) => {
+  await page.addInitScript(({initialOperations, initialHead, initiallyHidden,sourceB,holdInitialHeads}) => {
     window.mockHidden=initiallyHidden;window.mockRequests=[];
     Object.defineProperty(document,"hidden",{configurable:true,get:()=>window.mockHidden});
     window.mockStreams = {};
@@ -56,12 +56,12 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
       const body = new ReadableStream<Uint8Array>({start(controller) {
         window.mockStreams[`${network}-${kind}`] = controller;
         options?.signal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')), {once: true});
-        if (kind === 'head') controller.enqueue(new TextEncoder().encode(`${JSON.stringify(initialHead)}\n`));
+        if (kind === 'head'&&!holdInitialHeads) controller.enqueue(new TextEncoder().encode(`${JSON.stringify(initialHead)}\n`));
         else if (kind === 'operations' && initialOperations) controller.enqueue(new TextEncoder().encode('[]\n'));
       }});
       return new Response(body, {headers: {'Content-Type': 'application/json'}});
     };
-  }, {initialOperations, initialHead,initiallyHidden,sourceB});
+  }, {initialOperations, initialHead,initiallyHidden,sourceB,holdInitialHeads});
 
   await page.route('https://**/*', async route => {
     const url = new URL(route.request().url());
@@ -88,7 +88,7 @@ export async function prepare(page: Page, initialOperations = true, initialHead=
     await route.fulfill({json: result, headers: {'Access-Control-Allow-Origin': '*'}});
   });
   await page.goto('/');
-  if(initiallyHidden)return;
+  if(initiallyHidden||holdInitialHeads)return;
   await expect(page.locator('.mainnet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
   await expect(page.locator('.shadownet .headline')).toContainText(initialHead.level.toLocaleString('en-US'));
 }
