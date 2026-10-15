@@ -273,7 +273,7 @@ test('observed votes and scheduled proposals name their own levels and rounds', 
   await expect(panel.locator(".candidate-evidence")).toContainText("rpc.tzkt.io");
   await panel.getByText("Sources & observation evidence",{exact:true}).click();
   await expect(panel.locator(".authority-evidence")).toBeVisible();
-  await expect(panel.locator(".authority-evidence")).toContainText("Rights responder https://mainnet.smartpy.io");
+  await expect(panel.locator(".authority-evidence")).toContainText("Rights responder https://rpc.tzkt.io/mainnet");
   await expect(panel.locator(".authority-evidence")).toContainText("authority observer https://rpc.tzkt.io/mainnet");
   await expect(panel.locator(".authority-evidence")).toContainText("chain NetFixture · context head BBlock100 · requested anchor BBlock100 · target 101 · execution protocol PFixture");
   await expect(panel.locator(".authority-evidence")).toContainText("rights received");
