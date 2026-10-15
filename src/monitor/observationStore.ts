@@ -396,11 +396,16 @@ export class ObservationStore<T> {
     this.selectedPin=Object.freeze({instance:snapshot.identity,identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=undefined;return true;
   }
   followLive():void {this.selectedPin=undefined;this.frozenPin=undefined;}
-  latest():boolean {const live=this.liveSelection();if(!live){this.followLive();return false;}this.selectedPin=undefined;this.frozenPin=undefined;if(this.pin(live.record.identity))return true;this.selectedPin=Object.freeze({instance:live.snapshot.identity,identity:live.record.identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=live.snapshot;return true;}
-  private liveSelection():{readonly snapshot:SessionSnapshot<T>;readonly record:ObservationTarget<T>}|undefined {
+  latest():boolean {const live=this.liveSelection(false);if(!live){this.followLive();return false;}this.selectedPin=undefined;this.frozenPin=undefined;if(this.pin(live.record.identity))return true;this.selectedPin=Object.freeze({instance:live.snapshot.identity,identity:live.record.identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=live.snapshot;return true;}
+  private liveSelection(strongest=true):{readonly snapshot:SessionSnapshot<T>;readonly record:ObservationTarget<T>}|undefined {
     const accepted=this.acceptedTargets().filter(record=>record.admission&&!record.contextInvalid&&this.contextAuthorized(record.admission.context));
     const represented=new Set(accepted.filter(record=>record.target.candidate).map(record=>this.sessionIdentity(record)));
     const records=accepted.filter(record=>record.target.candidate||!represented.has(this.sessionIdentity(record))).sort((a,b)=>b.target.level-a.target.level||b.target.round-a.target.round||b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
+    if(!strongest){
+      records.sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
+      for(const record of records){const identity=this.sessionIdentity(record),snapshot=this.sessionHistory.get(identity)??(this.lastLiveSnapshot?.identity===identity?this.lastLiveSnapshot:undefined);if(snapshot)return {snapshot,record};}
+      return undefined;
+    }
     const newest=records[0];if(!newest?.admission)return undefined;
     const current=records.find(record=>record.identity===this.liveIdentity&&record.target.level===newest.target.level&&record.target.round===newest.target.round);
     const context=(current??newest).admission?.context;if(!context)return undefined;
