@@ -12,7 +12,7 @@ test('only the selected network collects and switching retains pinned session ev
  expect(await shadReads()).toBe(0);await expect(page.locator('.network-tab.shadownet .tab-status')).toHaveText('Paused');
  await page.locator('.network-tab.shadownet').click();await send(page,'shadownet-head',head(101));
  const panel=page.locator('.network-panel.shadownet');await expect(panel.locator('.headline')).toContainText('101');
- await send(page,'shadownet-operations',[vote(0,102)]);await expect(panel.locator('.observed-proposals summary')).toHaveText('Other observed proposals (1)');
+ await send(page,'shadownet-operations',[vote(0,102)]);await expect(panel.locator('.observed-proposals summary')).toHaveText('Proposals with observed votes (1)');
  await panel.getByRole('button',{name:'Pin selected instance',exact:true}).click();await expect(panel.locator('.session-controls')).toContainText('Pinned retained session instance');
  const original=await panel.locator('.candidate-evidence').textContent();
  await page.locator('.network-tab.mainnet').click();const retained=await shadReads();

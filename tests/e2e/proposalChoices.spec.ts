@@ -11,14 +11,14 @@ test('supported alternatives stay closed, rank within the current tuple and pres
  const packet=(slot:number,payload:string,kind='preattestation')=>({...vote(slot),hash:`${payload}-${kind}-${slot}`,contents:[{...vote(slot).contents[0]!,kind,block_payload_hash:payload}]});
  const delivered:ReturnType<typeof packet>[]=[];
  const emit=async(...packets:ReturnType<typeof packet>[])=>{delivered.push(...packets);await send(page,'shadownet-operations',packets);};
- await emit(packet(1,'Weak'));await expect(choices.locator('summary')).toHaveText('Other observed proposals (1)');
+ await emit(packet(1,'Weak'));await expect(choices.locator('summary')).toHaveText('Proposals with observed votes (1)');
  await choices.locator('summary').click();await expect(choices.getByRole('button',{name:'Inspect payload Weak',exact:true})).toContainText('pre 600 · att —');await choices.locator('summary').click();
  await emit(packet(0,'Strong'),packet(2,'Strong'));
  const zero={...head(101),hash:'ZeroUnvotedBlock',payload_hash:'Zero'},strong={...head(101),hash:'SupportedBlockWithAFullIdentifier123456789',payload_hash:'Strong'};
  for(const candidate of [zero,strong]){headers.get(page)!.set(candidate.hash,candidate);await send(page,'shadownet-proposals',{chain_id:'NetFixture',hash:candidate.hash,header:candidate});}
  await emit(packet(999,'UnknownSlot'));
  await expect(panel.locator('.pre .gauge-counts')).toContainText('1,200 / 30,000 power');
- await expect(choices.locator('summary')).toHaveText('Other observed proposals (2)');await expect(choices).not.toHaveAttribute('open','');
+ await expect(choices.locator('summary')).toHaveText('Proposals with observed votes (2)');await expect(choices).not.toHaveAttribute('open','');
  await choices.locator('summary').click();const buttons=choices.getByRole('button');await expect(buttons).toHaveCount(2);
  await expect(buttons.first()).toHaveAttribute('aria-label',`Inspect candidate ${strong.hash}`);await expect(buttons.first()).toContainText('Level 101 / r0');await expect(buttons.first()).toContainText('pre 1,200 · att —');await expect(buttons.first()).toContainText('payload-shared');await expect(buttons.first()).toHaveAttribute('title',new RegExp(strong.hash));
  await expect(choices.getByRole('button',{name:`Inspect candidate ${zero.hash}`,exact:true})).toHaveCount(0);
