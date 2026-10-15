@@ -1,6 +1,6 @@
 export type Network = 'mainnet' | 'shadownet';
 export interface VoteView {count: number; expected: number; power: number; total: number}
-export interface DelegateView {address: string; alias?: string; power: number; forbidden?: boolean; eligibility?: 'eligible' | 'forbidden' | 'unavailable'; eligibilityState?:'stale'|'context-invalid'; eligibilityNote?:string}
+export interface DelegateView {address: string; alias?: string;searchAlias?:string; power: number; forbidden?: boolean; eligibility?: 'eligible' | 'forbidden' | 'unavailable'; eligibilityState?:'stale'|'context-invalid'; eligibilityNote?:string;preReceipt?:string;attReceipt?:string;contextNote?:string}
 export interface SourceView {name: string; url: string; status: string; detail?: string}
 export interface RecentConsensusView {identity?:string;level: number; round: number; prePower?: number; attPower?: number; preTotal?:number;attTotal?:number;total: number; payload?: string;source?:string}
 export interface NetworkViewModel {
@@ -22,7 +22,7 @@ export interface NetworkViewModel {
   preattestations?: VoteView; attestations?: VoteView; quorum?: number; committeePower?: number;
   timing?: {level?: number; round: number; nextRound: number; endsAt: number; startedAt?: number};
   nextBakers?: {label: string; alias?: string; address: string; round: number; level: number}[];
-  missingPre?: DelegateView[]; missingAtt?: DelegateView[]; sources?: SourceView[];
+  missingPre?: DelegateView[]; missingAtt?: DelegateView[]; committee?:DelegateView[];unknownConsensus?:readonly string[]; sources?: SourceView[];
 }
 
 const number = (value: number | undefined): string => value === undefined ? '—' : value.toLocaleString('en-US');
@@ -114,18 +114,43 @@ function recentConsensus() {
   }};
 }
 
-function delegateList(network: Network, phase: 'Pre' | 'Att') {
-  const title = phase === 'Pre' ? 'Missing preattestations' : 'Missing attestations';
+function delegateList(network: Network, phase: 'Pre' | 'Att' | 'Committee') {
+  const full=phase==='Committee',title = full?'Committee evidence':phase === 'Pre' ? 'Missing preattestations' : 'Missing attestations';
   const {details, summary, body} = disclosure(title, `consensus-v2:${network}:${phase}`);
-  const intro = el('p', 'table-note', 'Expected rights minus observed signers. Power is committee voting power, not token balance.');
+  if(full)details.classList.add('committee-evidence');
+  const intro = el('p', 'table-note', full?'Validated-rights delegates. Receipt and absence refer only to the selected source/context; no network-wide inactivity claim.':'Expected rights minus observed signers. Power is committee voting power, not token balance.');
   const viewport = el('div', 'delegate-scroll'); viewport.tabIndex = 0; viewport.setAttribute('aria-label', `${title} delegate list`);
   const table = el('table', 'delegate-table'), head = el('thead'), header = el('tr');
-  for (const name of ['Baker', 'Address', 'Power', 'Share', 'Eligibility']) header.append(el('th', '', name)); head.append(header);
+  for (const name of ['Baker', 'Address', 'Power', 'Share', 'Eligibility',...(full?['Preattestation','Attestation','Context']:[])]) header.append(el('th', '', name)); head.append(header);
   const tbody = el('tbody'); table.append(head, tbody); viewport.append(table); const empty = el('p', 'empty-state', 'Rights or observations unavailable.'); body.append(intro, viewport, empty);
   const rows = new Map<string, HTMLTableRowElement>();
-  return {root: details, update(delegates: DelegateView[] | undefined, total: number | undefined) {
+  const search=el('input');search.type='search';search.setAttribute('aria-label','Search committee alias or address');
+  const sort=el('select');sort.setAttribute('aria-label','Committee sort');for(const [value,label] of [['power','Power'],['address','Address'],['alias','Alias']]){const option=el('option','',label);option.value=value??'';sort.append(option);}
+  const resort=el('button','','Resort committee');resort.type='button';
+  const receipt=el('select');receipt.setAttribute('aria-label','Committee phase receipt filter');for(const [value,label] of [['all','All phase receipts'],['pre:received','Preattestation received'],['att:received','Attestation received'],['pre:absent','Preattestation snapshot absent'],['att:absent','Attestation snapshot absent'],['pre:unknown','Preattestation partial / unavailable'],['att:unknown','Attestation partial / unavailable']]){const option=el('option','',label);option.value=value??'';receipt.append(option);}
+  const unknown=el('p','committee-unknown');
+  if(full){body.insertBefore(search,viewport);body.insertBefore(sort,viewport);body.insertBefore(resort,viewport);body.insertBefore(receipt,viewport);body.append(unknown);}
+  let current:DelegateView[]|undefined,currentTotal:number|undefined,unknownFacts:readonly string[]=[],order:string[]=[],reset=true;
+  const explicit=()=>{reset=true;render();};search.addEventListener('input',explicit);sort.addEventListener('change',explicit);resort.addEventListener('click',explicit);receipt.addEventListener('change',explicit);
+  tbody.addEventListener('focusout',()=>queueMicrotask(()=>render()));
+  function render() {
+    const delegates=current,total=currentTotal;
     const scrollTop = viewport.scrollTop;
-    const known = delegates !== undefined, list = [...(delegates ?? [])].sort((a, b) => b.power - a.power);
+    const known = delegates !== undefined,all=[...(delegates??[])],query=search.value.trim().toLowerCase();
+    const matches=(delegate:DelegateView)=>{
+      if(query&&!(delegate.searchAlias??delegate.alias??'').toLowerCase().includes(query)&&!delegate.address.toLowerCase().includes(query))return false;
+      const [phase,state]=receipt.value.split(':');if(!state)return true;const fact=phase==='pre'?delegate.preReceipt:delegate.attReceipt;
+      return state==='received'?fact==='Received':state==='absent'?fact==='Absent in selected source snapshot':fact!=='Received'&&fact!=='Absent in selected source snapshot';
+    };
+    const compare=(a:DelegateView,b:DelegateView)=>sort.value==='address'?a.address.localeCompare(b.address):sort.value==='alias'?(a.searchAlias??a.alias??'').localeCompare(b.searchAlias??b.alias??'')||a.address.localeCompare(b.address):b.power-a.power||a.address.localeCompare(b.address);
+    let list:DelegateView[];
+    if(full){const byAddress=new Map(all.map(delegate=>[delegate.address,delegate]));const matching=all.filter(matches);
+      if(reset){order=matching.sort(compare).map(delegate=>delegate.address);reset=false;}
+      else {order=order.filter(address=>{const delegate=byAddress.get(address);return delegate!==undefined&&(matches(delegate)||rows.get(address)?.contains(document.activeElement));});const retained=new Set(order);for(const delegate of matching)if(!retained.has(delegate.address)){order.push(delegate.address);retained.add(delegate.address);}}
+      list=order.map(address=>byAddress.get(address)!);
+      set(unknown,`Unknown-rights observations · ${unknownFacts.filter(fact=>!query||fact.toLowerCase().includes(query)).join('; ')||'None matching this query'}`);
+    }else list=all.sort((a,b)=>b.power-a.power);
+    if(full)set(intro,`Validated-rights delegates · ${!known||all.some(delegate=>delegate.preReceipt==='Partial / unavailable'||delegate.attReceipt==='Partial / unavailable')?'Coverage partial / unavailable; absence is not established for those phase rows':'Usable selected-source snapshot receipt states'} · no network-wide inactivity or global completeness claim.`);
     const forbidden = list.filter(item => item.forbidden || item.eligibility === 'forbidden').length;
     const sum = list.reduce((acc, item) => acc + item.power, 0);
     set(summary, known ? `${title} · ${list.length} bakers · ${number(sum)} power${forbidden ? ` · ${forbidden} forbidden` : ''}` : `${title} · unavailable`);
@@ -133,9 +158,9 @@ function delegateList(network: Network, phase: 'Pre' | 'Att') {
     for (const [address, row] of rows) if (!keep.has(address)) {row.remove(); rows.delete(address);}
     list.forEach((delegate, index) => {
       let row = rows.get(delegate.address);
-      if (!row) {row = el('tr'); for (let i = 0; i < 5; i++) row.append(el('td')); rows.set(delegate.address, row);}
+      if (!row) {row = el('tr'); for (let i = 0; i < (full?8:5); i++) row.append(el('td')); rows.set(delegate.address, row);}
       const cells = row.children;
-      set(cells[0] as HTMLElement, delegate.alias ?? 'No alias');
+      set(cells[0] as HTMLElement, delegate.alias ?? 'No alias');row.dataset.pendingExclusion=String(full&&!matches(delegate));
       const address = cells[1] as HTMLElement;
       let addressText = address.querySelector('span');
       if (!addressText) {
@@ -145,17 +170,20 @@ function delegateList(network: Network, phase: 'Pre' | 'Att') {
         copy.addEventListener('click', () => {void navigator.clipboard?.writeText(delegate.address).then(() => {set(copy, 'Copied'); setTimeout(() => set(copy, 'Copy'), 1400);}).catch(() => set(copy, 'Unavailable'));});
         address.append(addressText, copy);
       }
+      address.querySelector('button')?.setAttribute('aria-label',`Copy full address for ${delegate.alias??delegate.address}`);
       address.title = delegate.address;
       set(cells[2] as HTMLElement, number(delegate.power)); set(cells[3] as HTMLElement, total ? `${(100 * delegate.power / total).toFixed(2)}%` : '—');
       const eligibility = delegate.forbidden ? 'forbidden' : delegate.eligibility ?? 'unavailable';
       const badge = cells[4] as HTMLElement; set(badge, delegate.eligibilityState==='context-invalid'?'Context invalid':delegate.eligibilityState==='stale'?'Stale':eligibility === 'unavailable' ? 'Unknown' : eligibility === 'forbidden' ? 'Forbidden' : 'Eligible'); badge.dataset.eligibility = eligibility;badge.title=delegate.eligibilityNote??'Eligibility evidence unavailable';
+      if(full){set(cells[5] as HTMLElement,delegate.preReceipt??'Partial / unavailable');set(cells[6] as HTMLElement,delegate.attReceipt??'Partial / unavailable');set(cells[7] as HTMLElement,delegate.contextNote??'Context unavailable');}
       if (tbody.children[index] !== row) tbody.insertBefore(row, tbody.children[index] ?? null);
     });
     empty.hidden = known && list.length > 0; viewport.hidden = !known || list.length === 0;
-    set(empty, known ? 'All expected bakers observed for this phase.' : 'Rights or observations unavailable.');
+    set(empty, known ? full?'No validated committee delegates match these controls.':'All expected bakers observed for this phase.' : 'Rights or observations unavailable.');
     // Removing an observed signer can trigger browser scroll anchoring to a new row.
     viewport.scrollTop = scrollTop;
-  }};
+  }
+  return {root:details,update(delegates:DelegateView[]|undefined,total:number|undefined,observations:readonly string[]=[]){current=delegates;currentTotal=total;unknownFacts=observations;render();}};
 }
 
 export function createDashboard(root: HTMLElement, options: {onPauseChange?: (paused: boolean) => void; onReconnect?: () => void; revision?: string; onSelect?: (network:Network, identity:string)=>void;onRetry?: (network:Network,identity:string)=>void;onPin?:(network:Network)=>void;onFollow?:(network:Network)=>void;onLatest?:(network:Network)=>void} = {}): {update(network: Network, model: NetworkViewModel): void; tick(now?: number): void} {
@@ -207,6 +235,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
     const missing = el('section', 'missing-section'); missing.append(el('h3', '', 'Expected bakers not observed'));
     const recent = recentConsensus();
     const missingPre = delegateList(network, 'Pre'), missingAtt = delegateList(network, 'Att'); missing.append(missingPre.root, missingAtt.root);
+    const committee=delegateList(network,'Committee');missing.append(committee.root);
     const evidence = disclosure('Sources & observation evidence', `consensus-v2:${network}:evidence`);
     const metadata = el('dl', 'evidence-meta');
     const meta = new Map<string, HTMLElement>();
@@ -269,7 +298,7 @@ export function createDashboard(root: HTMLElement, options: {onPauseChange?: (pa
       set(candidateEvidence,model.candidateEvidence ?? 'Candidate identity unavailable · producer unknown');
       set(authorityEvidence,model.contextEvidence??'Rights context unavailable');
       pre.update(model.preattestations, model.quorum); att.update(model.attestations, model.quorum);
-      missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);
+      missingPre.update(model.missingPre, model.committeePower); missingAtt.update(model.missingAtt, model.committeePower);committee.update(model.committee,model.committeePower,model.unknownConsensus);
       const bakers = model.nextBakers ?? [], bakerKeys = new Set<string>();
       for (const [index, baker] of bakers.entries()) {
         const key = `${baker.label}:${baker.level}:${baker.round}:${baker.address}`; bakerKeys.add(key);

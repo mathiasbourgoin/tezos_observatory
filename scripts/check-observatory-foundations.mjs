@@ -5,7 +5,7 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
 // Semantic checks reuse Vite's existing TypeScript consumer, not a duplicate model.
-const browserChecks=new Set(['AC-4','AC-5','AC-8','AC-13','AC-16','AC-17','AC-20','AC-22','AC-23','AC-24','AC-25','AC-31','AC-32']);
+const browserChecks=new Set(['AC-4','AC-5','AC-6','AC-8','AC-13','AC-16','AC-17','AC-20','AC-22','AC-23','AC-24','AC-25','AC-26','AC-27','AC-31','AC-32']);
 // Preserve the contractual native command spelling while requiring production evidence too.
 const implicitBrowserChecks=new Set(['AC-16','AC-17','AC-23']);
 const implemented = new Set(['AC-1','AC-2','AC-3','AC-9','AC-10','AC-11','AC-12','AC-14','AC-18','AC-19',...browserChecks]);
