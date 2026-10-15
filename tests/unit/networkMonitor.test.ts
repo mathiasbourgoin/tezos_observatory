@@ -350,6 +350,36 @@ it('samples each proven head promptly without overlapping an older source-local 
  releases[2]!();await vi.advanceTimersByTimeAsync(0);monitor.stop();
 });
 
+it.each(['valid','head','source','pause','generation'] as const)('admits a completed fallback snapshot once and fences %s ownership',async mode=>{
+ vi.useFakeTimers();FakeTransport.instances=[];
+ const observer=sources.mainnet[0]!,raw={network:'mainnet' as const,name:'Raw',baseUrl:'https://rpc.tzkt.io/mainnet'},reads:string[]=[],views:NetworkMonitorView<Derived>[]=[];
+ vi.stubGlobal('fetch',async(input:string|URL|Request)=>{const url=String(input);reads.push(url);
+  if(url.endsWith('/header')){const hash=url.split('/blocks/')[1]?.split('/')[0],level=hash==='head'?100:Number(hash?.slice(1));return Response.json({...header(level),chain_id:'NetFixture'});}
+  if(url.endsWith('/protocols'))return Response.json({protocol:'PFixture',next_protocol:'PFixture'});
+  if(url.includes('pending_operations'))return Response.json({validated:[{hash:'snapshot-vote',contents:[{kind:'preattestation',level:101,round:0,slot:0,block_payload_hash:'P'}]}]});
+  if(url.includes('attestation_rights'))return Response.json([{level:Number(new URL(url).searchParams.get('level')),delegates:[{delegate:'D',first_slot:0,attesting_power:5}]}]);
+  return Response.json({minimal_block_delay:'6',delay_increment_per_round:'3',consensus_threshold_size:4,consensus_committee_size:5});
+ });
+ const data=new NetworkData('mainnet'),reconcile=vi.fn(async()=>{throw new Error('Completed snapshot must not be reread');});let completed=0;
+ const monitor=new NetworkMonitor<Derived>({network:'mainnet',headSources:[observer],operationSources:[raw],sourceLocalOperationFallback:true,derive:(head,signal)=>data.derive(head,signal),reconcile,onUpdate:view=>views.push(view),streamFactory:settings=>new FakeTransport(settings) as never,
+  fallbackOperations:async(head,signal,derived)=>{
+   const context=derived?.contexts.get(101),rights=derived?.rights.get(101),constants=derived?.constantsByLevel.get(101);
+   if(!derived||!context||!rights||!constants)throw new Error('Context not ready');
+   if(completed++)return new Promise<never>(()=>undefined);
+   const snapshot=await data.pending(signal,head,context);
+   if(mode==='pause')monitor.stop();if(mode==='generation')(FakeTransport.instances[0] as FakeTransport<BlockHeader>).value(header(101),observer);
+   return {kind:'source-snapshot' as const,admission:{head:mode==='head'?{...head,hash:'Other'}:head,derived,context:mode==='source'?{...context,observer:{...context.observer,source:raw}}:context,rights,constants,snapshot}};
+  },
+ });
+ monitor.start();(FakeTransport.instances[0] as FakeTransport<BlockHeader>).value(header(100),observer);(FakeTransport.instances[1] as FakeTransport<import('../../src/rpc/models').MonitorOperationBatch>).value([],raw);
+ await vi.advanceTimersByTimeAsync(0);
+ expect(reconcile).not.toHaveBeenCalled();expect(reads.filter(url=>url.includes('pending_operations'))).toHaveLength(1);expect(reads.filter(url=>url.endsWith('/blocks/head/header'))).toHaveLength(2);
+ const admitted=views.at(-1)?.observationTargets;
+ if(mode==='valid'){expect(admitted).toHaveLength(1);expect(admitted?.[0]?.phases?.pre?.power).toBe(5);expect(admitted?.[0]?.coverage?.complete).toBe(true);}
+ else expect(admitted).toEqual([]);
+ monitor.stop();
+});
+
 it("retains state on refresh and ignores an obsolete fallback result", async () => {
   vi.useFakeTimers();
   vi.stubGlobal("window", globalThis);

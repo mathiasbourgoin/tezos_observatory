@@ -20,11 +20,13 @@ import type {
 } from "../rpc/models";
 import {ObservationStore,type ContextAdmission,type ObservationTarget,type AcceptedEvent,type SessionSnapshot,type SessionInspection} from "./observationStore";
 import {ObserverReconciliation,reconciliationKey,type ReconciliationTarget} from "./observerReconciliation";
-import type {Constants,DelegateRight,TargetContext,RpcContext} from "../rpc/networkData";
+import type {Constants,DelegateRight,TargetContext,RpcContext,PendingSnapshot} from "../rpc/networkData";
+import {contextFacts} from '../consensus/phaseEvidence';
 import { StreamTransport } from "../rpc/streamTransport";
 import {
   HeadGeneration,
   commitIfCurrent,
+  headFactsKey,
   type HeadSnapshot,
 } from "./headGeneration";
 
@@ -81,7 +83,7 @@ export interface NetworkMonitorOptions<T extends NetworkDerivedState> {
     head: BlockHeader,
     signal: AbortSignal,
     derived: T | null,
-  ) => Promise<MonitorOperationBatch>;
+  ) => Promise<MonitorOperationBatch|{readonly kind:"source-snapshot";readonly admission:ContextAdmission<T>&{readonly snapshot:PendingSnapshot}}>;
   /** Keep coherent snapshots running when another observer supplies only raw streams. */
   readonly sourceLocalOperationFallback?: boolean;
   readonly onUpdate: (view: NetworkMonitorView<T>) => void;
@@ -436,6 +438,9 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
     if (!this.running) return;
     const created=this.observations.addOperations(batch);
     for(const record of created)this.reconcileTarget(record);
+    this.publishOperations();
+  }
+  private publishOperations():void {
     this.lastOperationAt = Date.now();
     const generation = this.state.currentGeneration();
     if (generation === 0) {
@@ -534,6 +539,7 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
       this.fallbackAfterCurrent = false;
       const snapshot = this.state.snapshot();
       if (snapshot !== null) {
+        const source=snapshot.head.evidence?.source,epochs=source?this.observations.generation(source):undefined;
         this.fallbackRequests += 1;
         try {
           const batch = await this.options.fallbackOperations(
@@ -546,8 +552,13 @@ export class NetworkMonitor<T extends NetworkDerivedState> {
             lifecycle === this.lifecycle &&
             this.needsOperationFallback() &&
             this.state.currentGeneration() === snapshot.generation
-          )
-            this.acceptOperations(batch);
+          ){
+            if('kind' in batch){
+              const value=batch.admission,expected=snapshot.derived?.contexts?.get(value.context.level),observer=value.context.observer.source;
+              if(!source||!epochs||!snapshot.derived||value.derived!==snapshot.derived||value.rights!==snapshot.derived.rights?.get(value.context.level)||value.constants!==snapshot.derived.constantsByLevel?.get(value.context.level)||!expected||contextFacts(expected)!==contextFacts(value.context)||headFactsKey(value.head)!==headFactsKey(snapshot.head)||value.head.evidence?.source.baseUrl!==source.baseUrl||value.head.evidence?.source.network!==source.network||observer.network!==source.network||observer.baseUrl!==source.baseUrl||!value.snapshot.complete)throw new Error('Obsolete or incompatible fallback snapshot');
+              this.observations.accept({...value,...epochs});this.publishOperations();this.options.onCandidatesAdmitted?.(this.observations.acceptedTargets());
+            }else this.acceptOperations(batch);
+          }
         } catch {
           /* retain last coherent snapshot */
         }
