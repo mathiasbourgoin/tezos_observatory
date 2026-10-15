@@ -17,6 +17,27 @@ const installRpc=(current=head(122))=>{const reads:string[]=[];vi.stubGlobal("fe
  return Response.json(url.includes("attestation_rights")?[{level,delegates:[{delegate:"D1",first_slot:0,attesting_power:3},{delegate:"D2",first_slot:1,attesting_power:2}]}]:{minimal_block_delay:"6",delay_increment_per_round:"3",consensus_threshold_size:4,consensus_committee_size:5});
  });return reads;};
 afterEach(()=>vi.unstubAllGlobals());
+it('follows strongest phase support within the latest qualified tuple, keeps ties stable and preserves pins',async()=>{
+ installRpc();const store=new ObservationStore<Derived>('mainnet',sources.mainnet),data=new NetworkData('mainnet'),signal=new AbortController().signal;
+ const packet=(hash:string,payload:string,slot:number,at:number,kind:'preattestation'|'attestation'='preattestation')=>({hash,evidence:evidence(b,at),contents:[{kind,level:123,round:0,slot,block_payload_hash:payload}]});
+ const weak=store.addOperations([packet('weak','Weak',1,100)])[0]!;
+ const proof=await data.reconcile(weak.target,signal);store.accept(proof);expect(store.inspection().selectedIdentity).toBe(weak.identity);
+ const strong=store.addOperations([packet('strong','Strong',0,1)])[0]!;store.accept({...proof,...store.generation(b)});
+ expect(store.inspection().selectedIdentity).toBe(strong.identity);
+ const phase=store.target(strong.identity)?.phases?.pre;
+ store.observeHead({...head(122),evidence:evidence(b,150)});expect(store.target(strong.identity)?.phases?.pre?.power).toBe(3);expect(store.target(strong.identity)?.phases?.pre?.currentEvidence).toBe(phase?.currentEvidence);
+ expect(store.pin(weak.identity)).toBe(true);
+ store.addOperations([packet('tie','Tie',0,200,'attestation')]);store.accept({...proof,...store.generation(b)});
+ expect(store.inspection().selectedIdentity).toBe(weak.identity);store.followLive();expect(store.inspection().selectedIdentity).toBe(strong.identity);
+ installRpc(head(123));store.observeHead({...head(123),evidence:evidence(b,300)});
+ expect(store.target(strong.identity)?.contextInvalid).toBe(true);expect(store.inspection().snapshot).toBeUndefined();
+ const candidate=head(124),zero=store.addCandidate({identity:'latest-zero',header:candidate,evidence:evidence(b,301)})!;
+ store.accept(await data.reconcile({...zero.target,...store.generation(b)},signal));
+ expect(store.inspection().selectedIdentity).toBe('latest-zero');
+ expect(store.inspection().snapshot?.record.phases?.pre).toBeUndefined();
+ store.addOperations([{...packet('unknown','Unproven',999,400),contents:[{kind:'preattestation',level:999,round:0,slot:999,block_payload_hash:'Unproven'}]}]);
+ expect(store.inspection().selectedIdentity).toBe('latest-zero');
+});
 it("promotes retained B123 under exact B122 proof without replacing A120 or reinserting raw votes",async()=>{
  const reads=installRpc(),store=new ObservationStore<Derived>("mainnet",sources.mainnet);store.observeHead({...head(120),evidence:evidence(a)});
  const created=store.addOperations([operation()]);expect(created).toHaveLength(1);expect(store.unresolvedTargets()).toHaveLength(1);expect(store.acceptedTargets()).toHaveLength(0);

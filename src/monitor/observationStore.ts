@@ -34,6 +34,10 @@ export interface ObservationTarget<T> {
   readonly producer?:BlockProducerFact;
   readonly opportunities?:readonly [OpportunityFact,OpportunityFact];
 }
+/** Each phase is independently observed; their sum is only a choice-ranking score. */
+export function observedPhasePowers(record:Pick<ObservationTarget<unknown>,"phases">):{prePower:number;attPower:number} {
+  return {prePower:record.phases?.pre?.power??0,attPower:record.phases?.att?.power??0};
+}
 /** Raw body operations have one owner, the canonical bounded raw store. */
 export type PendingCoverage=Omit<PendingSnapshot,"operations"> & {readonly normalizedOperationCount:number};
 export interface AcceptedPhase {
@@ -123,6 +127,7 @@ export class ObservationStore<T> {
   private acceptedSequence=0;
   private historyIdentityUncertain=false;
   private lastLiveSnapshot:SessionSnapshot<T>|undefined;
+  private liveIdentity:string|undefined;
   private readonly selectableUnits=new Map<string,number>();
 
   constructor(readonly network:NetworkName,sources:readonly RpcSource[]){this.configured=new Set(sources.filter(source=>source.network===network).map(source=>source.baseUrl));}
@@ -304,7 +309,9 @@ export class ObservationStore<T> {
     const coverage=freshSnapshot?snapshot:record.coverage;
     const opportunities=!record.contextInvalid && record.admission && contextFacts(record.admission.context)===contextFacts(admission.context)?record.opportunities:undefined;
     const producer=!record.contextInvalid && record.admission && contextFacts(record.admission.context)===contextFacts(admission.context)?record.producer:undefined;
-    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(producer?{producer}:{}),...(opportunities?{opportunities}:{}),...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
+    const phase=(value:"pre"|"att")=>this.phaseFacts.get(JSON.stringify([contextFacts(admission.context),record.target.level,record.target.round,record.target.payload,"payload-shared",value]));
+    const pre=phase("pre"),att=phase("att");
+    const updated:ObservationTarget<T>=Object.freeze({identity:record.identity,target:record.target,evidence:record.evidence,admission,sourceContext:admission,contextInvalid:false,...(pre||att?{phases:Object.freeze({...(pre?{pre}:{}),...(att?{att}:{})})}:{}),...(producer?{producer}:{}),...(opportunities?{opportunities}:{}),...(coverage?{coverage,coverageStale:freshSnapshot?false:record.coverageStale??true}:{})});
     this.unresolved.delete(record.identity);
     const product=candidate?this.acceptedCandidates:this.instances;product.set(record.identity,updated);
     this.captureHistory(updated);
@@ -391,8 +398,16 @@ export class ObservationStore<T> {
   followLive():void {this.selectedPin=undefined;this.frozenPin=undefined;}
   latest():boolean {const live=this.liveSelection();if(!live){this.followLive();return false;}this.selectedPin=undefined;this.frozenPin=undefined;if(this.pin(live.record.identity))return true;this.selectedPin=Object.freeze({instance:live.snapshot.identity,identity:live.record.identity,baseline:this.acceptedSequence,newer:0,newerPartial:this.historyIdentityUncertain});this.frozenPin=live.snapshot;return true;}
   private liveSelection():{readonly snapshot:SessionSnapshot<T>;readonly record:ObservationTarget<T>}|undefined {
-    const records=this.acceptedTargets().filter(record=>record.admission&&!record.contextInvalid&&this.contextAuthorized(record.admission.context)).sort((a,b)=>b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
-    for(const record of records){const identity=this.sessionIdentity(record),snapshot=this.sessionHistory.get(identity)??(this.lastLiveSnapshot?.identity===identity?this.lastLiveSnapshot:undefined);if(snapshot)return {snapshot,record};}
+    const accepted=this.acceptedTargets().filter(record=>record.admission&&!record.contextInvalid&&this.contextAuthorized(record.admission.context));
+    const represented=new Set(accepted.filter(record=>record.target.candidate).map(record=>this.sessionIdentity(record)));
+    const records=accepted.filter(record=>record.target.candidate||!represented.has(this.sessionIdentity(record))).sort((a,b)=>b.target.level-a.target.level||b.target.round-a.target.round||b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
+    const newest=records[0];if(!newest?.admission)return undefined;
+    const current=records.find(record=>record.identity===this.liveIdentity&&record.target.level===newest.target.level&&record.target.round===newest.target.round);
+    const context=(current??newest).admission?.context;if(!context)return undefined;
+    const ranked=records.filter(record=>record.target.level===newest.target.level&&record.target.round===newest.target.round&&record.admission&&contextFacts(record.admission.context)===contextFacts(context));
+    const score=(record:ObservationTarget<T>):number=>{const power=observedPhasePowers(record);return power.prePower+power.attPower;};
+    ranked.sort((a,b)=>score(b)-score(a)||Number(b.identity===this.liveIdentity)-Number(a.identity===this.liveIdentity)||b.evidence.receivedMonotonic-a.evidence.receivedMonotonic||a.identity.localeCompare(b.identity));
+    for(const record of ranked){const identity=this.sessionIdentity(record),snapshot=this.sessionHistory.get(identity)??(this.lastLiveSnapshot?.identity===identity?this.lastLiveSnapshot:undefined);if(snapshot){this.liveIdentity=record.identity;return {snapshot,record};}}
     return undefined;
   }
   inspection():SessionInspection<T> {
