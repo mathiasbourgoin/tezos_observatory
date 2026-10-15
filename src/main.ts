@@ -34,14 +34,17 @@ import type {
 import { proposalRound, roundSchedule, conditionalRoundBoundary,protocolRoundStart,type OpportunityFact } from "./consensus/roundSchedule";
 declare const __APP_REVISION__: string;
 
-const root = document.getElementById("app");
-if (!root) throw new Error("Missing dashboard root");
+const dashboardRoot = document.getElementById("app");
+if (!dashboardRoot) throw new Error("Missing dashboard root");
+const root:HTMLElement=dashboardRoot;
 let userPaused = false;
 let pageActive = true;
 const collectionAllowed = (): boolean => pageActive && !userPaused && !document.hidden;
 const runtimes = new Map<NetworkName, Runtime>();
 const dashboard = createDashboard(root, {
   revision: __APP_REVISION__,
+  onNetworkChange(){for(const runtime of runtimes.values()){syncAuxiliary(runtime);scheduleRender(runtime);}},
+  onReadEligibility(network){const runtime=runtimes.get(network);if(runtime)void readEligibility(runtime);},
   onPauseChange(paused) {
     userPaused = paused;
     for (const runtime of runtimes.values()) syncCollection(runtime);
@@ -84,6 +87,8 @@ interface Runtime {
   opportunityKey: string;
   opportunityController: AbortController;
   eligibilityHead: string;
+  eligibilityLoading:boolean;
+  eligibilityController:AbortController;
   requestFrame: number | null;
   cameraReceipt:CameraReceipt|undefined;
 }
@@ -91,18 +96,40 @@ interface Runtime {
 
 function stopCollection(runtime:Runtime):void {
   runtime.intervals.setEnabled(false);
-  runtime.collectionActive=false;runtime.producers.stop();runtime.comparison.pause();runtime.monitor.stop();runtime.data.pause();runtime.opportunityController.abort();
+  runtime.collectionActive=false;runtime.producers.stop();runtime.comparison.pause();runtime.monitor.stop();runtime.data.pause();runtime.opportunityController.abort();runtime.eligibilityController.abort();runtime.eligibilityLoading=false;
+}
+
+function syncAuxiliary(runtime:Runtime):void {
+ const foreground=collectionAllowed()&&runtime.collectionActive&&root.dataset.selected===runtime.network;
+ runtime.intervals.setEnabled(foreground);
+ if(foreground)void runtime.data.loadAliases().then(()=>scheduleRender(runtime));
+ else {runtime.opportunityController.abort();runtime.opportunityKey="";runtime.eligibilityController.abort();runtime.eligibilityHead="";runtime.eligibilityLoading=false;}
+}
+
+function eligibilitySelection(runtime:Runtime){
+ if(runtime.network!=="shadownet"||root.dataset.selected!==runtime.network||!collectionAllowed()||!runtime.collectionActive||runtime.view?.inspection.mode==='pin')return undefined;
+ const snapshot=runtime.view?.snapshot,head=snapshot?.head,rights=head?snapshot?.derived?.rights.get(head.level):undefined;
+ if(!head||!rights?.length)return undefined;
+ return {head,rights,key:JSON.stringify([head.evidence?.source.baseUrl,head.hash,rights.map(right=>right.address)])};
+}
+
+async function readEligibility(runtime:Runtime):Promise<void>{
+ const selected=eligibilitySelection(runtime);if(!selected||selected.key===runtime.eligibilityHead||runtime.eligibilityLoading)return;
+ runtime.eligibilityController.abort();const controller=new AbortController();runtime.eligibilityController=controller;
+ runtime.eligibilityHead=selected.key;runtime.eligibilityLoading=true;scheduleRender(runtime);
+ try {await runtime.data.loadEligibility(selected.head,selected.rights,controller.signal);}
+ finally {if(runtime.eligibilityController===controller){runtime.eligibilityLoading=false;scheduleRender(runtime);}}
 }
 
 function syncCollection(runtime:Runtime):void {
   if(!collectionAllowed()) {
     if(runtime.collectionActive)stopCollection(runtime);
   } else if(!runtime.collectionActive) {
-    runtime.intervals.setEnabled(true);
     runtime.collectionActive=true;runtime.producers.start();runtime.comparison.resume();runtime.data.resume();
     runtime.opportunityController=new AbortController();runtime.opportunityKey="";runtime.eligibilityHead="";
-    runtime.monitor.start();void runtime.data.loadAliases().then(()=>scheduleRender(runtime));
+    runtime.monitor.start();
   }
+  syncAuxiliary(runtime);
   scheduleRender(runtime);
 }
 
@@ -200,7 +227,7 @@ function renderPinned(runtime:Runtime):boolean {
  Object.assign(model,observationMeaning(view,model.observation));applyIndependentClock(runtime,model);applyProducer(runtime,model);model.comparison=comparisonModel(runtime);updateDashboard(runtime,model);return true;
 }
 
-function updateDashboard(runtime:Runtime,model:NetworkViewModel):void {dashboard.update(runtime.network,{...model,...(model.observation?.identity===runtime.cameraReceipt?.identity&&runtime.cameraReceipt?{cameraAcceptedMonotonic:runtime.cameraReceipt.emittedMonotonic}:{}),blockIntervals:runtime.intervals.view()});}
+function updateDashboard(runtime:Runtime,model:NetworkViewModel):void {dashboard.update(runtime.network,{...model,eligibilityLoading:runtime.eligibilityLoading,eligibilityAvailable:eligibilitySelection(runtime)!==undefined,...(model.observation?.identity===runtime.cameraReceipt?.identity&&runtime.cameraReceipt?{cameraAcceptedMonotonic:runtime.cameraReceipt.emittedMonotonic}:{}),blockIntervals:runtime.intervals.view()});}
 
 function render(runtime: Runtime): void {
   const view = runtime.view;
@@ -496,16 +523,10 @@ function render(runtime: Runtime): void {
       .map(delegateView);
   }
   applyIndependentClock(runtime,model);
-  if(!paused)void loadOpportunities(runtime);
+  if(!paused&&root.dataset.selected===runtime.network)void loadOpportunities(runtime);
   model.recentConsensus=capturedRecent(runtime);
   model.comparison=comparisonModel(runtime);
   Object.assign(model,observationMeaning(view,model.observation));applyProducer(runtime,model);updateDashboard(runtime, model);
-  if (rights && runtime.eligibilityHead !== head.hash && !paused) {
-    runtime.eligibilityHead = head.hash;
-    void runtime.data
-      .loadEligibility(head, rights, runtime.opportunityController.signal)
-      .then(() => scheduleRender(runtime));
-  }
 }
 
 function scheduleRender(runtime: Runtime): void {
@@ -531,7 +552,7 @@ function opportunitySelection(runtime:Runtime){
  return {key,head,requestHead:requestHead??head,reference,context,level,round,identity:record?.identity};
 }
 async function loadOpportunities(runtime:Runtime):Promise<void>{
- const selected=opportunitySelection(runtime);if(!selected||!collectionAllowed()||!runtime.collectionActive||selected.key===runtime.opportunityKey)return;
+ const selected=opportunitySelection(runtime);if(!selected||root.dataset.selected!==runtime.network||!collectionAllowed()||!runtime.collectionActive||selected.key===runtime.opportunityKey)return;
  runtime.opportunityController.abort();runtime.opportunityController=new AbortController();
  const signal=runtime.opportunityController.signal;runtime.opportunityKey=selected.key;delete runtime.opportunityFacts;
  const token=selected.identity?runtime.monitor.opportunityToken(selected.identity):undefined;
@@ -542,7 +563,7 @@ async function loadOpportunities(runtime:Runtime):Promise<void>{
    const [rights,parameters]=await Promise.allSettled([runtime.data.bakers(selected.requestHead,level,round,signal),runtime.data.opportunityConstants(selected.requestHead,level,signal)]);
    return {rights:rights.status==='fulfilled'?rights.value:undefined,parameters:parameters.status==='fulfilled'?parameters.value:undefined};
  }));
- if(signal.aborted||!collectionAllowed()||!runtime.collectionActive||opportunitySelection(runtime)?.key!==selected.key)return;
+ if(signal.aborted||root.dataset.selected!==runtime.network||!collectionAllowed()||!runtime.collectionActive||opportunitySelection(runtime)?.key!==selected.key)return;
  const capturedAt=Date.now(),capturedMonotonic=performance.now();
  const facts=result.map((value,index):OpportunityFact=>{
    const branch=index===0?'same-level':'next-level',right=value.rights?.[0],parameters=value.parameters;
@@ -622,6 +643,8 @@ for (const network of ["mainnet", "shadownet"] as const) {
     opportunityKey: "",
     opportunityController: new AbortController(),
     eligibilityHead: "",
+    eligibilityLoading:false,
+    eligibilityController:new AbortController(),
     requestFrame: null,
     cameraReceipt:undefined,
   };
